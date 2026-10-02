@@ -29,4 +29,4 @@ Nothing here pays, rewards or scores anyone for watching or chatting. Twitch dat
 
 Built in public during the AnsemHack, October 2026. The programs and the attribution log are on Solana devnet; mainnet steps are separate decisions.
 
-Launched  (; launch transaction `48Xm6feb…FiG8J7`): `$RLAN`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` (pump.fun, Token-2022, mint and freeze authority revoked). The coin coordinates future programming; it does not pay or get paid by anything in this repository.
+Launched 1 October 2026, 23:58 EST (04:58 UTC on 2 October; launch transaction `48Xm6feb…FiG8J7`): `$RLAN`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` (pump.fun, Token-2022, mint and freeze authority revoked). The coin coordinates future programming; it does not pay or get paid by anything in this repository.
