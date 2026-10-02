@@ -1,5 +1,5 @@
 /**
- * Snapshot for the local /macro page (docs/twitch/TIMELINE_DESIGN.md). Reads the timeline store
+ * Snapshot for the local /macro page. Reads the timeline store
  * and the room's board and returns plain JSON. Pure apart from the store reads.
  *
  * Every output field is picked by name, so a new field in the store cannot reach the page. It carries

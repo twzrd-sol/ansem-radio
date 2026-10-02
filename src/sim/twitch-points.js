@@ -2,8 +2,7 @@
  * Twitch Channel Points rules the simulator uses, as published. Earn rates:
  * https://help.twitch.tv/s/article/viewer-channel-point-guide (retrieved 2026-10-01),
  * which says "These rates are subject to change." Predictions:
- * https://help.twitch.tv/s/article/channel-points-predictions (retrieved 2026-10-01) and
- * docs/twitch/DEV_DOCS_DIGEST.md section 3.
+ * https://help.twitch.tv/s/article/channel-points-predictions (retrieved 2026-10-01).
  *
  * Channel Points have no monetary value and cannot be exchanged outside Twitch
  * (Channel Points Acceptable Use Policy).

@@ -8,8 +8,7 @@
  *   npm run attribution -- anchor --log <file> --out <dir>   devnet only, needs keys
  *
  * Keys come from RADIOLAN_ATTRIBUTION_AUTHORITY_SEED (pays and anchors) and
- * RADIOLAN_ATTRIBUTION_LOG_SEED (signs heads), 64 hex each, injected at runtime
- * (the secrets manager project radiolan, config dev). They are never printed. Sending
+ * RADIOLAN_ATTRIBUTION_LOG_SEED (signs heads), 64 hex each, injected at runtime. They are never printed. Sending
  * refuses any cluster but devnet: a mainnet step needs a separate operator go.
  */
 

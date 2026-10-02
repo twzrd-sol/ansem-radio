@@ -1,6 +1,5 @@
 /**
- * EventSub over WebSocket for the broadcaster's own channel. Behaviour follows
- * docs/twitch/DEV_DOCS_DIGEST.md section 1:
+ * EventSub over WebSocket for the broadcaster's own channel. Connection rules:
  * - subscribe on session_welcome (Twitch closes an unused session after 10 s);
  * - a keepalive or notification must arrive within keepalive_timeout_seconds, or
  *   the connection is treated as lost;

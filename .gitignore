@@ -8,7 +8,7 @@ coverage/
 .DS_Store
 
 
-# Key material never belongs in the repo: runtime secrets live in Doppler (docs/ATTRIBUTION_LOG_V1.md).
+# Key material never belongs in the repo: credentials are injected at runtime.
 # test/no-secrets.test.js fails if any of these patterns are removed or a tracked file looks like a key.
 *keypair*.json
 fee-payer.json

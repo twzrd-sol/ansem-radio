@@ -1,6 +1,6 @@
 /**
  * The evidence-ledger program as Radio LAN's attribution sink
- * (docs/DECISION_20261001_EVIDENCE_LEDGER.md, docs/ATTRIBUTION_LOG_V1.md).
+ *.
  * Instruction and account layouts follow programs/evidence-ledger in
  * attention-oracle-program @ bd1ef2e; no code is imported from there.
  * This module builds instructions and decodes accounts. It sends nothing.

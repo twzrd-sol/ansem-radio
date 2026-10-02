@@ -5,7 +5,7 @@ export const SIGNALS = Object.freeze([
   "cheer",
   "subscription",
   "raid",
-  // Added 2026-10-01 for EventSub (docs/twitch/TIMELINE_DESIGN.md); additive, still version 1.
+  // Added 2026-10-01 for EventSub; additive, still version 1.
   "follow",
   "redemption",
 ]);

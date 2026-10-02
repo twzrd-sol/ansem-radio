@@ -1,6 +1,6 @@
 /**
  * EventSub notification -> attention event (one person did something) or channel
- * event (the channel changed), per docs/twitch/TIMELINE_DESIGN.md. Pure; no I/O.
+ * event (the channel changed), with pure normalization; no I/O.
  *
  * Dropped at this boundary, always: chat and cheer message text, redemption
  * user_input, logins and display names, and any "top predictors" or "top

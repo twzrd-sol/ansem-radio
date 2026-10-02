@@ -16,7 +16,7 @@ export const BANNED_WORDS = Object.freeze([
   // No venue, no price: the board is viewer counts, and nothing on air is a market.
   "kalshi", "polymarket", "price", "prices", "priced", "pricing",
   // Token words (rlan, token, coin, holders, mint) were banned until the operator lifted that
-  // on 2026-10-01 (docs/DECISION_20261001_GUARDRAILS.md). Price and wagering words stay banned.
+  // on 2026-10-01. Price and wagering words stay banned.
 ]);
 const BANNED = new RegExp(`\\b(${BANNED_WORDS.join("|")})\\b`, "i");
 const URL = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|xyz|io|tv|sh|fun|market|markets|app)\b/gi;

@@ -1,5 +1,5 @@
 /**
- * Offline in-stream economy simulator (docs/twitch/TIMELINE_DESIGN.md). Seeded and
+ * Offline in-stream economy simulator. Seeded and
  * reproducible: the same seed and parameters give identical output. Three random
  * streams (audience, points world, token world), so changing one world's
  * parameters cannot change who shows up or the other world's result.

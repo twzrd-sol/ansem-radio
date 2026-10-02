@@ -9,7 +9,7 @@
  *
  *   npm run twitch:connect
  *
- * Scopes: docs/twitch/TIMELINE_DESIGN.md. Only the scopes the timeline uses.
+ * Requests only the scopes the timeline uses.
  */
 
 import { pathToFileURL } from "node:url";
