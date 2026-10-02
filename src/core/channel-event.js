@@ -8,7 +8,6 @@
  * are short display strings (a title, a category, an outcome name), and
  * anything that looks like a person's identity is refused, so a provider's
  * "top predictors" or "last contribution" lists cannot ride along.
- * Design: docs/twitch/TIMELINE_DESIGN.md.
  */
 
 export const CHANNEL_EVENT_KINDS = Object.freeze([

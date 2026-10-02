@@ -33,7 +33,7 @@ function envFlag(name) {
  * Live room. Observations and LAN notes as before; optionally a public market board
  * (RADIO_LAN_BOARD=1) and the agent chorus (RADIO_LAN_CHORUS=1). The chorus is dry-run
  * unless RADIO_LAN_CHORUS_SEND=1, which also opens the station IRC session for sending.
- * RADIO_LAN_LEDGER_PATH=<file> adds the session fund's public receipts (docs/PRODUCT_DECISION_20260930.md);
+ * RADIO_LAN_LEDGER_PATH=<file> adds the session fund's public receipts;
  * without it the room shows no money surface at all.
  */
 export function createLiveServer({
@@ -61,7 +61,7 @@ export function createLiveServer({
   ledgerPath = process.env.RADIO_LAN_LEDGER_PATH,
   createLedgerFeedImpl = createLedgerFeed,
   ledgerIntervalMs = Number(process.env.RADIO_LAN_LEDGER_INTERVAL_MS ?? 15_000),
-  // Internal timeline (docs/twitch/TIMELINE_DESIGN.md). Never broadcast to the overlay.
+  // Internal timeline. Never broadcast to the overlay.
   enableTimeline = envFlag("RADIO_LAN_TIMELINE"),
   // Agents post to chat only while the station is live, so an always-on room never posts into an offline channel.
   stationLiveCheck = null,

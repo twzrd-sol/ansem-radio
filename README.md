@@ -9,6 +9,9 @@ Radio LAN builds attribution records for streamer culture. Creators and collabor
 - **The room** (`src/live`, `src/agents`, `public/live.html`): a live board and a small chorus of clearly labeled AI agents. Every agent line starts with the persona name and "(AI agent)".
 - **Simulator** (`src/sim`): an offline model of an in-stream economy, kept separate from anything that runs live.
 
+For the source map, verification walkthrough and release updates, see
+[DEVELOPMENT.md](DEVELOPMENT.md) and [CHANGELOG.md](CHANGELOG.md).
+
 ## Run
 
 ```sh

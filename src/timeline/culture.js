@@ -3,7 +3,7 @@
  * minute, rolled up per streamer per UTC hour. Per-minute rows are Twitch API data and
  * live only in the 24-hour raw store; the hourly rollups (minutes live, average and peak
  * viewers, sessions, top category) are derived, local, and never published
- * (docs/twitch/TIMELINE_DESIGN.md).
+ *.
  */
 
 export function hourOf(time) {

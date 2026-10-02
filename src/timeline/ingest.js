@@ -6,7 +6,7 @@
  * plus the tracked streamers' public stream rows; the follower total every five
  * minutes). Output: the timeline store, including the hourly culture rollups.
  * It runs whether or not the station is live, and reports live state to the room. Internal only; nothing here reaches the overlay
- * (docs/twitch/TIMELINE_DESIGN.md).
+ *.
  */
 
 import { TRACKED_STREAMERS } from "../markets/twitch-metrics.js";

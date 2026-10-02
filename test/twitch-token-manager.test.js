@@ -192,7 +192,7 @@ test("manager revalidates hourly without reconnecting a healthy IRC session", as
   manager.stop();
 });
 
-test("manager retries Doppler persistence without rotating or reconnecting again", async () => {
+test("manager retries credential persistence without rotating or reconnecting again", async () => {
   const replies = [
     valid(60),
     response({ access_token: "new-access", refresh_token: "new-refresh" }),
@@ -216,7 +216,7 @@ test("manager retries Doppler persistence without rotating or reconnecting again
     onToken: async (token) => activated.push(token),
     onTokens: async () => {
       persistenceAttempts += 1;
-      if (persistenceAttempts === 1) throw new Error("temporary Doppler failure");
+      if (persistenceAttempts === 1) throw new Error("temporary credential-store failure");
     },
   });
 

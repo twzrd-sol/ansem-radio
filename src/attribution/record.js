@@ -1,7 +1,7 @@
 /**
  * The attribution record: an append-only list of signed claims, each committed
  * as a salted 32-byte value for the evidence-ledger log
- * (docs/ATTRIBUTION_LOG_V1.md). It holds creators and collaborators who signed,
+ *. It holds creators and collaborators who signed,
  * never viewers, participant ids or Twitch data.
  *
  * Not here yet: the binding check (v3.1 section 2 is not built, so `binding`

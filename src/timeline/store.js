@@ -1,5 +1,5 @@
 /**
- * Timeline files, outside the repository (docs/twitch/TIMELINE_DESIGN.md):
+ * Timeline files, outside the repository:
  *   raw/<UTC hour>.jsonl     normalized events, deleted once older than 24 hours
  *   minutes/<UTC day>.jsonl  per-minute aggregates (counts only), local and internal
  *   culture/<UTC day>.jsonl  hourly per-streamer rollups of the tracked streamers

@@ -186,7 +186,7 @@ test("with the timeline off the page is told so and nothing is read", async (t) 
 });
 
 test("a failing store answers with a generic error and no detail", async (t) => {
-  const broken = { readMinutes() { throw new Error("/home/someone/secret/path exploded"); }, readCulture: () => [], readGaps: () => [] };
+  const broken = { readMinutes() { throw new Error("/example/secret/path exploded"); }, readCulture: () => [], readGaps: () => [] };
   const live = createLiveServer({ oauthToken: "", enableTimeline: true, createTimelineImpl: () => ({ setToken: async () => {}, observeIrc() {}, stop() {} }), createTimelineStoreImpl: () => broken, macroClock: () => NOW, log: { warn() {}, info() {} } });
   t.after(() => live.close());
   const { port } = await live.listen({ port: 0 });

@@ -1,5 +1,5 @@
 /**
- * Per-minute aggregation of the timeline (docs/twitch/TIMELINE_DESIGN.md).
+ * Per-minute aggregation of the timeline.
  * Input: normalized attention and channel events, viewer and follower samples,
  * and connection ticks. Output: one plain object per UTC minute with counts only.
  * Keyed participant ids are used inside a minute to count distinct chatters and

@@ -3,8 +3,7 @@
  * audience record and its own parameters, never World A: it is not funded by,
  * convertible from, or priced in Channel Points, Predictions or Bits (Twitch's
  * Channel Points policy). A live version would be watch- or chat-to-earn, which
- * AGENTS.md still forbids; it would need a dated operator decision and counsel
- * (design v3.1 section 6, docs/twitch/TIMELINE_DESIGN.md).
+ * is outside this public release; this module is strictly offline.
  */
 
 import { gini, topShare } from "./world-points.js";
