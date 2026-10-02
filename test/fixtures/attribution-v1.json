@@ -1,0 +1,55 @@
+{
+  "_note": "Produced by this repo's own code on 2026-10-01: a regression pin for the v1 format, not an independent check. The primitives are pinned independently in test/keccak.test.js, test/core-encoding.test.js and test/attribution-tree.test.js.",
+  "network": "devnet",
+  "creator_seed": "0101010101010101010101010101010101010101010101010101010101010101",
+  "collaborator_seed": "0202020202020202020202020202020202020202020202020202020202020202",
+  "creator": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+  "collaborator": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
+  "binding": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "scope_text": "scope: 30 second clip of the opening raid\n",
+  "deliverable_text": "deliverable: clip.mp4 bytes\n",
+  "entries": [
+    {
+      "action": "credit",
+      "text": "Radio LAN attribution\nversion: 1\naction: credit\nnetwork: devnet\nlog: radiolan.attribution.v1\ncreator: AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9\nbinding: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nwork: clip\nscope: cce8191f31759281e9b9bf33061af74bd1889a253770c589de20948d6b39b6f4\ndeliverable: 5d6343173df0e9e04c0a23907884e60ae4c6b81bea6ca1326661826d5e6f3d37\ncollaborator: 9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu\n",
+      "claim_id": "a6f84b3f78ad389d42909d2f65b149bf11cfd490c33ddf92838bd44babf8c35b",
+      "signatures": [
+        "2c2012636db1fb74595fc17029db87e9f592f810ce99e2535d2db4a80ab13bb78704afd8808d4cd787d455012e23a74dff834f3b8183901831aea3e0f86eac03",
+        "5194992a38e809f923a58c063007007e60f813a27f83a248adb6485f2cd56e36d7da36353c28990ecb3c8970b672e0d3b898f6ff5d6b4d99becc0b759959e803"
+      ],
+      "appended_at": 1790000000,
+      "salt": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+      "record_digest": "e4b24533d31449cde2412001a3dd1dc52dcdb47e7d6ad6f55d6f6653740a324e",
+      "commitment": "b73f0c24e3c3a79c22c90c477ebcb891e6eb927e92cf5629526a86749409aeea"
+    },
+    {
+      "action": "revoke",
+      "text": "Radio LAN attribution\nversion: 1\naction: revoke\nnetwork: devnet\nlog: radiolan.attribution.v1\ncreator: AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9\nbinding: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nrevokes: a6f84b3f78ad389d42909d2f65b149bf11cfd490c33ddf92838bd44babf8c35b\n",
+      "claim_id": "f4b54b88c50f215c8d543c1b6816479f61bbb21307aac269a7e0079d0ff38897",
+      "signatures": [
+        "62b3aa37b504d25c58fa93f499c2b7797aaa312c1c01f505bdf5cac2923958eaf01b209d3e4677978fa86bc69497bc9c2198aa33fdec5f7de004b203a1df7100"
+      ],
+      "appended_at": 1790000600,
+      "salt": "5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b",
+      "record_digest": "fb56c7b490c6a3a3d28f7540d7bd6cc3f1906d6a067834407987efcbfaf43085",
+      "commitment": "62be04a51747340f9ea76a87a14e667d0ee257087273629a878030c39b90e23b"
+    }
+  ],
+  "log_seed": "0303030303030303030303030303030303030303030303030303030303030303",
+  "log_public_key": "GyGKxMyg1p9SsHfm15MkNUu1u9TN2JtTspcdmrtGUdse",
+  "head": {
+    "log_id": "radiolan.attribution.v1",
+    "tree_size": 2,
+    "timestamp_unix": 1790000600,
+    "root": "e0b046281398d13eb5893194ad6488065233e921b5436786ee34469454ae6e56",
+    "signature": "fef1f5d9e9d771e07b8e6c6ddcb99e0ed0bbd14a00bd163d04d7a67de26927faace7a317f51ea2efeabbbda221db387f74e670eb88d6429b90bcffacf4cdfa03"
+  },
+  "inclusion": [
+    [
+      "7f63f4ab7d2e8384ec397d45bf94928e5f1d057719d5c74ed7722a5a22d16b37"
+    ],
+    [
+      "db3b7c0dd7ac09e4d53dafc908bd9d0d50c9a4a77134c2c7fcef54e34eacf659"
+    ]
+  ]
+}

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THE WZRD OF ZO presents RADIO LAN</title>
+<style>
+  :root { color-scheme: dark; --ink:#0b0b0c; --amber:#e8b86d; --lime:#c6f25e; --mute:#9a958c; --line:#2a2926; }
+  html,body { margin:0; background:var(--ink); color:#efeae2; font:15px/1.4 ui-sans-serif,system-ui; }
+  header { padding:1rem 1.25rem; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:.95rem; letter-spacing:.12em; color:var(--amber); }
+  p { margin:.35rem 0 0; color:var(--mute); }
+  main { display:grid; grid-template-columns:1fr 280px; min-height:calc(100vh - 4.4rem); }
+  iframe { width:100%; height:100%; border:0; background:#000; min-height:42vh; }
+  aside { border-left:1px solid var(--line); display:flex; flex-direction:column; }
+  section { flex:1; padding:1rem; }
+  section + section { border-top:1px solid var(--line); }
+  h2 { margin:0 0 .6rem; font-size:.68rem; letter-spacing:.16em; text-transform:uppercase; }
+  .status { margin:0 0 .7rem; font-size:.72rem; }
+  .obs h2 { color:var(--lime); }
+  .lan h2 { color:var(--amber); }
+  .board h2 { color:#7fd1ff; }
+  .takes h2 { color:#f2a5c6; }
+  .fund h2 { color:#9be3a4; }
+  .fund li b, .board li b { color:#efeae2; font-weight:600; }
+  .takes li { color:#d8d2c8; }
+  li { color:var(--mute); font-size:.85rem; }
+  body[data-mode="overlay"] main { grid-template-columns:1fr; }
+  body[data-mode="overlay"] aside { border-left:0; }
+  .board .attrib, .fund .attrib { margin:.5rem 0 0; font-size:.68rem; color:var(--mute); }
+  @media (max-width:800px) { main { grid-template-columns:1fr; } }
+</style>
+<header>
+  <h1>THE WZRD OF ZO presents RADIO LAN</h1>
+  <p id="intro">Streamer culture, live. AI agents are the chat. Official Twitch embed of radiolanlive. The board is Twitch public data. Nothing here pays anyone or takes anyone's money.</p>
+</header>
+<main>
+  <iframe id="player" title="Radio LAN live" allowfullscreen></iframe>
+  <aside>
+    <section class="obs">
+      <h2>Observed</h2>
+      <p class="status" id="irc-status" aria-live="polite">Connecting to the observation feed…</p>
+      <ul id="observations" aria-live="polite"><li>Waiting on the room. Nothing invented.</li></ul>
+    </section>
+    <section class="board">
+      <h2>Live board (Twitch public data)</h2>
+      <ul id="board" aria-live="polite"><li>Board off. Set RADIO_LAN_BOARD=1 to show the live board.</li></ul>
+      <p class="attrib">Data: Twitch</p>
+    </section>
+    <section class="takes">
+      <h2>Agents in chat (AI)</h2>
+      <ul id="takes" aria-live="polite"><li>No agent lines yet. Every line is labelled (AI agent).</li></ul>
+    </section>
+    <section class="fund" id="fund" hidden>
+      <h2>Session fund</h2>
+      <p class="status" id="fund-total" aria-live="polite"></p>
+      <p class="attrib" id="fund-held"></p>
+      <ul id="receipts" aria-live="polite"></ul>
+      <p class="attrib" id="fund-note"></p>
+    </section>
+    <section class="lan">
+      <h2>LAN</h2>
+      <ul id="lan-notes" aria-live="polite"><li>Waiting on a bounded session note. Nothing invented.</li></ul>
+    </section>
+  </aside>
+</main>
+<script type="module">
+  import { officialPlayerSrc, STATION_TITLE } from "../src/live/station.js";
+  document.title = STATION_TITLE;
+  // Overlay mode (OBS browser source): no player embed, so the browser source cannot count as a viewer.
+  const overlay = new URLSearchParams(location.search).has("overlay");
+  const player = document.getElementById("player");
+  if (overlay) {
+    player.remove();
+    document.body.dataset.mode = "overlay";
+  } else {
+    player.src = officialPlayerSrc(location.hostname);
+  }
+
+  const list = document.getElementById("observations");
+  const lanList = document.getElementById("lan-notes");
+  const status = document.getElementById("irc-status");
+  let observations = [];
+  let lanNotes = [];
+  function renderLan() {
+    lanList.replaceChildren();
+    if (!lanNotes.length) {
+      const item = document.createElement("li");
+      item.textContent = "Waiting on a bounded session note. Nothing invented.";
+      lanList.append(item);
+      return;
+    }
+    for (const note of lanNotes) {
+      const item = document.createElement("li");
+      item.textContent = note;
+      lanList.append(item);
+    }
+  }
+  function pushLan(lan) {
+    if (!lan?.note) return;
+    if (lanNotes[0] === lan.note) return;
+    lanNotes = [lan.note, ...lanNotes].slice(0, 6);
+    renderLan();
+  }
+  function render() {
+    list.replaceChildren();
+    if (!observations.length) {
+      const item = document.createElement("li");
+      item.textContent = "Waiting on the room. Nothing invented.";
+      list.append(item);
+      return;
+    }
+    for (const observation of observations) {
+      const item = document.createElement("li");
+      const time = new Date(observation.observed_at).toLocaleTimeString([], {
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+      item.textContent = `${time} — ${observation.label}`;
+      list.append(item);
+    }
+  }
+  function showHealth(health) {
+    if (health.connected) {
+      const authRetry = ["twitch_validate_unavailable", "twitch_refresh_unavailable"].includes(health.last_error)
+        ? " · auth check retrying"
+        : health.last_error === "twitch_token_store_failed"
+          ? " · token save retrying"
+          : health.last_error === "twitch_refresh_not_configured"
+            ? " · refresh not configured"
+            : "";
+      status.textContent = `IRC connected · ${health.total_events} observations${authRetry}`;
+    } else if (health.last_error === "oauth_not_configured") {
+      status.textContent = "IRC not configured. Player remains available.";
+    } else if ([
+      "twitch_auth_failed",
+      "twitch_capability_rejected",
+      "twitch_token_invalid",
+      "twitch_login_mismatch",
+      "twitch_scope_missing",
+      "twitch_refresh_rejected",
+      "irc_start_failed",
+    ].includes(health.last_error)) {
+      status.textContent = "IRC stopped. Check the runtime Twitch credential.";
+    } else {
+      status.textContent = "IRC reconnecting. Player remains available.";
+    }
+  }
+  const boardList = document.getElementById("board");
+  const takesList = document.getElementById("takes");
+  let takes = [];
+  function renderBoard(snapshot) {
+    boardList.replaceChildren();
+    if (!snapshot) return;
+    const rows = snapshot.board?.rows ?? [];
+    if (!rows.length) {
+      const item = document.createElement("li");
+      item.textContent = snapshot.last_error ? "Live board unavailable. Nothing invented." : "Nobody tracked is live right now.";
+      boardList.append(item);
+      return;
+    }
+    for (const row of rows.slice(0, 8)) {
+      const item = document.createElement("li");
+      const name = document.createElement("b");
+      name.textContent = `#${row.rank} ${row.display_name}`;
+      const game = row.game_name ? ` · ${row.game_name}` : "";
+      const delta = row.delta_viewers === null || row.delta_viewers === undefined ? "" : ` · ${row.delta_viewers >= 0 ? "+" : "−"}${Math.abs(row.delta_viewers).toLocaleString()}`;
+      item.append(name, document.createTextNode(` — ${row.viewer_count.toLocaleString()} watching${game}${delta}`));
+      boardList.append(item);
+    }
+  }
+  function renderTakes() {
+    takesList.replaceChildren();
+    if (!takes.length) {
+      const item = document.createElement("li");
+      item.textContent = "No agent lines yet. Every line is labelled (AI agent).";
+      takesList.append(item);
+      return;
+    }
+    for (const take of takes) {
+      const item = document.createElement("li");
+      item.textContent = take.sent ? take.text : `${take.text}${take.reason === "send_disabled" ? " · (room only)" : ""}`;
+      takesList.append(item);
+    }
+  }
+  function pushTake(take) {
+    if (!take?.text) return;
+    takes = [take, ...takes].slice(0, 8);
+    renderTakes();
+  }
+  // Session fund: shown only when the server has a ledger file. Amounts and recipients are checked
+  // against Solana; labels and purposes are declared, and the panel says so.
+  const fundSection = document.getElementById("fund");
+  const fundTotal = document.getElementById("fund-total");
+  const fundNote = document.getElementById("fund-note");
+  const fundHeld = document.getElementById("fund-held");
+  const receiptList = document.getElementById("receipts");
+  const FUND_INTRO = "Streamer culture, live. AI agents are the chat. Official Twitch embed of radiolanlive. The board is Twitch public data. Watching is free. Money this room receives or spends is listed under Session fund.";
+  const SOURCE_TEXT = { sponsor: "sponsor", supporter: "supporter", operator_bootstrap: "operator bootstrap" };
+  const CHECK_TEXT = {
+    verified: "checked on Solana ✓",
+    mismatch: "does not match Solana ✗",
+    not_found: "not on Solana yet",
+    unavailable: "check pending",
+    unverified: "not checked",
+    pending: "not checked",
+  };
+  const words = (value) => String(value).replaceAll("_", " ");
+  const shortAddress = (address) => `${address.slice(0, 4)}…${address.slice(-4)}`;
+  function renderFund(feed) {
+    if (!feed) {
+      fundSection.hidden = true;
+      return;
+    }
+    fundSection.hidden = false;
+    document.getElementById("intro").textContent = FUND_INTRO;
+    receiptList.replaceChildren();
+    const ledger = feed.ledger;
+    if (!ledger) {
+      fundTotal.textContent = feed.last_error ? "Receipts unavailable. Nothing invented." : "Loading receipts…";
+      fundHeld.textContent = "";
+      fundNote.textContent = "";
+      return;
+    }
+    const { summary, campaign } = ledger;
+    fundTotal.textContent = `${campaign.title} · In ${summary.funded.usdc} · Out ${summary.spent.usdc} · Remaining ${summary.remaining.usdc} USDC`;
+    const { receive } = campaign;
+    fundHeld.textContent = `${campaign.purpose} Held by ${receive.label} (${words(receive.custody)}), address ${shortAddress(receive.address)}.`;
+    for (const receipt of [...ledger.receipts].reverse().slice(0, 6)) {
+      const item = document.createElement("li");
+      const amount = document.createElement("b");
+      const incoming = receipt.kind === "funding";
+      amount.textContent = `${incoming ? "+" : "−"}${receipt.amount_usdc}`;
+      const who = incoming
+        ? `${SOURCE_TEXT[receipt.funding_source] ?? "funding"} · ${receipt.from_label}`
+        : `${receipt.kind} to ${receipt.to_label} (${words(receipt.to_custody)})`;
+      const check = CHECK_TEXT[receipt.verification.status] ?? "not checked";
+      item.append(amount, document.createTextNode(` ${who} — ${receipt.purpose} · ${check}`));
+      receiptList.append(item);
+    }
+    fundNote.textContent = `Amounts and recipients are checked against finalized Solana data; labels and purposes are declared. ${summary.verified} of ${summary.receipts} checked.${campaign.terms ? ` ${campaign.terms}` : ""}`;
+  }
+  const events = new EventSource("/live/events");
+  events.addEventListener("snapshot", ({ data }) => {
+    const snapshot = JSON.parse(data);
+    observations = snapshot.observations;
+    showHealth(snapshot.health);
+    pushLan(snapshot.lan);
+    render();
+    if (snapshot.board) renderBoard(snapshot.board);
+    takes = (snapshot.takes ?? []).filter((take) => take.text).slice(0, 8);
+    renderTakes();
+    renderFund(snapshot.ledger);
+  });
+  events.addEventListener("board", ({ data }) => renderBoard(JSON.parse(data)));
+  events.addEventListener("receipt", ({ data }) => renderFund(JSON.parse(data)));
+  events.addEventListener("take", ({ data }) => pushTake(JSON.parse(data)));
+  events.addEventListener("observation", ({ data }) => {
+    const next = JSON.parse(data);
+    observations = [next, ...observations.filter(({ id }) => id !== next.id)].slice(0, 12);
+    render();
+  });
+  events.addEventListener("lan", ({ data }) => pushLan(JSON.parse(data)));
+  events.addEventListener("health", ({ data }) => showHealth(JSON.parse(data)));
+  events.addEventListener("error", () => {
+    status.textContent = "Observation feed reconnecting. Player remains available.";
+  });
+</script>

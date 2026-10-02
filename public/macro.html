@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'">
+<title>Radio LAN macro view</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.10);
+  --series-1: #2a78d6; --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+  --empty: #f0efec; --track: #cde2fb;
+  --seq-0: #cde2fb; --seq-1: #9ec5f4; --seq-2: #6da7ec; --seq-3: #3987e5; --seq-4: #256abf; --seq-5: #184f95; --seq-6: #0d366b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5; --empty: #2c2c2a; --track: #0d366b;
+    --seq-0: #0d366b; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #3987e5; --seq-5: #6da7ec; --seq-6: #9ec5f4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10);
+  --series-1: #3987e5; --empty: #2c2c2a; --track: #0d366b;
+  --seq-0: #0d366b; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #3987e5; --seq-5: #6da7ec; --seq-6: #9ec5f4;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 16px; transition: opacity 0.15s; }
+main.loading { opacity: 0.6; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; color: var(--ink2); }
+.chip .ico { font-weight: 700; }
+.ico.good { color: var(--good); } .ico.warn { color: var(--warn); } .ico.crit { color: var(--crit); } .ico.off { color: var(--muted); }
+.spacer { flex: 1; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 16px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg label { padding: 5px 12px; cursor: pointer; color: var(--ink2); font-size: 13px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--series-1); color: #fff; font-weight: 600; }
+.seg label:has(input:focus-visible), button:focus-visible, svg:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+button, .check { font: inherit; color: var(--ink2); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+.check { display: inline-flex; align-items: center; gap: 6px; }
+.notice { font-size: 12px; color: var(--muted); }
+.grid { display: grid; gap: 16px; }
+.kpis { grid-template-columns: 2fr repeat(4, 1fr); margin-bottom: 16px; }
+.two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { .kpis, .two { grid-template-columns: 1fr 1fr; } .hero { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .kpis, .two { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; min-width: 0; }
+.kpis .card { margin-bottom: 0; }
+.card h2 { font-size: 14px; margin: 0 0 2px; font-weight: 600; }
+.sub { margin: 0 0 12px; color: var(--ink2); font-size: 12px; }
+.label { color: var(--ink2); font-size: 12px; }
+.value { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.hero .value { font-size: 56px; line-height: 1.05; }
+.small { color: var(--ink2); font-size: 12px; }
+.tbl { display: none; max-height: 300px; overflow: auto; }
+#t-now { overflow-x: auto; }
+body.table-view .viz { display: none; }
+body.table-view .tbl { display: block; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--ink2); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty-note { color: var(--muted); padding: 24px 0; text-align: center; }
+.banner { border: 1px solid var(--border); border-left: 4px solid var(--warn); background: var(--surface); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12px; color: var(--ink2); }
+.legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; }
+.meter { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 12px; margin: 8px 0; font-size: 13px; }
+.meter .small { white-space: nowrap; min-width: 150px; text-align: right; }
+@media (max-width: 560px) { .meter { grid-template-columns: 1fr; gap: 4px; } .meter .small { min-width: 0; text-align: left; } }
+.track { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.fill { height: 100%; background: var(--series-1); border-radius: 4px; }
+#tip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); max-width: 260px; }
+#tip .t { color: var(--ink2); margin-bottom: 2px; }
+#tip .r { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+#tip .r b { font-size: 13px; }
+#tip .key { display: inline-block; width: 10px; height: 2px; background: var(--series-1); margin-right: 6px; vertical-align: middle; }
+svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
+</style>
+</head>
+<body>
+<main id="main">
+  <header>
+    <h1>Radio LAN macro view</h1>
+    <span class="chip" id="status"><span class="ico off" aria-hidden="true">–</span><span id="status-text">Loading</span></span>
+    <span class="small" id="updated"></span>
+    <span class="spacer"></span>
+    <span class="chip"><span class="ico warn" aria-hidden="true">!</span>Internal. Twitch data, this machine only</span>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <div class="seg" role="radiogroup" aria-label="Time range">
+      <label><input type="radio" name="range" value="6">6 h</label>
+      <label><input type="radio" name="range" value="24" checked>24 h</label>
+      <label><input type="radio" name="range" value="168">7 d</label>
+    </div>
+    <label class="check"><input type="checkbox" id="table-toggle"> Table view</label>
+    <button type="button" id="theme">Theme: auto</button>
+    <button type="button" id="download">Download JSON</button>
+    <span class="notice">Times are UTC. Refreshes every minute.</span>
+  </div>
+
+  <div id="off" class="banner" hidden>
+    <strong>The timeline is off.</strong> Start the room with <code>RADIO_LAN_TIMELINE=1</code> to record data for this page.
+  </div>
+  <div id="error" class="banner" hidden></div>
+
+  <div id="content">
+    <div class="grid kpis">
+      <section class="card hero" aria-labelledby="k-hero"><div class="label" id="k-hero">Tracked viewers right now</div><div class="value" id="hero-v">–</div><div class="small" id="hero-s"></div></section>
+      <section class="card"><div class="label">Live now</div><div class="value" id="k-live">–</div><div class="small" id="k-live-s"></div></section>
+      <section class="card"><div class="label">Peak in window</div><div class="value" id="k-peak">–</div><div class="small">tracked viewers</div></section>
+      <section class="card"><div class="label">Average in window</div><div class="value" id="k-avg">–</div><div class="small">tracked viewers</div></section>
+      <section class="card"><div class="label">Coverage</div><div class="value" id="k-cov">–</div><div class="small" id="k-cov-s"></div></section>
+    </div>
+
+    <section class="card" aria-labelledby="h-view">
+      <h2 id="h-view">Tracked viewers over time</h2>
+      <p class="sub">Combined viewers across the tracked streamers, per minute (mean when a window is long). Not the whole of Twitch.</p>
+      <div class="viz" id="c-view"></div><div class="tbl" id="t-view"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card" aria-labelledby="h-live">
+        <h2 id="h-live">Streamers live over time</h2>
+        <p class="sub">How many of the tracked streamers were live.</p>
+        <div class="viz" id="c-live"></div><div class="tbl" id="t-live"></div>
+      </section>
+      <section class="card" aria-labelledby="h-cov">
+        <h2 id="h-cov">Recording coverage</h2>
+        <p class="sub">Share of each minute the ingest was connected. Thin or missing spans are gaps in the record, not quiet streams.</p>
+        <div class="viz" id="c-cov"></div><div class="tbl" id="t-cov"></div>
+      </section>
+    </div>
+
+    <div class="grid two">
+      <section class="card" aria-labelledby="h-share">
+        <h2 id="h-share">Attention share</h2>
+        <p class="sub">Each streamer's share of the tracked viewer-minutes in the window.</p>
+        <div class="viz" id="c-share"></div><div class="tbl" id="t-share"></div>
+      </section>
+      <section class="card" aria-labelledby="h-now">
+        <h2 id="h-now">Live now</h2>
+        <p class="sub">From the board, refreshed every minute.</p>
+        <div id="t-now"></div>
+      </section>
+    </div>
+
+    <section class="card" aria-labelledby="h-heat">
+      <h2 id="h-heat">Attention by hour</h2>
+      <p class="sub">Viewer-minutes per streamer per UTC hour. Darker is more. Blank means not live.</p>
+      <div class="viz" id="c-heat"></div><div class="tbl" id="t-heat"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-station">
+      <h2 id="h-station">Station channel</h2>
+      <p class="sub" id="station-s"></p>
+      <div id="meters"></div>
+      <p class="notice">Affiliate thresholds come from third-party sources and are unverified. Check the creator dashboard's Path to Affiliate.</p>
+    </section>
+  </div>
+</main>
+<div id="tip" role="status" hidden></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const state = { hours: 24, data: null, controller: null, lastOk: 0, keyboard: {} };
+const charts = [];
+
+function s(tag, attrs, parent) {
+  const node = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, String(v));
+  if (parent) parent.appendChild(node);
+  return node;
+}
+function h(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") node.className = v; else node.setAttribute(k, String(v));
+  }
+  for (const kid of kids) node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  return node;
+}
+const nf = new Intl.NumberFormat("en-US");
+const fmt = (n) => (Number.isFinite(n) ? nf.format(Math.round(n)) : "–");
+const compact = (n) => {
+  if (!Number.isFinite(n)) return "–";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e5) return Math.round(n / 1e3) + "K";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(Math.round(n));
+};
+const pct = (x) => (Number.isFinite(x) ? Math.round(x * 100) + "%" : "–");
+const utc = (t) => new Date(t).toISOString();
+const hhmm = (t) => utc(t).slice(11, 16);
+const dayhour = (t) => utc(t).slice(5, 10) + " " + utc(t).slice(11, 13) + "h";
+const stamp = (t) => utc(t).slice(5, 16).replace("T", " ") + " UTC";
+
+function niceTicks(max, count, integer) {
+  if (!(max > 0)) return integer ? [0, 1] : [0, 1];
+  let raw = max / count;
+  if (integer) raw = Math.max(1, Math.ceil(raw));
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((x) => x >= raw && (!integer || Number.isInteger(x))) || 10 * pow;
+  const ticks = [];
+  for (let v = 0; v <= Math.ceil(max / step) * step + 1e-9; v += step) ticks.push(Math.round(v * 100) / 100);
+  return ticks;
+}
+
+/* Tooltip: textContent only, because names come from Twitch. */
+const tip = {
+  el: $("tip"),
+  show(title, rows, x, y, keyed) {
+    const el = this.el;
+    el.replaceChildren();
+    if (title) el.append(h("div", { class: "t" }, title));
+    for (const [k, v] of rows) {
+      const left = h("span", { class: "k" });
+      if (keyed) left.append(h("span", { class: "key" }));
+      left.append(k);
+      el.append(h("div", { class: "r" }, left, h("b", {}, v)));
+    }
+    el.hidden = false;
+    const w = el.offsetWidth, hgt = el.offsetHeight;
+    el.style.left = Math.max(8, Math.min(x + 14, window.innerWidth - w - 8)) + "px";
+    el.style.top = Math.max(8, Math.min(y + 14, window.innerHeight - hgt - 8)) + "px";
+  },
+  hide() { this.el.hidden = true; },
+};
+
+function empty(host, message) {
+  host.replaceChildren(h("div", { class: "empty-note" }, message));
+}
+
+function register(host, draw) {
+  charts.push({ host, draw });
+  draw();
+}
+
+function table(host, headers, rows, numeric) {
+  const t = h("table");
+  const head = h("tr");
+  headers.forEach((c, i) => head.append(h("th", { class: numeric.includes(i) ? "num" : "" }, c)));
+  t.append(h("thead", {}, head));
+  const body = h("tbody");
+  for (const r of rows) {
+    const tr = h("tr");
+    r.forEach((c, i) => tr.append(h("td", { class: numeric.includes(i) ? "num" : "" }, c === null || c === undefined ? "–" : c)));
+    body.append(tr);
+  }
+  t.append(body);
+  host.replaceChildren(rows.length ? t : h("div", { class: "empty-note" }, "No data in this window."));
+}
+
+/* Line or step chart: one series, 2px, area wash at 10%, crosshair that snaps to the nearest sample. */
+function drawLine(host, cfg) {
+  host.replaceChildren();
+  const pts = cfg.points.filter((p) => Number.isFinite(p[cfg.key]));
+  if (!pts.length) return empty(host, "No samples in this window yet.");
+  const W = Math.max(280, Math.floor(host.clientWidth || 560)), H = cfg.height || 200;
+  const m = { l: 56, r: 18, t: 14, b: 26 };
+  const times = pts.map((p) => Date.parse(p.t));
+  const t0 = times[0], t1 = Math.max(times[times.length - 1], t0 + 60000);
+  const vmax = Math.max(cfg.floor || 0, ...pts.map((p) => p[cfg.key]));
+  const ticks = niceTicks(vmax, 4, cfg.integer);
+  const top = ticks[ticks.length - 1];
+  const x = (t) => m.l + ((t - t0) / (t1 - t0)) * (W - m.l - m.r);
+  const y = (v) => m.t + (1 - v / top) * (H - m.t - m.b);
+  const svg = s("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", tabindex: 0, "aria-label": cfg.label }, host);
+
+  for (const v of ticks) {
+    s("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: v === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }, svg);
+    const label = s("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end", fill: "var(--muted)" }, svg);
+    label.textContent = nf.format(v);
+  }
+  const span = t1 - t0;
+  const nt = W < 480 ? 3 : 6;
+  for (let i = 0; i < nt; i += 1) {
+    const t = t0 + (span * i) / (nt - 1);
+    const label = s("text", { x: x(t), y: H - 6, "text-anchor": i === 0 ? "start" : i === nt - 1 ? "end" : "middle", fill: "var(--muted)" }, svg);
+    label.textContent = span > 36 * 3600000 ? dayhour(t) : hhmm(t);
+  }
+
+  const dts = times.slice(1).map((t, i) => t - times[i]).sort((a, b) => a - b);
+  const median = dts.length ? dts[Math.floor(dts.length / 2)] : 60000;
+  const segments = [];
+  let current = [];
+  pts.forEach((p, i) => {
+    if (i && times[i] - times[i - 1] > Math.max(2.5 * median, 3 * 60000)) { segments.push(current); current = []; }
+    current.push(i);
+  });
+  segments.push(current);
+  for (const seg of segments) {
+    let d = "";
+    seg.forEach((i, j) => {
+      const px = x(times[i]), py = y(pts[i][cfg.key]);
+      if (j === 0) d += `M${px} ${py}`;
+      else if (cfg.step) d += ` H${px} V${py}`;
+      else d += ` L${px} ${py}`;
+    });
+    const first = x(times[seg[0]]), last = x(times[seg[seg.length - 1]]);
+    if (seg.length > 1) s("path", { d: `${d} L${last} ${y(0)} L${first} ${y(0)} Z`, fill: "var(--series-1)", "fill-opacity": 0.1, stroke: "none" }, svg);
+    s("path", { d, fill: "none", stroke: "var(--series-1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  }
+  const li = pts.length - 1;
+  s("circle", { cx: x(times[li]), cy: y(pts[li][cfg.key]), r: 4, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  if (cfg.peakLabel) {
+    let mi = 0;
+    pts.forEach((p, i) => { if (p[cfg.key] > pts[mi][cfg.key]) mi = i; });
+    const label = s("text", { x: Math.min(W - m.r - 36, Math.max(m.l + 36, x(times[mi]))), y: Math.max(11, y(pts[mi][cfg.key]) - 8), "text-anchor": "middle", fill: "var(--ink2)" }, svg);
+    label.textContent = "Peak " + fmt(pts[mi][cfg.key]);
+  }
+
+  const cross = s("g", { visibility: "hidden", "pointer-events": "none" }, svg);
+  const line = s("line", { y1: m.t, y2: H - m.b, stroke: "var(--axis)", "stroke-width": 1 }, cross);
+  const dot = s("circle", { r: 4, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2 }, cross);
+  const showAt = (i, cx, cy) => {
+    cross.setAttribute("visibility", "visible");
+    line.setAttribute("x1", x(times[i])); line.setAttribute("x2", x(times[i]));
+    dot.setAttribute("cx", x(times[i])); dot.setAttribute("cy", y(pts[i][cfg.key]));
+    tip.show(stamp(times[i]), [[cfg.name, cfg.fmtV(pts[i][cfg.key])]], cx, cy, true);
+  };
+  const near = (px) => {
+    let best = 0;
+    for (let i = 1; i < pts.length; i += 1) if (Math.abs(x(times[i]) - px) < Math.abs(x(times[best]) - px)) best = i;
+    return best;
+  };
+  const overlay = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+  overlay.addEventListener("pointermove", (e) => showAt(near(e.clientX - svg.getBoundingClientRect().left), e.clientX, e.clientY));
+  overlay.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); tip.hide(); });
+  let idx = li;
+  svg.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    idx = Math.max(0, Math.min(pts.length - 1, idx + (e.key === "ArrowLeft" ? -1 : 1)));
+    const r = svg.getBoundingClientRect();
+    showAt(idx, r.left + x(times[idx]), r.top + y(pts[idx][cfg.key]));
+  });
+  svg.addEventListener("blur", () => { cross.setAttribute("visibility", "hidden"); tip.hide(); });
+}
+
+function drawCoverage(host, data) {
+  host.replaceChildren();
+  const pts = data.series.filter((p) => true);
+  if (!pts.length) return empty(host, "No samples in this window yet.");
+  const W = Math.max(280, Math.floor(host.clientWidth || 560)), H = 56;
+  const cells = Math.min(pts.length, 120), size = Math.ceil(pts.length / cells), gap = 2;
+  const groups = [];
+  for (let i = 0; i < pts.length; i += size) {
+    const g = pts.slice(i, i + size).map((p) => p.coverage).filter((c) => c !== null);
+    groups.push({ t: pts[i].t, cov: g.length ? Math.min(...g) : null });
+  }
+  const cw = (W - 8) / groups.length;
+  const svg = s("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Recording coverage per time slice" }, host);
+  const color = (c) => (c === null ? "var(--empty)" : c >= 0.99 ? "var(--good)" : c >= 0.5 ? "var(--warn)" : "var(--crit)");
+  groups.forEach((g, i) => {
+    const r = s("rect", { x: 4 + i * cw, y: 6, width: Math.max(1, cw - gap), height: 28, rx: 2, fill: color(g.cov), tabindex: 0, "aria-label": `${stamp(g.t)} coverage ${pct(g.cov)}` }, svg);
+    const show = (cx, cy) => tip.show(stamp(g.t), [["Coverage", pct(g.cov)]], cx, cy, false);
+    r.addEventListener("pointermove", (e) => show(e.clientX, e.clientY));
+    r.addEventListener("pointerleave", () => tip.hide());
+    r.addEventListener("focus", () => { const b = r.getBoundingClientRect(); show(b.left, b.bottom); });
+    r.addEventListener("blur", () => tip.hide());
+  });
+  const first = s("text", { x: 4, y: 52, fill: "var(--muted)" }, svg); first.textContent = pts.length > 1 && Date.parse(pts[pts.length - 1].t) - Date.parse(pts[0].t) > 36 * 3600000 ? dayhour(pts[0].t) : hhmm(pts[0].t);
+  const last = s("text", { x: W - 4, y: 52, "text-anchor": "end", fill: "var(--muted)" }, svg); last.textContent = Date.parse(pts[pts.length - 1].t) - Date.parse(pts[0].t) > 36 * 3600000 ? dayhour(pts[pts.length - 1].t) : hhmm(pts[pts.length - 1].t);
+  const legend = h("div", { class: "legend" },
+    h("span", {}, h("span", { class: "ico good", "aria-hidden": "true" }, "✓ "), h("span", { class: "sw", style: "background:var(--good)" }), "Full (99% or more)"),
+    h("span", {}, h("span", { class: "ico warn", "aria-hidden": "true" }, "! "), h("span", { class: "sw", style: "background:var(--warn)" }), "Thin (50% to 99%)"),
+    h("span", {}, h("span", { class: "ico crit", "aria-hidden": "true" }, "✕ "), h("span", { class: "sw", style: "background:var(--crit)" }), "Missing (under 50%)"));
+  host.append(legend);
+}
+
+/* Horizontal bars: one series, one colour, 4px rounded data end, the value at the tip. */
+function drawShare(host, data) {
+  host.replaceChildren();
+  const rows = data.streamers;
+  if (!rows.length) return empty(host, "No tracked streamers.");
+  const W = Math.max(280, Math.floor(host.clientWidth || 420)), rowH = 30, barH = 14, labelW = 116, valueW = 48;
+  const H = rows.length * rowH + 4;
+  const max = Math.max(0.01, ...rows.map((r) => r.attention_share));
+  const svg = s("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Attention share by streamer" }, host);
+  s("line", { x1: labelW, x2: labelW, y1: 0, y2: H, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+  rows.forEach((r, i) => {
+    const y0 = i * rowH + 2, by = y0 + (rowH - barH) / 2;
+    const g = s("g", { tabindex: 0, "aria-label": `${r.login}, ${pct(r.attention_share)} of tracked attention` }, svg);
+    s("rect", { x: 0, y: y0, width: W, height: rowH, fill: "transparent" }, g);
+    const name = s("text", { x: labelW - 10, y: by + barH - 2, "text-anchor": "end", fill: r.minutes_live ? "var(--ink)" : "var(--muted)" }, g);
+    name.textContent = r.login;
+    const w = (r.attention_share / max) * (W - labelW - valueW - 6);
+    if (r.minutes_live && w > 0) {
+      const x1 = labelW + Math.max(w, 6);
+      s("path", { d: `M${labelW} ${by} H${x1 - 4} a4 4 0 0 1 4 4 V${by + barH - 4} a4 4 0 0 1 -4 4 H${labelW} Z`, fill: "var(--series-1)" }, g);
+      const v = s("text", { x: x1 + 8, y: by + barH - 2, fill: "var(--ink2)" }, g);
+      v.textContent = pct(r.attention_share);
+    } else {
+      const v = s("text", { x: labelW + 8, y: by + barH - 2, fill: "var(--muted)" }, g);
+      v.textContent = "not live in window";
+    }
+    const rowsFor = () => [["Share", pct(r.attention_share)], ["Live minutes", fmt(r.minutes_live)], ["Average viewers", fmt(r.avg_viewers)], ["Peak viewers", fmt(r.peak_viewers)], ["Sessions", fmt(r.sessions)], ["Category", r.top_category || "–"]];
+    g.addEventListener("pointermove", (e) => tip.show(r.login, rowsFor(), e.clientX, e.clientY, false));
+    g.addEventListener("pointerleave", () => tip.hide());
+    g.addEventListener("focus", () => { const b = g.getBoundingClientRect(); tip.show(r.login, rowsFor(), b.left + 120, b.bottom, false); });
+    g.addEventListener("blur", () => tip.hide());
+  });
+}
+
+/* Heat grid: streamers by UTC hour, one-hue sequential ramp; blank cells mean not live. */
+function drawHeat(host, data) {
+  host.replaceChildren();
+  const rows = data.streamers.filter((r) => r.minutes_live > 0);
+  const from = Date.parse(data.window.from), to = Date.parse(data.window.to);
+  const recorded = new Set(data.hourly.map((r) => Date.parse(r.hour)));
+  const start = Math.max(Math.floor(from / 3600000) * 3600000, recorded.size ? Math.min(...recorded) : Infinity);
+  const hours = [];
+  for (let t = start; t < to; t += 3600000) hours.push(t);
+  if (!rows.length || !hours.length) return empty(host, "Nobody tracked was live in this window.");
+  const lookup = new Map(data.hourly.map((r) => [r.login + "|" + Date.parse(r.hour), r]));
+  const maxVm = Math.max(1, ...data.hourly.map((r) => r.viewer_minutes || 0));
+  const W = Math.max(300, Math.floor(host.clientWidth || 800)), labelW = 116, rowH = 26, cellH = 22, top = 4;
+  const gap = hours.length > 48 ? 1 : 2;
+  const cw = (W - labelW - 8) / hours.length;
+  const H = top + rows.length * rowH + 22;
+  const svg = s("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Attention by streamer and hour" }, host);
+  rows.forEach((r, ri) => {
+    const name = s("text", { x: labelW - 10, y: top + ri * rowH + 16, "text-anchor": "end", fill: "var(--ink)" }, svg);
+    name.textContent = r.login;
+    hours.forEach((t, ci) => {
+      const cell = lookup.get(r.login + "|" + t);
+      const live = cell && cell.minutes_live > 0;
+      const level = live ? Math.min(6, Math.max(0, Math.ceil(((cell.viewer_minutes || 0) / maxVm) * 7) - 1)) : -1;
+      const fill = live ? `var(--seq-${level})` : recorded.has(t) ? "var(--empty)" : "none";
+      s("rect", { x: labelW + ci * cw + 0.5, y: top + ri * rowH + 2.5, width: Math.max(1, cw - gap - 1), height: cellH - 1, rx: 2, fill, stroke: fill === "none" ? "var(--grid)" : "none", "stroke-width": 1, "data-r": ri, "data-c": ci }, svg);
+    });
+  });
+  const every = Math.max(1, Math.ceil(hours.length / Math.max(2, Math.floor((W - labelW) / 64))));
+  hours.forEach((t, ci) => {
+    if (ci % every) return;
+    const label = s("text", { x: labelW + ci * cw, y: H - 4, fill: "var(--muted)" }, svg);
+    label.textContent = hours.length > 30 ? dayhour(t) : hhmm(t);
+  });
+  svg.addEventListener("pointermove", (e) => {
+    const d = e.target.dataset;
+    if (!d || d.r === undefined) { tip.hide(); return; }
+    const r = rows[Number(d.r)], t = hours[Number(d.c)], cell = lookup.get(r.login + "|" + t);
+    tip.show(`${r.login}, ${stamp(t)}`, cell && cell.minutes_live > 0
+      ? [["Live minutes", fmt(cell.minutes_live)], ["Average viewers", fmt(cell.avg_viewers)], ["Peak viewers", fmt(cell.peak_viewers)], ["Viewer-minutes", fmt(cell.viewer_minutes)], ["Category", cell.top_category || "–"]]
+      : [[recorded.has(t) ? "Not live" : "Not recorded", "–"]], e.clientX, e.clientY, false);
+  });
+  svg.addEventListener("pointerleave", () => tip.hide());
+  const legend = h("div", { class: "legend" }, h("span", {}, "Fewer viewer-minutes"));
+  for (let i = 0; i < 7; i += 1) legend.append(h("span", { class: "sw", style: `background:var(--seq-${i});margin:0` }));
+  legend.append(h("span", {}, `More (up to ${fmt(maxVm)} in an hour)`), h("span", {}, h("span", { class: "sw", style: "background:var(--empty)" }), "Not live"), h("span", {}, h("span", { class: "sw", style: "border:1px solid var(--grid)" }), "Not recorded"));
+  host.append(legend);
+}
+
+function renderTables(d) {
+  const series = d.series;
+  table($("t-view"), ["Time (UTC)", "Average viewers", "Peak viewers"], series.map((p) => [stamp(p.t), fmt(p.tracked_viewers), fmt(p.tracked_viewers_peak)]), [1, 2]);
+  table($("t-live"), ["Time (UTC)", "Streamers live"], series.map((p) => [stamp(p.t), p.tracked_live === null ? null : String(p.tracked_live)]), [1]);
+  table($("t-cov"), ["Time (UTC)", "Coverage"], series.map((p) => [stamp(p.t), pct(p.coverage)]), [1]);
+  table($("t-share"), ["Streamer", "Share", "Live min", "Average", "Peak", "Sessions", "Category"], d.streamers.map((r) => [r.login, pct(r.attention_share), fmt(r.minutes_live), fmt(r.avg_viewers), fmt(r.peak_viewers), fmt(r.sessions), r.top_category]), [1, 2, 3, 4, 5]);
+  table($("t-heat"), ["Hour (UTC)", "Streamer", "Live min", "Average", "Peak", "Viewer-minutes"], d.hourly.slice().sort((a, b) => a.hour.localeCompare(b.hour) || a.login.localeCompare(b.login)).map((r) => [stamp(r.hour), r.login, fmt(r.minutes_live), fmt(r.avg_viewers), fmt(r.peak_viewers), fmt(r.viewer_minutes)]), [2, 3, 4, 5]);
+}
+
+function renderNow(d) {
+  const host = $("t-now");
+  if (!d.live_now.length) { host.replaceChildren(h("div", { class: "empty-note" }, "Nobody tracked is live right now.")); return; }
+  const arrow = (n) => (n === null ? "–" : n > 0 ? "▲ " + fmt(n) : n < 0 ? "▼ " + fmt(-n) : "0");
+  const t = h("table");
+  t.append(h("thead", {}, h("tr", {}, h("th", { class: "num" }, "#"), h("th", {}, "Streamer"), h("th", { class: "num" }, "Viewers"), h("th", { class: "num" }, "Change"), h("th", {}, "Category"), h("th", { class: "num" }, "Live min"))));
+  const body = h("tbody");
+  d.live_now.forEach((r, i) => body.append(h("tr", {},
+    h("td", { class: "num" }, String(i + 1)), h("td", {}, r.display_name), h("td", { class: "num" }, fmt(r.viewer_count)),
+    h("td", { class: "num" }, arrow(r.delta_viewers)), h("td", {}, r.game_name || "–"), h("td", { class: "num" }, fmt(r.minutes_live)))));
+  t.append(body);
+  host.replaceChildren(t);
+}
+
+function renderStation(d) {
+  const st = d.station, a = st.affiliate;
+  $("station-s").textContent = st.stale ? "No recent samples for the station channel." : st.live ? "Live now." : "Offline. " + fmt(st.followers_total) + " followers.";
+  const host = $("meters");
+  host.replaceChildren();
+  const rows = [["followers", "Followers"], ["broadcast_days", "Broadcast days"], ["broadcast_minutes", "Broadcast minutes"], ["avg_viewers", "Average viewers"]];
+  for (const [key, name] of rows) {
+    const have = a.have[key], need = a.thresholds[key];
+    const frac = have === null ? 0 : Math.min(1, have / need);
+    const status = a.met[key] === true ? "✓ met" : have === null ? "unknown" : fmt(a.remaining[key]) + " to go";
+    host.append(h("div", { class: "meter" }, h("span", {}, name), h("div", { class: "track" }, h("div", { class: "fill", style: `width:${Math.round(frac * 100)}%` })), h("span", { class: "small" }, `${have === null ? "–" : fmt(have)} of ${fmt(need)} · ${status}`)));
+  }
+}
+
+function setStatus(kind, text) {
+  const chip = $("status");
+  chip.querySelector(".ico").className = "ico " + kind;
+  chip.querySelector(".ico").textContent = kind === "good" ? "✓" : kind === "warn" ? "!" : kind === "crit" ? "✕" : "–";
+  $("status-text").textContent = text;
+}
+
+function render(d) {
+  $("off").hidden = d.enabled !== false;
+  $("content").hidden = d.enabled === false;
+  if (d.enabled === false) { setStatus("off", "Timeline off"); return; }
+  charts.length = 0;
+  const t = d.totals;
+  $("hero-v").textContent = fmt(t.tracked_viewers_now);
+  $("hero-s").textContent = `${d.live_now.length} of ${d.tracked_total} tracked streamers live`;
+  $("k-live").textContent = String(d.live_now.length);
+  $("k-live-s").textContent = `of ${d.tracked_total} tracked`;
+  $("k-peak").textContent = compact(t.peak_tracked_viewers);
+  $("k-avg").textContent = compact(t.avg_tracked_viewers);
+  const cov = d.coverage;
+  $("k-cov").textContent = pct(cov);
+  const covKind = cov === null ? "off" : cov >= 0.99 ? "good" : cov >= 0.5 ? "warn" : "crit";
+  const covText = cov === null ? "no data" : cov >= 0.99 ? "Full" : cov >= 0.5 ? "Thin" : "Missing";
+  const covBox = $("k-cov-s");
+  covBox.replaceChildren(h("span", { class: "ico " + covKind, "aria-hidden": "true" }, covKind === "good" ? "✓ " : covKind === "warn" ? "! " : covKind === "crit" ? "✕ " : ""), `${covText}; ${d.gaps.count} ${d.gaps.count === 1 ? "gap" : "gaps"}, ${fmt(d.gaps.seconds)} s`);
+  if (d.station.stale) setStatus("warn", "Stale: no recent samples");
+  else setStatus("good", "Live data");
+
+  register($("c-view"), () => drawLine($("c-view"), { points: d.series, key: "tracked_viewers", name: "Tracked viewers", label: "Tracked viewers over time", fmtV: fmt, peakLabel: true, height: 220 }));
+  register($("c-live"), () => drawLine($("c-live"), { points: d.series, key: "tracked_live", name: "Streamers live", label: "Streamers live over time", fmtV: (v) => String(v), step: true, integer: true, floor: 1, height: 160 }));
+  register($("c-cov"), () => drawCoverage($("c-cov"), d));
+  register($("c-share"), () => drawShare($("c-share"), d));
+  register($("c-heat"), () => drawHeat($("c-heat"), d));
+  renderTables(d);
+  renderNow(d);
+  renderStation(d);
+}
+
+function ago() {
+  if (!state.lastOk) return;
+  const sec = Math.max(0, Math.round((Date.now() - state.lastOk) / 1000));
+  $("updated").textContent = `Updated ${sec < 90 ? sec + " s" : Math.round(sec / 60) + " min"} ago`;
+}
+
+async function load() {
+  if (state.controller) state.controller.abort();
+  const controller = new AbortController();
+  state.controller = controller;
+  $("main").classList.add("loading");
+  try {
+    const res = await fetch(`/macro/state?hours=${state.hours}`, { cache: "no-store", signal: controller.signal });
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    state.data = data;
+    state.lastOk = Date.now();
+    $("error").hidden = true;
+    render(data);
+    ago();
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    $("error").hidden = false;
+    $("error").textContent = "Cannot reach the room (" + error.message + "). Showing the last data, if any.";
+    setStatus("crit", "Error");
+  } finally {
+    if (state.controller === controller) $("main").classList.remove("loading");
+  }
+}
+
+document.querySelectorAll('input[name="range"]').forEach((input) => input.addEventListener("change", () => { state.hours = Number(input.value); load(); }));
+$("table-toggle").addEventListener("change", (e) => document.body.classList.toggle("table-view", e.target.checked));
+$("download").addEventListener("click", () => {
+  if (!state.data) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" }));
+  const a = h("a", { href: url, download: `macro-${state.hours}h.json` });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+const themes = ["auto", "light", "dark"];
+let themeIndex = 0;
+$("theme").addEventListener("click", () => {
+  themeIndex = (themeIndex + 1) % themes.length;
+  if (themes[themeIndex] === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", themes[themeIndex]);
+  $("theme").textContent = "Theme: " + themes[themeIndex];
+});
+if ("ResizeObserver" in window) {
+  let lastWidth = 0, timer = null;
+  new ResizeObserver(() => {
+    const w = $("main").clientWidth;
+    if (w === lastWidth) return;
+    lastWidth = w;
+    clearTimeout(timer);
+    timer = setTimeout(() => charts.forEach((c) => c.draw()), 120);
+  }).observe($("main"));
+}
+setInterval(ago, 1000);
+setInterval(() => { if (!document.hidden) load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+load();
+</script>
+</body>
+</html>

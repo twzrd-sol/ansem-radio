@@ -1,0 +1,21 @@
+{
+  "name": "ansem-radio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Twitch-first, platform-neutral autonomous media agent for AnsemHack.",
+  "scripts": {
+    "test": "node --test",
+    "live": "node src/live/server.js",
+    "board": "node src/markets/board-cli.js",
+    "ledger": "node src/ledger/ledger-cli.js",
+    "attribution": "node src/sinks/evidence-ledger-cli.js",
+    "twitch:connect": "node src/live/twitch-connect.js",
+    "timeline": "node src/timeline/cli.js",
+    "sim": "node src/sim/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}
