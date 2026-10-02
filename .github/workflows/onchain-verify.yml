@@ -1,0 +1,39 @@
+name: On-chain verify
+
+# Read-only. Dumps the deployed radiolan-arena program from mainnet and checks it is the build recorded in
+# programs/radiolan-arena/BUILD.md: the first <length> bytes hash to the recorded sha256 and the reserved
+# space after them is all zero. Runs daily, so an upgrade to the program shows up as a failed run.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [programs/radiolan-arena/BUILD.md, .github/workflows/onchain-verify.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  mainnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Solana CLI 2.3.0
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v2.3.0/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Compare deployed bytes to BUILD.md
+        working-directory: programs/radiolan-arena
+        run: |
+          program=$(grep -oE 'Mainnet program: `[1-9A-HJ-NP-Za-km-z]{32,44}`' BUILD.md | grep -oE '[1-9A-HJ-NP-Za-km-z]{32,44}')
+          want=$(grep -oE '[0-9a-f]{64}' BUILD.md | head -1)
+          len=$(grep -oE 'length \| [0-9]+ bytes' BUILD.md | grep -oE '[0-9]+')
+          echo "program $program, length $len, recorded sha256 $want"
+          for i in 1 2 3; do solana program dump "$program" onchain.so --url mainnet-beta >/dev/null && break; sleep 10; done
+          got=$(head -c "$len" onchain.so | sha256sum | cut -c1-64)
+          size=$(stat -c %s onchain.so)
+          pad=$(tail -c +"$((len + 1))" onchain.so | tr -d '\000' | wc -c)
+          echo "on chain: sha256 $got over the first $len of $size bytes; non-zero bytes after the ELF: $pad"
+          [ "$got" = "$want" ] || { echo "::error::mainnet program bytes differ from BUILD.md (was it upgraded?)"; exit 1; }
+          [ "$pad" = 0 ] || { echo "::error::non-zero bytes after the recorded ELF length"; exit 1; }
