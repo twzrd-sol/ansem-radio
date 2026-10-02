@@ -1,7 +1,7 @@
 //! Radio LAN arena: optional fan support positions (Pinocchio).
 //!
-//! The arena itself is free to play; nothing here gates participation or carries reward
-//! weight. A fan may commit tokens of the arena's mint to back a streamer. Each fan's tokens
+//! The arena itself is free to play; nothing here gates participation.
+//! A fan may commit tokens of the arena's mint to back a streamer. Each fan's tokens
 //! sit in their own program-owned Token-2022 account, PDA `["support", arena, fan]`, whose
 //! token authority is the fan's position PDA `["position", arena, fan]`. No instruction moves
 //! those tokens anywhere except back to that fan.

@@ -340,7 +340,7 @@ fn nobody_else_can_move_a_fans_tokens() {
     let (victim_position, victim_support) = (w.fans[0].position, w.fans[0].support);
     let thief = w.fans[1].key.insecure_clone();
     let thief_wallet = w.fans[1].wallet;
-    // Fan 1 signs for fan 0's position, paying to their own wallet.
+    // Fan 1 signs for fan 0's position, sending to their own wallet.
     let ix = w.withdraw_ix(&thief.pubkey(), &victim_position, &victim_support, &thief_wallet, 1_000);
     assert!(err_code(&send(&mut w.svm, &[ix], &[&thief]).unwrap_err(), 6301));
     // Fan 0 cannot send to someone else's wallet either.

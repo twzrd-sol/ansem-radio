@@ -26,10 +26,22 @@ Node 22 or newer. No runtime dependencies.
 
 ## Boundaries
 
-Nothing here pays, rewards or scores anyone for watching or chatting. Twitch data is read for the room and the local view and is never published or shared. Secrets are injected at runtime and never stored in this repository.
+Live product surfaces do not assign per-viewer status or points from watching or chatting. Twitch data stays on the collecting machine and is not published or shared. Credentials are supplied at runtime and never stored in this repository.
 
 ## Status
 
-Built in public during the AnsemHack, October 2026. The programs and the attribution log are on Solana devnet; mainnet steps are separate decisions.
+Built in public during the AnsemHack, October 2026. The attribution log is on Solana devnet. The arena program is on Solana mainnet; see the source and build record below.
 
-Launched 1 October 2026, 23:58 EST (04:58 UTC on 2 October; launch transaction `48Xm6feb…FiG8J7`): `$RLAN`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` (pump.fun, Token-2022, mint and freeze authority revoked). The coin coordinates future programming; it does not pay or get paid by anything in this repository.
+Launched 1 October 2026, 23:58 EST (04:58 UTC on 2 October; launch transaction `48Xm6feb…FiG8J7`): `$RLAN`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` (pump.fun, Token-2022, mint and freeze authority revoked). The coin may coordinate future programming. Optional arena support positions do not affect live activity points or rankings.
+
+## Arena program
+
+The optional Radio LAN arena program is available for inspection and build reproduction.
+
+- Mainnet program: `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`
+- Deployed ELF: SHA-256 `22a613fecb394d13a484bd982c9a0536c78f14f0db4ca00b27cf3fe96c6c69fb` (39,728 bytes)
+- Reproduce the build with Solana CLI 2.3.0: see [`programs/radiolan-arena/BUILD.md`](programs/radiolan-arena/BUILD.md).
+
+We value fans' trust, so we state the current control plainly: one Radio LAN
+operator key can upgrade the program today. It is not controlled by a multisig.
+Please account for that operator-managed status when deciding whether to use it.

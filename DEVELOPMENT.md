@@ -30,7 +30,7 @@ Keep credentials and captured data outside the repository.
 | Evidence sink | `src/sinks/` | Devnet anchoring client and receipt verification CLI |
 | Receipt panel | `src/ledger/` | Read-only transfer receipts |
 | Simulator | `src/sim/` | Offline scenarios, separate from live activity |
-| Support vault | `programs/radiolan-arena/` | Optional Token-2022 support positions. Build notes are in that directory. |
+| Arena program | `programs/radiolan-arena/`, `src/sinks/arena.js` | Program source and instruction builders for optional support positions. |
 
 ## Verify a receipt offline
 
