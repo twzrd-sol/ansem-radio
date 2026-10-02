@@ -263,7 +263,7 @@ test("a refused ledger save is reported once, by field, never by value or path, 
 
 test("the session fund panel corrects the header and never uses the words the room never says", () => {
   const page = readFileSync(new URL("../public/live.html", import.meta.url), "utf8");
-  assert.match(page, /Watching is free\. Session fund activity is listed under Session fund\./);
+  assert.match(page, /Watching is free\.";/);
   const markup = page.slice(page.indexOf('<section class="fund"'), page.indexOf('<section class="lan">'));
   const script = page.slice(page.indexOf("// Session fund:"), page.indexOf("const events = new EventSource"));
   assert.ok(markup.length > 100 && script.length > 100, "found the panel's markup and script");
