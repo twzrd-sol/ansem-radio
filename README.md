@@ -24,6 +24,9 @@ npm run attribution -- --help
 
 Node 22 or newer. No runtime dependencies.
 
+The station entrypoint always binds to `127.0.0.1`; `HOST` is ignored.
+The public executable does not persist rotated Twitch credentials across restarts; embedding applications can supply a runtime persistence callback.
+
 ## Boundaries
 
 Live product surfaces do not assign per-viewer status or points from watching or chatting. Twitch data stays on the collecting machine and is not published or shared. Credentials are supplied at runtime and never stored in this repository.
