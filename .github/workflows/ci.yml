@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - run: npm test
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Scan tracked files
+        run: MODE=public bash .github/scripts/hygiene.sh
+
+  arena-build:
+    # Rebuilds programs/radiolan-arena and checks the ELF hash recorded in its BUILD.md, so a change
+    # that would alter the deployed program is visible before merge.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Solana CLI 2.3.0
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v2.3.0/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Build and compare
+        working-directory: programs/radiolan-arena
+        run: |
+          cargo build-sbf
+          want=$(grep -oE '[0-9a-f]{64}' BUILD.md | head -1)
+          got=$(sha256sum target/deploy/radiolan_arena.so | cut -c1-64)
+          echo "BUILD.md: $want"
+          echo "built:    $got"
+          [ "$got" = "$want" ] || { echo "::error::radiolan-arena build differs from BUILD.md; record the new hash with the change"; exit 1; }
