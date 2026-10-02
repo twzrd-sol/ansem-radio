@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "campaign": {
+    "title": "EXAMPLE Radio LAN session fund",
+    "purpose": "Pays creators for scoped work on the next Radio LAN session.",
+    "terms": "Contributions are voluntary and carry no return or ownership. Unspent funds stay with Radio LAN for later sessions.",
+    "receive": {
+      "label": "Radio LAN fund wallet",
+      "address": "AwJpsKm6EB9mF1TyD6x3G8koaGYv8imjei3mYoSb78y4",
+      "custody": "operator_wallet"
+    }
+  },
+  "receipts": [
+    {
+      "kind": "funding",
+      "funding_source": "operator_bootstrap",
+      "amount": "50000000",
+      "from_label": "Radio LAN operator",
+      "to_label": "Radio LAN fund wallet",
+      "to_address": "AwJpsKm6EB9mF1TyD6x3G8koaGYv8imjei3mYoSb78y4",
+      "to_custody": "operator_wallet",
+      "purpose": "Bootstrap for session 2 creator work",
+      "tx": "D53d8J6KkctKm8CSjRKx1oqwceH47PFUZ1CqDzBFmGaoHK2PBnRfiu2JbxzRm2FerDgZKMjzkjHjTGp8MwDzCgZ",
+      "occurred_at": "2026-10-01T18:00:00Z"
+    },
+    {
+      "kind": "funding",
+      "funding_source": "sponsor",
+      "amount": "25000000",
+      "from_label": "Example Sponsor",
+      "to_label": "Radio LAN fund wallet",
+      "to_address": "AwJpsKm6EB9mF1TyD6x3G8koaGYv8imjei3mYoSb78y4",
+      "to_custody": "operator_wallet",
+      "purpose": "Sponsored segment, session 2",
+      "tx": "2cCmUrpsD4rPprT4Qf3sPeeKg7jppzDJWqGsyF8yEK6pNa2vgAeaQXLNm55pJHmsZaj46k66BBbTkKWxuvHF6BUe",
+      "occurred_at": "2026-10-02T15:30:00Z"
+    },
+    {
+      "kind": "support",
+      "amount": "40000000",
+      "from_label": "Radio LAN fund wallet",
+      "to_label": "Example Artist",
+      "to_address": "JBQ7pQFJJnsMcfumxcxiqtNEAegQ19Kph1KKX1LNWLbr",
+      "to_custody": "self_custody",
+      "purpose": "Overlay art for session 2",
+      "tx": "5Vtt6VUcoM85xtRcUntLKZMEav1xkVgEbD5BuEYksFNA3puCr19jCykVZbccbThUqMRhV1cJrBJDqtepib6mrNKa",
+      "occurred_at": "2026-10-03T12:00:00Z"
+    }
+  ]
+}

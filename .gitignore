@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+
+# Key material never belongs in the repo: runtime secrets live in Doppler (docs/ATTRIBUTION_LOG_V1.md).
+# test/no-secrets.test.js fails if any of these patterns are removed or a tracked file looks like a key.
+*keypair*.json
+fee-payer.json
+id.json
+*.pem
