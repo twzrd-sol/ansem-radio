@@ -223,8 +223,8 @@ export function createLiveServer({
       response.writeHead(302, { Location: "/public/live.html" }).end();
       return;
     }
-    // The macro view shows Twitch data: this machine only. Do not publish or share it.
-    if (pathname === "/macro" || pathname === "/macro/state" || pathname === "/public/macro.html") {
+    // Macro and live observations show Twitch data: this machine only. Do not publish or share it.
+    if (pathname === "/macro" || pathname === "/macro/state" || pathname === "/public/macro.html" || pathname === "/live/events") {
       if (!isLoopbackHost(request.headers.host)) {
         response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden");
         return;
@@ -361,7 +361,7 @@ if (isMain) {
   const live = createLiveServer({ persistTokens });
   const address = await live.listen({
     port: Number(process.env.PORT ?? 8787),
-    host: process.env.HOST ?? "127.0.0.1",
+    host: "127.0.0.1",
   });
   console.log(`Radio LAN live room: http://${address.host}:${address.port}/public/live.html`);
   const shutdown = async () => {

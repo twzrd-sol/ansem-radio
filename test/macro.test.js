@@ -164,7 +164,7 @@ test("the room serves the macro page and state to this machine only, read only",
   assert.equal(page.headers["cache-control"], "no-store");
 
   assert.equal((await get(port, "/macro/state", { headers: { Host: `localhost:${port}` } })).status, 200);
-  for (const path of ["/macro", "/macro/state", "/public/macro.html"]) {
+  for (const path of ["/macro", "/macro/state", "/public/macro.html", "/live/events"]) {
     for (const host of ["evil.example", `evil.example:${port}`, "127.0.0.1.evil.example", "0.0.0.0"]) {
       const res = await get(port, path, { headers: { Host: host } });
       assert.equal(res.status, 403, `${path} with Host ${host}`);
