@@ -1,0 +1,29 @@
+[package]
+name = "radiolan-arena"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.84"
+description = "Radio LAN arena: optional fan support positions in a Token-2022 mint, one program-owned account per fan per arena, released at season end"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+no-entrypoint = []
+
+[dependencies]
+pinocchio = "0.9"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true
+panic = "abort"
