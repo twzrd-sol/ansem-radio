@@ -1,5 +1,11 @@
 # Public changelog
 
+## 2026-10-02 — Arena program source
+
+- Published `programs/radiolan-arena`, the optional support-position program.
+- Recorded the deployed mainnet ELF hash and the build command that reproduces it.
+- This batch adds source and tests. It does not create an arena or move tokens.
+
 ## 2026-10-02 — Developer documentation batch
 
 - Added a public source map and local development instructions.
