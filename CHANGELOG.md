@@ -2,9 +2,9 @@
 
 ## 2026-10-02 — Arena program source
 
-- Published `programs/radiolan-arena`, the optional support-position program.
+- Published the arena source, JavaScript instruction builders and regression tests for optional support positions.
 - Recorded the deployed mainnet ELF hash and the build command that reproduces it.
-- This batch adds source and tests. It does not create an arena or move tokens.
+- The README records the program address, reproducible build and current operator control.
 
 ## 2026-10-02 — Developer documentation batch
 

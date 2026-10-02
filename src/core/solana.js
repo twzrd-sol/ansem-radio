@@ -222,7 +222,17 @@ export function createRpc(url, { fetchImpl = fetch } = {}) {
         { encoding: "base64", preflightCommitment: "confirmed" },
       ]);
       for (let waited = 0; waited <= timeoutMs; waited += pollMs) {
-        const status = (await call("getSignatureStatuses", [[signature]])).value[0];
+        let status;
+        try {
+          status = (await call("getSignatureStatuses", [[signature]])).value[0];
+        } catch (error) {
+          // Public RPCs may rate-limit confirmation polling after the transaction is sent.
+          if (/HTTP 429/.test(error.message)) {
+            await sleep(pollMs);
+            continue;
+          }
+          throw error;
+        }
         if (status?.err) throw new Error(`transaction ${signature} failed: ${JSON.stringify(status.err)}`);
         if (status && ["confirmed", "finalized"].includes(status.confirmationStatus)) return signature;
         await sleep(pollMs);
