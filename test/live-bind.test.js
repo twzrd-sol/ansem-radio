@@ -34,8 +34,9 @@ test("station entrypoint ignores HOST and binds loopback", { timeout: 10_000 }, 
     });
     child.kill("SIGTERM");
     const [code, signal] = await exited;
-    assert.equal(code, 0, stderr);
-    assert.equal(signal, null);
+    // Startup can be printed before shutdown handlers are registered; either SIGTERM outcome is valid here.
+    assert.ok((code === 0 && signal === null) || (code === null && signal === "SIGTERM"),
+      `unexpected exit: code=${code}, signal=${signal}; ${stderr}`);
     assert.match(output, /http:\/\/127\.0\.0\.1:[1-9][0-9]*\//, `HOST=${host}`);
   }
 });
