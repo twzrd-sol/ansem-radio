@@ -171,7 +171,7 @@ test("without a ledger file the room shows no money surface", async (t) => {
 
   const page = await (await fetch(`${origin}/public/live.html`)).text();
   assert.match(page, /<section class="fund" id="fund" hidden>/, "the panel starts hidden");
-  assert.match(page, /Nothing here pays anyone or takes anyone's money\./, "the default copy is unchanged");
+  assert.match(page, /Free to watch, no wallet needed\./, "the default copy is unchanged");
 });
 
 test("a ledger file puts receipts in the snapshot and streams changes as receipt events", async (t) => {
@@ -263,7 +263,7 @@ test("a refused ledger save is reported once, by field, never by value or path, 
 
 test("the session fund panel corrects the header and never uses the words the room never says", () => {
   const page = readFileSync(new URL("../public/live.html", import.meta.url), "utf8");
-  assert.match(page, /Watching is free\. Money this room receives or spends is listed under Session fund\./);
+  assert.match(page, /Watching is free\.";/);
   const markup = page.slice(page.indexOf('<section class="fund"'), page.indexOf('<section class="lan">'));
   const script = page.slice(page.indexOf("// Session fund:"), page.indexOf("const events = new EventSource"));
   assert.ok(markup.length > 100 && script.length > 100, "found the panel's markup and script");

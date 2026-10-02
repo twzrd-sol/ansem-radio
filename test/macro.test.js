@@ -50,7 +50,7 @@ test("only the three preset windows are accepted, anything else falls back", () 
 
 test("only a Host header naming this machine counts as loopback", () => {
   for (const ok of ["127.0.0.1:8787", "127.0.0.1", "localhost", "LOCALHOST:3000", "[::1]:8787"]) assert.equal(isLoopbackHost(ok), true, ok);
-  for (const bad of [undefined, null, "", "evil.example", "127.0.0.1.evil.example", "localhost.evil.example:8787", "10.0.0.5:8787", "0.0.0.0:8787", "127.0.0.1@evil.example", "[::ffff:127.0.0.1]:8787", "twzrdbattleship:8787"]) {
+  for (const bad of [undefined, null, "", "evil.example", "127.0.0.1.evil.example", "localhost.evil.example:8787", "10.0.0.5:8787", "0.0.0.0:8787", "127.0.0.1@evil.example", "[::ffff:127.0.0.1]:8787", "studio-host:8787"]) {
     assert.equal(isLoopbackHost(bad), false, String(bad));
   }
 });
