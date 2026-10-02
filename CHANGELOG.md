@@ -8,8 +8,7 @@
 - Replaced stale documentation pointers and infrastructure-specific wording.
 - Validation: all 253 tests passed, including the tracked-file secret scan;
   the documented offline verification returned `ok: true`.
-- Runtime behavior is unchanged. This batch adds no hub, wallet flows, support
-  vaults or payout functionality.
+- This batch documents functionality already present in this repository.
 
 ## 2026-10-02 — Initial public release and launch record
 
