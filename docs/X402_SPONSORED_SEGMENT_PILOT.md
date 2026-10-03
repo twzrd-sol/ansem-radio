@@ -1,126 +1,91 @@
 # x402 sponsored-segment pilot
 
-Status: proposal only. The seller stays disabled until the operator supplies the
-payment, fulfillment, and moderation terms below. This document does not enable
-payments or change the running station.
+Status: implementation is present in source but remains disabled until the
+operator provides and configures the listed commercial and runtime terms. No
+payment is accepted by default, and merging this change does not deploy or
+activate the seller.
 
-## Offer
+## Offer and moderation
 
-Offer one fixed-price, 60-second, clearly disclosed sponsored read to an agent
-buyer. Watching the station remains free. The sponsor supplies its own short
-copy; Radio LAN does not endorse it, promise reach, or sell Twitch audience
-metrics. Do not sell chat access, points, token access, or an outcome tied to
-viewers or chat activity.
+Offer one fixed-price, clearly disclosed 60-second sponsored read. Watching the
+station remains free. The sponsor supplies its own short copy; Radio LAN does
+not endorse it, promise reach, or sell Twitch audience metrics. Do not sell chat
+access, points, token access, or an outcome tied to viewers or chat activity.
 
 The copy must be accepted before payment is requested. Reject links, unsafe or
-disallowed categories, and content that fails the station's existing public
-text rules. The read is fulfilled in a stated time window after settlement. A
-missed window or operator cancellation follows a published refund rule. No
-payment request should be created for copy that has not passed moderation.
+disallowed categories, and content that fails the station's public text rules.
+Every sponsored line and its on-screen treatment must be disclosed. Use
+Twitch's Branded Content disclosure tool and follow Twitch's category rules.
+The stream operator controls whether a booked segment is aired.
 
-Every sponsored line and its on-screen treatment must be disclosed as sponsored.
-The operator must use Twitch's Branded Content disclosure tool for the live
-read and follow Twitch's category restrictions. The stream operator controls
-whether a booked segment is aired.
+## Implemented routes
 
-## Protocol and route
+The seller uses x402 v2 `exact` on Solana mainnet, with USDC mint
+`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` and network identifier
+`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`.
 
-Use x402 protocol v2 with the `exact` scheme and USDC on Solana mainnet. The
-network identifier is `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`; the USDC mint is
-`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`. Before enabling the seller,
-verify that the selected facilitator reports support for this exact network,
-asset, and scheme. Do not silently substitute devnet or another chain.
+- `GET /hub/api/x402/offer` describes the service, price, accepted categories,
+  fulfillment window, cancellation policy, and quote/purchase routes.
+- `POST /hub/api/x402/quotes` accepts only sponsor name, category, and copy.
+  It creates a 24-hour quote in `pending_review`; it does not return a payment
+  challenge.
+- `GET /hub/api/x402/review-queue` lists pending copy only with the operator
+  bearer token. `POST /hub/api/x402/quotes/{id}/review` requires that token to
+  approve, reject, reconcile an uncertain settlement, or mark fulfillment.
+- `GET /hub/api/x402/quotes/{id}/purchase` returns no challenge until the exact
+  copy is approved. An accepted payment creates one durable order.
+- `GET /hub/api/x402/orders/{id}` returns public order and fulfillment state.
 
-Expose a separate agent API under the existing station API proxy on
-`radiolan.live`:
+The API is mounted before the passkey API, accepts only Host `radiolan.live`,
+and does not depend on `RADIOLAN_HUB_ORIGIN`. The general hub API, RPC relay,
+and other `/hub/*` routes retain their existing access restrictions. Caddy's
+existing `/hub/api/*` proxy is sufficient; no Caddy edit is included.
 
-- `POST /hub/api/x402/sponsor-quotes` validates the submitted sponsor copy and
-  returns an immutable quote ID, fixed USDC amount, recipient, expiry,
-  fulfillment window, and cancellation/refund terms.
-- `GET /hub/api/x402/sponsor-quotes/{id}` returns the x402 payment challenge for
-  that accepted quote. A valid settlement books the segment idempotently and
-  returns a receipt/order ID and transaction signature.
-- `GET /hub/api/x402/sponsor-orders/{id}` returns only the order status and public
-  fulfillment state.
+## Settlement and recovery
 
-The current `radiolan.live` Caddy config already sends `/hub/api/*` to the
-loopback station listener. Keep the x402 handler as an explicit route inside
-that prefix, ahead of the general passkey API handler. The public source
-currently rejects external `/hub/*` requests and must add a narrow exception
-for this configured x402 route and the exact `radiolan.live` host; do not relax
-the existing hub or RPC boundaries. `RADIOLAN_HUB_ORIGIN` remains `twzrd.xyz`,
-and the agent payment API must not depend on passkeys or on changing that
-origin. Preserve the existing RPC method allowlist and never forward the x402
-payment headers to the RPC upstream.
+The seller uses the CDP-hosted facilitator directly, avoiding the TWZRD
+facilitator revenue split. It requires `CDP_API_KEY_ID` and
+`CDP_API_KEY_SECRET`. The fixed amount and dedicated Solana recipient are
+runtime settings. Price uses at most six decimal places. The state file path
+must be absolute; the process creates its parent with mode 0700 and file with
+mode 0600. The station process is the sole writer.
 
-The public source can define and document the handler, but the deployed station
-is separately configured in a private runtime worktree. No Caddy edit is
-currently required for the `/hub/api/*` route. Do not treat merging public
-source as deploying or activating the seller.
+An order is written as `settling` before asking the facilitator to settle.
+Successful settlement is recorded as `paid_pending_fulfillment`; duplicate
+payment headers replay the existing order rather than charge twice. Unknown
+facilitator outcomes leave the quote locked. The operator must independently
+verify the Solana transaction before resolving the order as paid or failed.
+The endpoint records that operator resolution; the implementation does not
+itself verify finality or issue refunds. A verified paid order stays pending
+until the operator fulfills the read and marks it fulfilled. Refund execution
+remains an external operator action under the configured cancellation terms.
 
-## Settlement and records
+Configuration uses `RADIOLAN_X402_ENABLED=1`, `RADIOLAN_X402_RECEIVE_ADDRESS`,
+`RADIOLAN_X402_PRICE_USDC`, `RADIOLAN_X402_STORE_PATH`,
+`RADIOLAN_X402_REVIEW_TOKEN`, `RADIOLAN_X402_ALLOWED_CATEGORIES`,
+`RADIOLAN_X402_FULFILLMENT_WINDOW`, and
+`RADIOLAN_X402_CANCELLATION_POLICY`, plus the CDP credentials. The seller
+starts disabled. Missing or malformed configuration disables startup of the
+x402 handler while keeping the station running; no challenge is returned.
 
-Use the CDP-hosted facilitator directly so the Radio LAN payment is not routed
-through TWZRD's facilitator revenue split. CDP documents the hosted facilitator
-as a resource-server option authenticated with CDP API credentials. Its
-credentials must be available through the station's secret manager; never put
-them in source or client config. The live `intel.twzrd.xyz/supported` response
-currently advertises Solana mainnet `exact`, but that endpoint charges a fixed
-0.01 USDC TWZRD take per settlement, so it is not the default Radio LAN path.
+## Before live activation
 
-Use a dedicated operator receive wallet supplied through runtime secret/config,
-never a repository example address. Keep the private key out of the process if
-the facilitator can settle to a public address. Store quote/order state outside
-the repository with bounded retention and atomic writes or a durable database.
-Quote IDs and settlement signatures must be idempotent so retries cannot book
-or fulfill twice.
+Supply a dedicated receive wallet and custody label, fixed price, permitted and
+prohibited sponsor categories, fulfillment/offline policy, and cancellation
+and refund terms. Provision a long random review token and writable durable
+state path for the actual station service account. Validate facilitator support
+for the exact mainnet scheme and asset, and test quote rejection/expiry,
+settlement replay, uncertain outcome recovery, refund execution, and fulfillment
+with an operator-controlled low-value rehearsal. Also verify from outside that
+the loopback-only Caddy route reaches the current service version.
 
-After settlement, verify the transaction on Solana mainnet before marking the
-order paid. Check the finalized transaction's USDC mint, amount, destination,
-and signature against the quote. Reuse the existing receipt whitelist only
-where its `funding`/`sponsor` meaning and campaign accounting fit; otherwise add
-a distinct order record and link its public receipt to the verified signature.
-Never infer settlement from a client-supplied payment header or facilitator
-response alone.
-
-The seller starts disabled. Startup must fail closed or leave the routes
-unavailable unless the network, supported facilitator, dedicated receive
-address, fixed price, quote expiry, fulfillment window, moderation terms,
-cancellation/refund policy, and durable order store are all configured.
-Return no payment challenge while any prerequisite is absent.
-
-## Discovery and operations
-
-The `/hub` page can link to a short agent-facing offer document and advertise
-the quote resource. Add x402 Bazaar discovery metadata only when the live offer
-and request/response schema are stable. Browsers can discover the offer, but
-the pilot is an agent API; it does not need browser wallet integration or CORS
-to accept payment.
-
-Before live activation, verify the facilitator's supported-pairs endpoint,
-quote rejection/expiry, exact amount and recipient, duplicate settlement,
-failed or delayed finality, refund workflow, and that `radiolan.live` forwards
-the x402 v2 payment headers only to this handler. Confirm outside the repository
-that the new loopback-only Caddy route reaches the station. Keep the seller off
-until a low-value operator-controlled end-to-end payment and fulfillment
-rehearsal succeeds.
-
-## Operator decisions required before implementation can accept money
-
-- Dedicated Solana receive wallet and custody label.
-- Fixed USDC price per 60-second read.
-- Quote lifetime and fulfillment window, including station-offline behavior.
-- Cancellation and refund rule, including facilitator/network failure.
-- Accepted sponsor categories and an explicit prohibited-category list.
-- Whether one quote books the next available slot or a specific scheduled slot.
-
-These are operational terms, not code defaults. The sample ledger wallet in
-`docs/examples/ledger.example.json` is illustrative and must not be used as the
-recipient.
+`RADIOLAN_HUB_ORIGIN` is still `twzrd.xyz`; changing it is unnecessary for this
+agent payment API and is not part of this change. The live station is currently
+served from a separate private runtime worktree, so merging the public source
+alone will not install this handler in production.
 
 ## References
 
 - [x402 Foundation TypeScript Express server example](https://github.com/x402-foundation/x402/blob/main/examples/typescript/servers/express/README.md)
 - [CDP facilitator client for x402 resource servers](https://github.com/coinbase/cdp-sdk/blob/main/typescript/packages/cdp-sdk/README.md)
-- [x402 Bazaar discovery extension](https://github.com/x402-foundation/x402/blob/main/docs/extensions/bazaar.mdx)
 - [Twitch Branded Content Guidelines](https://help.twitch.tv/s/article/branded-content-policy)
