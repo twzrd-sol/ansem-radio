@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/twzrd-sol/ansem-radio",
+  "commit": "22bebf612e9f167cc9d56af0d93757b79ce67409",
+  "checkedAt": "2026-10-03",
+  "normalization": "omit-whole-line-comments-block-comments-and-empty-lines-v1",
+  "files": {
+    "programs/radiolan-arena/src/lib.rs": {
+      "sha256": "5e85d51b1ec7d7176654215ef57ab5ba5826c954118061a3cdd8e790ec4d842f",
+      "codeSha256": "435993a5128dfa3309b29f8b64e3213b16ab189322bfa70c178c3b3b4bb2ad71"
+    },
+    "src/sinks/arena.js": {
+      "sha256": "38bfac45b9ad3e4ccb1a8d3a131a22112ea29abe21ac8512f63c06f2ea4b9764",
+      "codeSha256": "bcac66a8158aa444c5d4fbbce26e609d75d6866afa7de1a8b416bc4947229ba9"
+    }
+  }
+}

@@ -5,7 +5,8 @@ features not present here are not available through this checkout.
 
 ## Start locally
 
-Use Node.js 22 or newer. There are no runtime dependencies to install.
+Use Node.js 22 or newer. The core Node service has no runtime dependencies. The
+optional fan frontend has its own pinned package; see [the hub README](apps/hub/README.md).
 
 ```sh
 npm test
@@ -25,12 +26,15 @@ Keep credentials and captured data outside the repository.
 | Event contract | `src/core/` | Normalized observations and cryptographic primitives |
 | Provider adapters | `src/providers/` | Twitch payload normalization and connections |
 | Local timeline | `src/timeline/` | Storage, minute aggregates and macro snapshots |
+| Fan hub | `apps/hub/`, `src/hub/` | Local passkeys, daily polls, provisional points board and devnet creator backing |
 | Room and chorus | `src/live/`, `src/agents/`, `public/` | Local UI and disclosed agent messages |
 | Attribution | `src/attribution/` | Canonical signed claims, commitments, Merkle trees and receipts |
 | Evidence sink | `src/sinks/` | Devnet anchoring client and receipt verification CLI |
 | Receipt panel | `src/ledger/` | Read-only transfer receipts |
 | Simulator | `src/sim/` | Offline scenarios, separate from live activity |
 | Arena program | `programs/radiolan-arena/`, `src/sinks/arena.js` | Program source and instruction builders for optional support positions. |
+| Fan hub | `apps/hub/`, `src/hub/` | Local passkey accounts, native activities, optional verified links and the devnet frontend |
+| Native season plans | `src/arena/` | Deterministic signed-event scoring and unsigned allocation plans; no transfer or claim instruction |
 
 ## Verify a receipt offline
 

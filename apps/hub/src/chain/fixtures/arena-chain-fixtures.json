@@ -1,0 +1,155 @@
+{
+ "note": "Real chain bytes for byte-compat tests (public data). Instructions: data hex + accounts with signer/writable flags.",
+ "instructions": {
+  "init_arena_mainnet_test_arena": {
+   "cluster": "mainnet",
+   "signature": "4vJkr8J5jEHk1Uuzsu6JA1rHj2uJiaygku6AWtxCq5Yzs1QJCjkCFeiHu97aE1xvL9cqkY13T9mRuZjbpn97Ma1i",
+   "slot": 452648045,
+   "data_hex": "0000aeb96a00000000803a090000000000",
+   "accounts": [
+    {
+     "pubkey": "GbscvafBJEkWutxm3Bi6AYfXztfojW6Jj7Yaw1TM3PhT",
+     "signer": true,
+     "writable": true
+    },
+    {
+     "pubkey": "GwYjjFYcc4DV8hLE6bCAQiM3rjstGWNZ6p3icjR7ZnxU",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy",
+     "signer": false,
+     "writable": false
+    },
+    {
+     "pubkey": "11111111111111111111111111111111",
+     "signer": false,
+     "writable": false
+    }
+   ]
+  },
+  "deposit_devnet_founder": {
+   "cluster": "devnet",
+   "signature": "5YmydZu3FQLJ1Gt4uH418GsarFpoqd9g4bidH9y2v92HJFp788mHSC1P47fUibkYkURiKSKdd7PnPziWrrUJ6J6A",
+   "slot": 506657220,
+   "data_hex": "0100e1f50500000000",
+   "accounts": [
+    {
+     "pubkey": "D7ucJmECWCQ2aWzaQegsHeNM4hjYsGFPN3YnU7Pnh7nd",
+     "signer": true,
+     "writable": true
+    },
+    {
+     "pubkey": "6Sb5i7GDYLnPJLFJL1nMnZg8ru4FeJBYii7xYhfoowjt",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "AWqyHVGQxG5AXZ7SGj8HrvPSp1j5u9ysWuNzsR8tXsiv",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "Btmiz9SyzPPCrk7g3X3dnKaJBHmh5XfgpPMKG6tHaSAz",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "CsNNrZCLUTUFDN1tEKQ3pAept8mvHYuqBaMFnmRURduC",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "9ocVrg8z6wva3Z7A3rLYU4fWXFXWWf6sC4aGV7fgSJuN",
+     "signer": false,
+     "writable": false
+    },
+    {
+     "pubkey": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+     "signer": false,
+     "writable": false
+    },
+    {
+     "pubkey": "11111111111111111111111111111111",
+     "signer": false,
+     "writable": false
+    }
+   ]
+  },
+  "request_devnet_founder": {
+   "cluster": "devnet",
+   "signature": "58TiYhchJJstji9VaEitneDpaPTLEtJm55Gv5josSteSkh7vosSFPnW7MakoFzXar8zX3CCUJKdaoXocr17BuTZa",
+   "slot": 506657229,
+   "data_hex": "02",
+   "accounts": [
+    {
+     "pubkey": "D7ucJmECWCQ2aWzaQegsHeNM4hjYsGFPN3YnU7Pnh7nd",
+     "signer": true,
+     "writable": true
+    },
+    {
+     "pubkey": "6Sb5i7GDYLnPJLFJL1nMnZg8ru4FeJBYii7xYhfoowjt",
+     "signer": false,
+     "writable": false
+    },
+    {
+     "pubkey": "AWqyHVGQxG5AXZ7SGj8HrvPSp1j5u9ysWuNzsR8tXsiv",
+     "signer": false,
+     "writable": true
+    }
+   ]
+  },
+  "withdraw_devnet_founder": {
+   "cluster": "devnet",
+   "signature": "7VLsE7dw78aiQ3z7n4a6Z91EUTZcbSmHwA55Kxzk7jAWVq1x5yH2TuPt3X3JgickL8Yckyaec18x1uNJPVaeRB8",
+   "slot": 506657486,
+   "data_hex": "0300e1f50500000000",
+   "accounts": [
+    {
+     "pubkey": "D7ucJmECWCQ2aWzaQegsHeNM4hjYsGFPN3YnU7Pnh7nd",
+     "signer": true,
+     "writable": true
+    },
+    {
+     "pubkey": "6Sb5i7GDYLnPJLFJL1nMnZg8ru4FeJBYii7xYhfoowjt",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "AWqyHVGQxG5AXZ7SGj8HrvPSp1j5u9ysWuNzsR8tXsiv",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "Btmiz9SyzPPCrk7g3X3dnKaJBHmh5XfgpPMKG6tHaSAz",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "CsNNrZCLUTUFDN1tEKQ3pAept8mvHYuqBaMFnmRURduC",
+     "signer": false,
+     "writable": true
+    },
+    {
+     "pubkey": "9ocVrg8z6wva3Z7A3rLYU4fWXFXWWf6sC4aGV7fgSJuN",
+     "signer": false,
+     "writable": false
+    },
+    {
+     "pubkey": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+     "signer": false,
+     "writable": false
+    }
+   ]
+  }
+ },
+ "accounts": {
+  "test_arena_mainnet": {
+   "address": "GwYjjFYcc4DV8hLE6bCAQiM3rjstGWNZ6p3icjR7ZnxU",
+   "owner": "5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf",
+   "slot": 452696609,
+   "data_base64": "UkxBUkVOQTH+BgAAAAAAAOfOSXM7oqXNCDL/HPeruni1xQFeGGtPhrh0uoo/VGwSqlk/0eS1I7oE1DO5CN5HX8tdD76ejKyo05uHEgskN64ArrlqAAAAAIA6CQAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  }
+ }
+}

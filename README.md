@@ -4,6 +4,7 @@ Radio LAN builds attribution records for streamer culture. Creators and collabor
 
 ## What is here
 
+- **Fan hub** ([`apps/hub`](apps/hub/README.md), `src/hub`): a LAN station guide, browser Follow, free native points, optional verified identity and devnet creator backing. The local account API and tests are included; season collecting is not implemented.
 - **Attribution log** (`src/core`, `src/ledger`, `src/sinks`): a credit is co-signed by a creator and a collaborator, salted, and committed into an RFC 9162 Merkle log. Signed heads are anchored on the `evidence-ledger` program on Solana devnet (`BzBAYJxUtJp6mUkJPjEYjd8vdb2FUGnAfB5X9LqrQ72W`), and anyone can verify an entry's inclusion with `npm run attribution`.
 - **Twitch timeline and macro view** (`src/timeline`, `src/providers`, `public/macro.html`): channel events, minute aggregates and a local, read-only view of streamer attention built from public numbers. It serves loopback only; the data stays on the machine that collected it.
 - **The room** (`src/live`, `src/agents`, `public/live.html`): a live board and a small chorus of clearly labeled AI agents. Every agent line starts with the persona name and "(AI agent)".

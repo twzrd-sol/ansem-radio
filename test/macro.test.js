@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { request } from "node:http";
 
 import { createLiveServer } from "../src/live/server.js";
+import { createMarketFeed } from "../src/live/market-feed.js";
 import { TRACKED_STREAMERS } from "../src/markets/twitch-metrics.js";
 import { MACRO_NOTICE, MAX_SERIES_POINTS, downsample, isLoopbackHost, macroSnapshot, parseHours } from "../src/timeline/macro.js";
 import { twitchBoard } from "./twitch-fixtures.js";
@@ -92,7 +93,7 @@ test("the snapshot windows the data, ranks every tracked streamer and reads the 
   assert.equal(week.series.reduce((n, p) => n + p.minutes, 0), 48 * 60);
   assert.equal(week.hourly.length, 4);
   assert.deepEqual(week.live_now, []);
-  assert.equal(week.totals.tracked_viewers_now, week.series.at(-1).tracked_viewers, "without a board the latest sample stands in");
+  assert.equal(week.totals.tracked_viewers_now, null, "a historical sample cannot establish current viewers");
 });
 
 test("a stale record is flagged and an empty store does not throw", () => {
@@ -117,7 +118,7 @@ test("the snapshot carries only named fields: no participant ids, no chat, nothi
   const snapshot = macroSnapshot({ store: fakeStore({ mins, culture, gaps }), board, now: NOW, hours: 24 });
   const json = JSON.stringify(snapshot);
   for (const forbidden of ["user-hmac", "participant", "chatters", "secret_extra", "t0ken", "someone"]) assert.equal(json.includes(forbidden), false, forbidden);
-  assert.deepEqual(Object.keys(snapshot).sort(), ["board_updated_at", "coverage", "enabled", "gaps", "generated_at", "hourly", "hours", "live_now", "notice", "recorded_minutes", "series", "station", "streamers", "totals", "tracked_total", "window"]);
+  assert.deepEqual(Object.keys(snapshot).sort(), ["board_status", "board_updated_at", "coverage", "enabled", "gaps", "generated_at", "hourly", "hours", "live_now", "notice", "recorded_minutes", "series", "station", "streamers", "totals", "tracked_total", "window"]);
   assert.equal(snapshot.notice, MACRO_NOTICE);
   assert.deepEqual(snapshot.gaps.list, [{ start: gaps[0].start, end: gaps[0].end, reason: "socket_closed" }]);
 });
@@ -125,10 +126,24 @@ test("the snapshot carries only named fields: no participant ids, no chat, nothi
 test("board rows with a bad login are dropped and free text is trimmed", () => {
   const fixture = twitchBoard();
   const board = { ...fixture, rows: [{ ...fixture.rows[0], login: "Bad Login!" }, { ...fixture.rows[1], display_name: `  ${"x".repeat(200)}  `, game_name: "y".repeat(300) }] };
-  const snapshot = macroSnapshot({ store: fakeStore({ mins: minutes(5) }), board: { board }, now: NOW });
+  const snapshot = macroSnapshot({ store: fakeStore({ mins: minutes(5) }), board: { board, updated_at: new Date(NOW).toISOString() }, now: NOW });
   assert.equal(snapshot.live_now.length, 1);
   assert.equal(snapshot.live_now[0].display_name.length, 60);
   assert.equal(snapshot.live_now[0].game_name.length, 80);
+});
+
+test("the hub brief distinguishes a fresh empty board from missing, future, failed and stale current data", () => {
+  const store = fakeStore({ mins: minutes(5) });
+  const board = { board: { rows: [], errors: [] }, updated_at: new Date(NOW).toISOString() };
+  const current = macroSnapshot({ store, board, now: NOW });
+  assert.equal(current.board_status, "available");
+  assert.equal(current.totals.tracked_viewers_now, 0);
+  for (const bad of [null, { ...board, updated_at: null }, { ...board, updated_at: new Date(NOW + 1).toISOString() }, { ...board, updated_at: new Date(NOW - 120_001).toISOString() }, { ...board, last_error: "offline" }]) {
+    const result = macroSnapshot({ store, board: bad, now: NOW });
+    assert.notEqual(result.board_status, "available");
+    assert.equal(result.totals.tracked_viewers_now, null);
+    assert.deepEqual(result.live_now, []);
+  }
 });
 
 test("the room serves the macro page and state to this machine only, read only", async (t) => {
@@ -137,6 +152,7 @@ test("the room serves the macro page and state to this machine only, read only",
     enableBoard: true,
     boardFetch: async () => twitchBoard(),
     boardIntervalMs: 3_600_000,
+    createBoardFeed: (options) => createMarketFeed({ ...options, now: () => NOW }),
     enableTimeline: true,
     createTimelineImpl: () => ({ setToken: async () => {}, observeIrc() {}, stop() {} }),
     createTimelineStoreImpl: () => fakeStore({ mins: minutes(200), culture: [rollup("xqc", 1)] }),
@@ -162,9 +178,12 @@ test("the room serves the macro page and state to this machine only, read only",
   assert.equal(page.status, 200);
   assert.match(page.headers["content-type"], /^text\/html/);
   assert.equal(page.headers["cache-control"], "no-store");
+  const stream = await get(port, "/stream?hours=6");
+  assert.equal(stream.status, 200);
+  assert.equal(stream.body, page.body, "the LAN link opens the same macro page");
 
   assert.equal((await get(port, "/macro/state", { headers: { Host: `localhost:${port}` } })).status, 200);
-  for (const path of ["/macro", "/macro/state", "/public/macro.html", "/live/events"]) {
+  for (const path of ["/stream", "/macro", "/macro/state", "/public/macro.html", "/live/events"]) {
     for (const host of ["evil.example", `evil.example:${port}`, "127.0.0.1.evil.example", "0.0.0.0"]) {
       const res = await get(port, path, { headers: { Host: host } });
       assert.equal(res.status, 403, `${path} with Host ${host}`);
