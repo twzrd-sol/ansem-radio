@@ -15,7 +15,7 @@ function validateState(value) {
     }
   }
   for (const [id, order] of Object.entries(value.orders)) {
-    if (!ID.test(id) || order?.id !== id || !["settling", "paid_pending_fulfillment", "fulfilled", "refund_recorded", "settlement_unknown"].includes(order.status)) {
+    if (!ID.test(id) || order?.id !== id || !["settling", "paid_pending_fulfillment", "fulfilled", "settlement_failed", "settlement_unknown"].includes(order.status)) {
       throw new TypeError("x402 order store is invalid");
     }
   }

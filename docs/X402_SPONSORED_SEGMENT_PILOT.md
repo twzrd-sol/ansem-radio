@@ -50,19 +50,19 @@ runtime settings. Price uses at most six decimal places. The state file path
 must be absolute; the process creates its parent with mode 0700 and file with
 mode 0600. The station process is the sole writer.
 
-An order is written as `settling` before asking the facilitator to settle.
-Successful settlement is recorded as `paid_pending_fulfillment`; duplicate
-payment headers replay the existing order rather than charge twice. Unknown
-facilitator outcomes leave the quote locked. The operator must independently
-verify the Solana transaction before resolving the order as paid or failed.
-The endpoint records that operator resolution; the implementation does not
-itself verify finality or issue refunds. A verified paid order stays pending
+An order is written as `settling` before asking the facilitator to settle. A
+facilitator success is followed by an independent finalized Solana RPC check of
+the transaction signature, successful transaction status, USDC mint, receive
+wallet balance increase, and exact atomic amount. Only then is the order marked
+`paid_pending_fulfillment`. Duplicate payment headers replay the existing order
+rather than charge twice. Unknown or unverifiable outcomes leave the quote
+locked for operator reconciliation. The implementation does not issue refunds. A verified paid order stays pending
 until the operator fulfills the read and marks it fulfilled. Refund execution
 remains an external operator action under the configured cancellation terms.
 
 Configuration uses `RADIOLAN_X402_ENABLED=1`, `RADIOLAN_X402_RECEIVE_ADDRESS`,
-`RADIOLAN_X402_PRICE_USDC`, `RADIOLAN_X402_STORE_PATH`,
-`RADIOLAN_X402_REVIEW_TOKEN`, `RADIOLAN_X402_ALLOWED_CATEGORIES`,
+`RADIOLAN_X402_PRICE_USDC`, `RADIOLAN_X402_SOLANA_RPC_URL`,
+`RADIOLAN_X402_STORE_PATH`, `RADIOLAN_X402_REVIEW_TOKEN`, `RADIOLAN_X402_ALLOWED_CATEGORIES`,
 `RADIOLAN_X402_FULFILLMENT_WINDOW`, and
 `RADIOLAN_X402_CANCELLATION_POLICY`, plus the CDP credentials. The seller
 starts disabled. Missing or malformed configuration disables startup of the
@@ -72,8 +72,8 @@ x402 handler while keeping the station running; no challenge is returned.
 
 Supply a dedicated receive wallet and custody label, fixed price, permitted and
 prohibited sponsor categories, fulfillment/offline policy, and cancellation
-and refund terms. Provision a long random review token and writable durable
-state path for the actual station service account. Validate facilitator support
+and refund terms. Provision a long random review token, a finalized Solana mainnet RPC URL, and
+writable durable state path for the actual station service account. Validate facilitator support
 for the exact mainnet scheme and asset, and test quote rejection/expiry,
 settlement replay, uncertain outcome recovery, refund execution, and fulfillment
 with an operator-controlled low-value rehearsal. Also verify from outside that

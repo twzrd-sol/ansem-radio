@@ -14,6 +14,8 @@ const config = (statePath) => ({
   payTo: PAY_TO,
   priceUsdc: "5.00",
   statePath,
+  solanaRpcUrl: "https://mainnet.example-rpc.test",
+  amountAtomic: "5000000",
   reviewToken: REVIEW_TOKEN,
   allowedCategories: ["software"],
   fulfillmentWindow: "Within seven days of settlement.",
@@ -59,6 +61,7 @@ test("x402 stays off by default and enabled configuration fails closed", () => {
     RADIOLAN_X402_RECEIVE_ADDRESS: PAY_TO,
     RADIOLAN_X402_PRICE_USDC: "5.00",
     RADIOLAN_X402_STORE_PATH: "/tmp/radiolan-x402-store.json",
+    RADIOLAN_X402_SOLANA_RPC_URL: "https://mainnet.example-rpc.test",
     RADIOLAN_X402_REVIEW_TOKEN: REVIEW_TOKEN,
     RADIOLAN_X402_ALLOWED_CATEGORIES: "software, creator-tools",
     RADIOLAN_X402_FULFILLMENT_WINDOW: "Within seven days of settlement.",
@@ -96,7 +99,7 @@ test("quote review precedes x402, settlement is durable and retries do not charg
         return { success: true, transaction: "test-transaction", payer: "buyer", headers: { "PAYMENT-RESPONSE": "settled-receipt" } };
       },
     };
-    const api = createSponsorApi({ config: config(statePath), store, paymentServer, now: () => 1_800_000_000_000 });
+    const api = createSponsorApi({ config: config(statePath), store, paymentServer, settlementVerifier: async () => true, now: () => 1_800_000_000_000 });
     const prefix = "/hub/api/x402";
     const body = { sponsor_name: "Orbit Labs", category: "software", copy: "Orbit Labs supports independent creator tools." };
 
@@ -161,7 +164,7 @@ test("quote review precedes x402, settlement is durable and retries do not charg
     assert.equal(res.json().order.status, "fulfilled");
     assert.equal(createSponsorStore({ path: statePath }).order(orderId).status, "fulfilled");
 
-    const recoveredApi = createSponsorApi({ config: config(statePath), store: createSponsorStore({ path: statePath }), paymentServer, now: () => 1_800_000_000_000 });
+    const recoveredApi = createSponsorApi({ config: config(statePath), store: createSponsorStore({ path: statePath }), paymentServer, settlementVerifier: async () => true, now: () => 1_800_000_000_000 });
     res = response();
     await recoveredApi(request("GET", `${prefix}/quotes/${quoteId}/purchase`, { headers: { "payment-signature": "same-signed-payment" } }), res);
     assert.equal(res.status, 200, "restart keeps the settled order replayable");
@@ -212,6 +215,74 @@ test("unknown settlement stays locked until an operator records the verified out
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("facilitator success without finalized chain proof remains locked and cannot be paid twice", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "radiolan-x402-unverified-"));
+  try {
+    const statePath = join(directory, "sponsor-state.json");
+    const store = createSponsorStore({ path: statePath });
+    let settled = 0;
+    const paymentServer = {
+      async initialize() {},
+      async processHTTPRequest() { return { type: "payment-verified", paymentPayload: {}, paymentRequirements: {}, declaredExtensions: undefined }; },
+      async processSettlement() {
+        settled += 1;
+        return { success: true, transaction: "pending-finality", headers: { "PAYMENT-RESPONSE": "settled" } };
+      },
+    };
+    const api = createSponsorApi({ config: config(statePath), store, paymentServer, settlementVerifier: async () => false, now: () => 1_800_000_000_000 });
+    let res = response();
+    await api(request("POST", "/hub/api/x402/quotes", {
+      body: { sponsor_name: "Orbit Labs", category: "software", copy: "Orbit Labs supports independent creator tools." },
+      headers: { "content-type": "application/json" },
+    }), res);
+    const quoteId = res.json().quote.quote_id;
+    res = response();
+    await api(request("POST", `/hub/api/x402/quotes/${quoteId}/review`, {
+      body: { decision: "approve" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${REVIEW_TOKEN}` },
+    }), res);
+    res = response();
+    await api(request("GET", `/hub/api/x402/quotes/${quoteId}/purchase`, { headers: { "payment-signature": "not-final-yet" } }), res);
+    assert.equal(res.status, 503);
+    assert.equal(res.json().error, "settlement_not_finally_verified");
+    assert.equal(store.order(res.json().order_id).status, "settlement_unknown");
+    res = response();
+    await api(request("GET", `/hub/api/x402/quotes/${quoteId}/purchase`, { headers: { "payment-signature": "not-final-yet" } }), res);
+    assert.equal(res.status, 503);
+    assert.equal(res.headers["PAYMENT-RESPONSE"], "settled");
+    assert.equal(settled, 1);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Solana settlement verifier requires finalized transaction with exact recipient, mint, and atomic amount", async () => {
+  const { verifySolanaSettlement } = await import("../src/x402/sponsor-api.js");
+  const signature = "verified-signature";
+  const transaction = {
+    meta: {
+      err: null,
+      preTokenBalances: [{ accountIndex: 1, mint: X402_USDC_MINT, owner: PAY_TO, uiTokenAmount: { amount: "1000000" } }],
+      postTokenBalances: [{ accountIndex: 1, mint: X402_USDC_MINT, owner: PAY_TO, uiTokenAmount: { amount: "6000000" } }],
+    },
+    transaction: { signatures: [signature] },
+  };
+  let rpcRequest;
+  const fetchImpl = async (_url, init) => {
+    rpcRequest = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ result: transaction }) };
+  };
+  const args = { rpcUrl: "https://rpc.example", signature, payTo: PAY_TO, amountAtomic: "5000000", fetchImpl };
+  assert.equal(await verifySolanaSettlement(args), true);
+  assert.equal(rpcRequest.method, "getTransaction");
+  assert.equal(rpcRequest.params[1].commitment, "finalized");
+  transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "5999999";
+  assert.equal(await verifySolanaSettlement(args), false);
+  transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "6000000";
+  transaction.meta.err = { InstructionError: [0, "Custom"] };
+  assert.equal(await verifySolanaSettlement(args), false);
 });
 
 test("the official x402 server advertises the exact mainnet USDC requirement for an approved quote", async () => {

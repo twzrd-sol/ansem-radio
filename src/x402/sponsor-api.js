@@ -16,6 +16,42 @@ const QUOTE_TTL_SECONDS = 86_400;
 const COPY_MAX = 600;
 const SPONSOR_MAX = 80;
 const STATES = new Set(["pending_review", "approved", "rejected", "settling", "paid"]);
+const TOKEN_SCALE = 1_000_000n;
+
+function toAtomicUsdc(value) {
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole) * TOKEN_SCALE + BigInt(fraction.padEnd(6, "0"));
+}
+
+/** Verify a finalized Solana transaction's signature and exact USDC owner balance delta. */
+export async function verifySolanaSettlement({ rpcUrl, signature, payTo, amountAtomic, fetchImpl = globalThis.fetch }) {
+  const response = await fetchImpl(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: "radiolan-x402-settlement",
+      method: "getTransaction",
+      params: [signature, { commitment: "finalized", encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }],
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error("solana_rpc_unavailable");
+  const payload = await response.json();
+  if (payload.error) throw new Error("solana_rpc_error");
+  const transaction = payload.result;
+  if (!transaction || transaction.meta?.err !== null || !transaction.transaction?.signatures?.includes(signature)) return false;
+  const pre = new Map((transaction.meta.preTokenBalances ?? []).map((balance) => [`${balance.accountIndex}:${balance.mint}:${balance.owner}`, BigInt(balance.uiTokenAmount.amount)]));
+  const post = new Map((transaction.meta.postTokenBalances ?? []).map((balance) => [`${balance.accountIndex}:${balance.mint}:${balance.owner}`, BigInt(balance.uiTokenAmount.amount)]));
+  const keys = new Set([...pre.keys(), ...post.keys()]);
+  let received = 0n;
+  for (const key of keys) {
+    const [, mint, owner] = key.split(":");
+    if (mint !== X402_USDC_MINT || owner !== payTo) continue;
+    received += (post.get(key) ?? 0n) - (pre.get(key) ?? 0n);
+  }
+  return received === BigInt(amountAtomic);
+}
 
 function required(env, name) {
   const value = env[name]?.trim();
@@ -42,6 +78,12 @@ export function loadSponsorConfig(env = process.env) {
   }
   const statePath = required(env, "RADIOLAN_X402_STORE_PATH");
   if (!statePath.startsWith("/")) throw new TypeError("RADIOLAN_X402_STORE_PATH must be absolute");
+  const solanaRpcUrl = required(env, "RADIOLAN_X402_SOLANA_RPC_URL");
+  let parsedRpc;
+  try { parsedRpc = new URL(solanaRpcUrl); } catch { throw new TypeError("RADIOLAN_X402_SOLANA_RPC_URL must be an HTTPS Solana mainnet RPC URL"); }
+  if (parsedRpc.protocol !== "https:" || parsedRpc.hostname.toLowerCase().includes("devnet") || parsedRpc.hostname.toLowerCase().includes("testnet")) {
+    throw new TypeError("RADIOLAN_X402_SOLANA_RPC_URL must be an HTTPS Solana mainnet RPC URL");
+  }
   const reviewToken = required(env, "RADIOLAN_X402_REVIEW_TOKEN");
   if (reviewToken.length < 32) throw new TypeError("RADIOLAN_X402_REVIEW_TOKEN must be at least 32 characters");
   const categories = required(env, "RADIOLAN_X402_ALLOWED_CATEGORIES").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
@@ -54,6 +96,8 @@ export function loadSponsorConfig(env = process.env) {
     payTo,
     priceUsdc,
     statePath,
+    solanaRpcUrl,
+    amountAtomic: toAtomicUsdc(priceUsdc).toString(),
     reviewToken,
     allowedCategories: Object.freeze([...new Set(categories)]),
     fulfillmentWindow: publicTerms(required(env, "RADIOLAN_X402_FULFILLMENT_WINDOW"), "RADIOLAN_X402_FULFILLMENT_WINDOW", 240),
@@ -124,6 +168,8 @@ export function createSponsorApi({
   store = config ? createSponsorStore({ path: config.statePath }) : null,
   paymentServer = null,
   facilitatorClient = null,
+  settlementVerifier = verifySolanaSettlement,
+  fetchImpl = globalThis.fetch,
   now = () => Date.now(),
   rateLimit = createRateLimiter({ limit: 20, windowMs: 60_000 }),
   bodyReader = readJson,
@@ -174,7 +220,7 @@ export function createSponsorApi({
         if (prior.status === "paid_pending_fulfillment" || prior.status === "fulfilled") {
           return reply(response, 200, { order: safeOrder(prior), replayed: true }, prior.payment_response ? { "PAYMENT-RESPONSE": prior.payment_response } : {});
         }
-        return reply(response, 503, { error: "settlement_outcome_unknown", order_id: prior.id });
+        return reply(response, 503, { error: "settlement_outcome_unknown", order_id: prior.id }, prior.payment_response ? { "PAYMENT-RESPONSE": prior.payment_response } : {});
       }
     }
     if (quote.status !== "approved") return reply(response, quote.status === "settling" ? 503 : 409, { error: quote.status === "settling" ? "settlement_outcome_unknown" : "quote_not_approved", ...(quote.order_id ? { order_id: quote.order_id } : {}) });
@@ -252,6 +298,28 @@ export function createSponsorApi({
       store.updateOrder(orderId, { status: "settlement_unknown" });
       busyQuotes.delete(quote.id);
       return reply(response, settled.response.status, settled.response.body ?? { error: "settlement_failed" }, settled.response.headers);
+    }
+    let verified = false;
+    try {
+      verified = await settlementVerifier({
+        rpcUrl: config.solanaRpcUrl,
+        signature: settled.transaction,
+        payTo: config.payTo,
+        amountAtomic: config.amountAtomic ?? toAtomicUsdc(config.priceUsdc).toString(),
+        fetchImpl,
+      });
+    } catch {
+      // A facilitator success is not proof of finalized receipt. Keep the write-ahead order locked.
+    }
+    if (!verified) {
+      store.updateOrder(orderId, {
+        status: "settlement_unknown",
+        transaction: settled.transaction ?? null,
+        payer: settled.payer ?? null,
+        payment_response: settled.headers?.["PAYMENT-RESPONSE"] ?? null,
+      });
+      busyQuotes.delete(quote.id);
+      return reply(response, 503, { error: "settlement_not_finally_verified", order_id: orderId }, settled.headers);
     }
     try {
       const stored = store.updateOrder(orderId, {
@@ -340,7 +408,7 @@ export function createSponsorApi({
             return reply(response, 200, { order: safeOrder(updated), reconciliation: "paid" });
           }
           if (typeof body.transaction !== "string" || body.transaction.trim() !== "") throw new HttpError(400, "settlement_resolution_invalid");
-          store.updateOrder(order.id, { status: "refund_recorded", reconciled_at: new Date(now()).toISOString() });
+          store.updateOrder(order.id, { status: "settlement_failed", reconciled_at: new Date(now()).toISOString() });
           store.updateQuote(quote.id, { status: "rejected", order_id: null, reconciled_at: new Date(now()).toISOString() });
           return reply(response, 200, { order_id: order.id, reconciliation: "failed", quote_status: "rejected" });
         }
