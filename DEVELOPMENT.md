@@ -5,7 +5,8 @@ features not present here are not available through this checkout.
 
 ## Start locally
 
-Use Node.js 22 or newer. There are no runtime dependencies to install.
+Use Node.js 22 or newer. The core Node service has no runtime dependencies. The
+optional fan frontend has its own pinned package; see [the hub README](apps/hub/README.md).
 
 ```sh
 npm test
@@ -31,6 +32,8 @@ Keep credentials and captured data outside the repository.
 | Receipt panel | `src/ledger/` | Read-only transfer receipts |
 | Simulator | `src/sim/` | Offline scenarios, separate from live activity |
 | Arena program | `programs/radiolan-arena/`, `src/sinks/arena.js` | Program source and instruction builders for optional support positions. |
+| Fan hub | `apps/hub/`, `src/hub/` | Local passkey accounts, native activities, optional verified links and the devnet frontend |
+| Native season plans | `src/arena/` | Deterministic signed-event scoring and unsigned allocation plans; no transfer or claim instruction |
 
 ## Verify a receipt offline
 

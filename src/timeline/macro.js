@@ -120,15 +120,17 @@ export function macroSnapshot({ store, board = null, now = Date.now(), hours = 2
       top_category: text(r.top_category, 80) || null,
     }));
 
-  const live = liveNow(board);
+  const boardAt = Date.parse(board?.updated_at);
+  const boardStatus = !Array.isArray(board?.board?.rows) ? "unavailable" : !Number.isFinite(boardAt) || boardAt > now || now - boardAt > 120_000 || board.last_error || board.board.errors?.length ? "stale" : "available";
+  const live = boardStatus === "available" ? liveNow(board) : [];
   const latest = allMinutes.length ? allMinutes.reduce((a, b) => (a.minute > b.minute ? a : b)) : null;
   const latestMs = latest ? Date.parse(latest.minute) : null;
   const windowGaps = gaps.filter((g) => Date.parse(g.end) >= from && Date.parse(g.start) < now);
-  const lastPoint = [...series].reverse().find((p) => p.tracked_viewers !== null);
   // Followers are sampled every five minutes, so the newest minute usually has none.
   const followerRow = [...allMinutes].sort((a, b) => b.minute.localeCompare(a.minute)).find((m) => Number.isFinite(m.followers_total));
 
   return {
+    board_status: boardStatus,
     enabled: true,
     generated_at: new Date(now).toISOString(),
     notice: MACRO_NOTICE,
@@ -143,7 +145,7 @@ export function macroSnapshot({ store, board = null, now = Date.now(), hours = 2
     },
     tracked_total: new Set(tracked).size,
     totals: {
-      tracked_viewers_now: live.length ? live.reduce((sum, r) => sum + (r.viewer_count ?? 0), 0) : lastPoint?.tracked_viewers ?? null,
+      tracked_viewers_now: boardStatus === "available" ? live.reduce((sum, r) => sum + (r.viewer_count ?? 0), 0) : null,
       avg_tracked_live: summary.culture.avg_tracked_live,
       avg_tracked_viewers: summary.culture.avg_tracked_viewers,
       peak_tracked_viewers: summary.culture.peak_tracked_viewers,
