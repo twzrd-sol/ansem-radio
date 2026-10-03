@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { encodeBase58 } from "../src/core/base58.js";
 import { signerFromSeed } from "../src/core/ed25519.js";
+import { loadSigner, main, status } from "../src/sinks/arena-cli.js";
 import {
   ARENA_LEN,
   ARENA_PROGRAM_ID,
@@ -84,6 +88,53 @@ test("season index matches the program's rule", () => {
   assert.equal(seasonIndex(1000, 100, 1100), 2n);
   assert.equal(seasonIndex(1000, 100, 0), 0n);
   assert.equal(seasonIndex(5, 0, 10), 0n, "zeroed buffer: no throw, like the program");
+});
+
+test("the CLI sends to devnet only and never prints a seed", async () => {
+  const seed = "ab".repeat(32);
+  const errors = [];
+  const original = console.error;
+  console.error = (line) => errors.push(line);
+  try {
+    const mainnet = { genesisHash: async () => "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" };
+    const code = await main(["init", "--signer", "env:SEED", "--mint", mint, "--season-seconds", "60"], { SEED: seed }, { rpc: mainnet });
+    assert.equal(code, 1);
+    assert.match(errors.join("\n"), /not devnet/);
+    assert.equal(errors.join("\n").includes(seed), false);
+  } finally {
+    console.error = original;
+  }
+});
+
+test("a keypair file whose public half does not match its seed is refused", () => {
+  const dir = mkdtempSync(join(tmpdir(), "arena-"));
+  const good = signerFromSeed(new Uint8Array(32).fill(3));
+  const file = join(dir, "k.json");
+  writeFileSync(file, JSON.stringify([...new Uint8Array(32).fill(3), ...good.publicKey]));
+  assert.equal(encodeBase58(loadSigner(file).publicKey), encodeBase58(good.publicKey));
+  writeFileSync(file, JSON.stringify([...new Uint8Array(32).fill(3), ...new Uint8Array(32)]));
+  assert.throws(() => loadSigner(file), /does not match/);
+  assert.throws(() => loadSigner("env:NOPE", {}), /64 lowercase hex/);
+});
+
+test("status treats a lamports-only PDA as absent and uses the cluster clock", async () => {
+  const arena = arenaAddress(streamer, mint).address;
+  const a = new Uint8Array(ARENA_LEN);
+  a.set(new TextEncoder().encode("RLARENA1"));
+  new DataView(a.buffer).setBigInt64(80, 1000n, true);
+  new DataView(a.buffer).setBigUint64(88, 100n, true);
+  const accounts = new Map([[encodeBase58(arena), { owner: ARENA_PROGRAM_ID, data: a }]]);
+  const rpc = {
+    getAccount: async (k) => accounts.get(encodeBase58(k)) ?? { owner: "11111111111111111111111111111111", data: new Uint8Array(0) },
+    call: async (method) => (method === "getSlot" ? 7 : 1150),
+  };
+  const out = await status({ rpc, streamer, mint, fan });
+  assert.equal(out.exists, true);
+  assert.equal(out.clusterTime, "1150");
+  assert.equal(out.currentSeason, "2");
+  assert.equal(out.position, null, "1 lamport sent to the position PDA is not a position");
+  accounts.clear();
+  assert.equal((await status({ rpc, streamer, mint })).exists, false);
 });
 
 test("sendAndConfirm keeps polling through a rate-limited status call", async () => {

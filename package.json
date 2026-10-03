@@ -10,6 +10,7 @@
     "board": "node src/markets/board-cli.js",
     "ledger": "node src/ledger/ledger-cli.js",
     "attribution": "node src/sinks/evidence-ledger-cli.js",
+    "arena": "node src/sinks/arena-cli.js",
     "twitch:connect": "node src/live/twitch-connect.js",
     "timeline": "node src/timeline/cli.js",
     "sim": "node src/sim/cli.js"
