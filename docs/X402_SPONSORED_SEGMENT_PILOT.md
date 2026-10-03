@@ -31,33 +31,42 @@ network identifier is `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`; the USDC mint i
 verify that the selected facilitator reports support for this exact network,
 asset, and scheme. Do not silently substitute devnet or another chain.
 
-Expose a separate agent API on `radiolan.live`, for example:
+Expose a separate agent API under the existing station API proxy on
+`radiolan.live`:
 
-- `POST /api/x402/sponsor-quotes` validates the submitted sponsor copy and
+- `POST /hub/api/x402/sponsor-quotes` validates the submitted sponsor copy and
   returns an immutable quote ID, fixed USDC amount, recipient, expiry,
   fulfillment window, and cancellation/refund terms.
-- `GET /api/x402/sponsor-quotes/{id}` returns the x402 payment challenge for
+- `GET /hub/api/x402/sponsor-quotes/{id}` returns the x402 payment challenge for
   that accepted quote. A valid settlement books the segment idempotently and
   returns a receipt/order ID and transaction signature.
-- `GET /api/x402/sponsor-orders/{id}` returns only the order status and public
+- `GET /hub/api/x402/sponsor-orders/{id}` returns only the order status and public
   fulfillment state.
 
-The final route shape can change during implementation, but it must stay outside
-`/hub/rpc` and the passkey-protected `/hub/api/*` namespace. The current public
-server rejects external `/hub/*` requests and its `/hub/api/*` routes use
-`RADIOLAN_HUB_ORIGIN`; that variable remains `twzrd.xyz`. The agent payment API
-must not depend on passkeys or on changing that origin. The `radiolan.live`
-Caddy site binds to loopback, so its reverse proxy must map only the chosen
-payment API prefix to the station listener. Preserve the existing RPC method
-allowlist and do not forward arbitrary paths or payment headers to the RPC
-upstream.
+The current `radiolan.live` Caddy config already sends `/hub/api/*` to the
+loopback station listener. Keep the x402 handler as an explicit route inside
+that prefix, ahead of the general passkey API handler. The public source
+currently rejects external `/hub/*` requests and must add a narrow exception
+for this configured x402 route and the exact `radiolan.live` host; do not relax
+the existing hub or RPC boundaries. `RADIOLAN_HUB_ORIGIN` remains `twzrd.xyz`,
+and the agent payment API must not depend on passkeys or on changing that
+origin. Preserve the existing RPC method allowlist and never forward the x402
+payment headers to the RPC upstream.
 
 The public source can define and document the handler, but the deployed station
-is separately configured. Production activation requires a corresponding
-private-runtime change and an explicit Caddy route. Do not treat merging this
-public source as deploying or activating the seller.
+is separately configured in a private runtime worktree. No Caddy edit is
+currently required for the `/hub/api/*` route. Do not treat merging public
+source as deploying or activating the seller.
 
 ## Settlement and records
+
+Use the CDP-hosted facilitator directly so the Radio LAN payment is not routed
+through TWZRD's facilitator revenue split. CDP documents the hosted facilitator
+as a resource-server option authenticated with CDP API credentials. Its
+credentials must be available through the station's secret manager; never put
+them in source or client config. The live `intel.twzrd.xyz/supported` response
+currently advertises Solana mainnet `exact`, but that endpoint charges a fixed
+0.01 USDC TWZRD take per settlement, so it is not the default Radio LAN path.
 
 Use a dedicated operator receive wallet supplied through runtime secret/config,
 never a repository example address. Keep the private key out of the process if
@@ -112,5 +121,6 @@ recipient.
 ## References
 
 - [x402 Foundation TypeScript Express server example](https://github.com/x402-foundation/x402/blob/main/examples/typescript/servers/express/README.md)
+- [CDP facilitator client for x402 resource servers](https://github.com/coinbase/cdp-sdk/blob/main/typescript/packages/cdp-sdk/README.md)
 - [x402 Bazaar discovery extension](https://github.com/x402-foundation/x402/blob/main/docs/extensions/bazaar.mdx)
 - [Twitch Branded Content Guidelines](https://help.twitch.tv/s/article/branded-content-policy)
