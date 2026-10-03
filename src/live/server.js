@@ -1,4 +1,12 @@
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { createHubApi } from "../hub/api.js";
+import { createHubStore } from "../hub/store.js";
+import { createArenaIndex } from "../hub/market.js";
+import { loadPolls } from "../hub/polls.js";
+import { loadRegistry } from "../hub/registry.js";
+import { createRpcRelay } from "../hub/relay.js";
+import { quoteProvenance } from "../markets/quote-provenance.js";
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 
@@ -17,6 +25,7 @@ import { createTimelineStore } from "../timeline/store.js";
 
 const STATIC_FILES = new Map([
   ["/public/live.html", [new URL("../../public/live.html", import.meta.url), "text/html; charset=utf-8"]],
+  ["/stream", [new URL("../../public/macro.html", import.meta.url), "text/html; charset=utf-8"]],
   ["/public/macro.html", [new URL("../../public/macro.html", import.meta.url), "text/html; charset=utf-8"]],
   ["/src/live/station.js", [new URL("./station.js", import.meta.url), "text/javascript; charset=utf-8"]],
 ]);
@@ -69,10 +78,40 @@ export function createLiveServer({
   createTimelineImpl = createTimelineIngest,
   createTimelineStoreImpl = createTimelineStore,
   macroClock = Date.now,
+  hubRpcUrl = process.env.RADIOLAN_RPC_URL,
+  hubRpcFetch = globalThis.fetch,
+  // The optional loopback hub API mounts under /hub/api/ when the page origin is set.
+  hubOrigins = process.env.RADIOLAN_HUB_ORIGIN,
+  hubStore = null,
+  hubSeasonPath = process.env.RADIOLAN_HUB_SEASON,
+  hubSeason = null,
+  hubPollsPath = process.env.RADIOLAN_HUB_POLLS,
+  hubPolls = null,
+  hubSecure = process.env.RADIOLAN_HUB_INSECURE_COOKIE !== "1",
+  hubClock = null,
+  // The backing board: the registry (RADIOLAN_HUB_REGISTRY, or the default) joined to an arena index that reads
+  // devnet through the relay's upstream every few minutes. Off without the upstream; `hubMarket` injects both.
+  hubRegistry = null,
+  hubMarket = null,
+  hubMarketIntervalMs = undefined,
   log = console,
 } = {}) {
   // A set but too-short key is an operator mistake: refuse to start rather than run with weak pseudonyms.
   assertParticipantKey(participantKey);
+  const hubRelay = hubRpcUrl ? createRpcRelay({ upstream: hubRpcUrl, fetchImpl: hubRpcFetch, log }) : null;
+  let hubApi = null;
+  let arenaIndex = null;
+  if (hubOrigins) {
+    const season = hubSeason ?? (hubSeasonPath ? JSON.parse(readFileSync(hubSeasonPath, "utf8")) : null);
+    const store = hubStore ?? createHubStore();
+    let market = hubMarket;
+    if (!market && hubRpcUrl) {
+      arenaIndex = createArenaIndex({ upstream: hubRpcUrl, fetchImpl: hubRpcFetch, dir: store.dir, log, ...(hubMarketIntervalMs ? { intervalMs: hubMarketIntervalMs } : {}) });
+      market = { registry: hubRegistry ?? loadRegistry(), index: arenaIndex, board: (login) => boardRow(login) };
+    }
+    const polls = hubPolls ?? (hubPollsPath ? loadPolls(hubPollsPath) : null);
+    hubApi = createHubApi({ origins: hubOrigins, store, season, polls, secure: hubSecure, log, market, ...(hubClock ? { now: hubClock } : {}) });
+  }
   const feed = createObservationFeed({ maxObservations });
   const clients = new Set();
   let ircSession = null;
@@ -205,6 +244,15 @@ export function createLiveServer({
     }
   });
 
+  const boardRow = (login) => {
+    const board = boardFeed ? boardFeed.snapshot().board : null;
+    if (!board) return null;
+    const row = board.rows?.find((r) => r.login === login);
+    // Helix returns live streams only; the feed names the rest under `offline`. Both are a recorded read.
+    if (!row) return board.offline?.includes(login) ? { live: false, viewers: null, game: null, startedAt: null, rank: null, deltaViewers: null, provenance: quoteProvenance({}, { station: STATION_CHANNEL, recordedAt: board.generated_at }) } : null;
+    return { live: Boolean(row.is_live), viewers: row.is_live ? row.viewer_count ?? null : null, game: row.game_name ?? null, startedAt: row.started_at ?? null, rank: row.rank ?? null, deltaViewers: row.delta_viewers ?? null, provenance: quoteProvenance(row, { station: STATION_CHANNEL, recordedAt: board.generated_at }) };
+  };
+
   const snapshot = () => Object.freeze({
     ...feed.snapshot(),
     board: boardFeed ? boardFeed.snapshot() : null,
@@ -213,18 +261,26 @@ export function createLiveServer({
   });
 
   const server = createServer(async (request, response) => {
+    let requestUrl;
+    try { requestUrl = new URL(request.url ?? "/", "http://localhost"); }
+    catch { response.writeHead(400).end("Bad request"); return; }
+    const pathname = requestUrl.pathname;
+    // The public starter remains local, including its account API and RPC relay.
+    if (pathname.startsWith("/hub/") && !isLoopbackHost(request.headers.host)) {
+      response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden"); return;
+    }
+    if (hubRelay && pathname === "/hub/rpc") { await hubRelay(request, response); return; }
+    if (hubApi && pathname.startsWith("/hub/api/")) { await hubApi(request, response); return; }
     if (request.method !== "GET") {
       response.writeHead(405, { Allow: "GET" }).end();
       return;
     }
-    const requestUrl = new URL(request.url ?? "/", "http://localhost");
-    const pathname = requestUrl.pathname;
     if (pathname === "/") {
       response.writeHead(302, { Location: "/public/live.html" }).end();
       return;
     }
     // Macro and live observations show Twitch data: this machine only. Do not publish or share it.
-    if (pathname === "/macro" || pathname === "/macro/state" || pathname === "/public/macro.html" || pathname === "/live/events") {
+    if (pathname === "/stream" || pathname === "/macro" || pathname === "/macro/state" || pathname === "/public/macro.html" || pathname === "/live/events") {
       if (!isLoopbackHost(request.headers.host)) {
         response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden");
         return;
@@ -329,6 +385,7 @@ export function createLiveServer({
         }
         if (boardFeed) await boardFeed.start();
         if (ledgerFeed) await ledgerFeed.start();
+        arenaIndex?.start();
         const address = server.address();
         resolve(Object.freeze({ host, port: address.port }));
       });
@@ -339,6 +396,7 @@ export function createLiveServer({
     timeline?.stop();
     boardFeed?.stop();
     ledgerFeed?.stop();
+    arenaIndex?.stop();
     tokenManager?.stop();
     ircSession?.stop();
     for (const response of clients) response.end();

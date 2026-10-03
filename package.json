@@ -6,6 +6,7 @@
   "description": "Twitch-first, platform-neutral autonomous media agent for AnsemHack.",
   "scripts": {
     "test": "node --test",
+    "arena:season": "node src/arena/season-cli.js",
     "live": "node src/live/server.js",
     "board": "node src/markets/board-cli.js",
     "ledger": "node src/ledger/ledger-cli.js",

@@ -36,6 +36,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 16px; transition: opacity 0.1
 main.loading { opacity: 0.6; }
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
 h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.hub-nav { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-bottom: 16px; }
+.hub-nav a { color: var(--ink); text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; color: var(--ink2); }
 .chip .ico { font-weight: 700; }
 .ico.good { color: var(--good); } .ico.warn { color: var(--warn); } .ico.crit { color: var(--crit); } .ico.off { color: var(--muted); }
@@ -97,6 +99,7 @@ svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
     <span class="chip"><span class="ico warn" aria-hidden="true">!</span>Internal. Twitch data, this machine only</span>
   </header>
 
+  <nav class="hub-nav" aria-label="Radio LAN"><a href="/hub/">Open the hub</a><a href="/hub/#/play">Play this season</a><a href="/hub/#/how">How Radio LAN works</a></nav>
   <div class="filters" role="group" aria-label="Filters">
     <div class="seg" role="radiogroup" aria-label="Time range">
       <label><input type="radio" name="range" value="6">6 h</label>
@@ -175,7 +178,8 @@ svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
 "use strict";
 const $ = (id) => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
-const state = { hours: 24, data: null, controller: null, lastOk: 0, keyboard: {} };
+const requestedHours = Number(new URL(location.href).searchParams.get("hours"));
+const state = { hours: [6, 24, 168].includes(requestedHours) ? requestedHours : 24, data: null, controller: null, lastOk: 0, keyboard: {} };
 const charts = [];
 
 function s(tag, attrs, parent) {
@@ -515,8 +519,8 @@ function render(d) {
   charts.length = 0;
   const t = d.totals;
   $("hero-v").textContent = fmt(t.tracked_viewers_now);
-  $("hero-s").textContent = `${d.live_now.length} of ${d.tracked_total} tracked streamers live`;
-  $("k-live").textContent = String(d.live_now.length);
+  $("hero-s").textContent = d.board_status === "available" ? `${d.live_now.length} of ${d.tracked_total} tracked streamers live` : "Current live board unavailable or stale";
+  $("k-live").textContent = d.board_status === "available" ? String(d.live_now.length) : "–";
   $("k-live-s").textContent = `of ${d.tracked_total} tracked`;
   $("k-peak").textContent = compact(t.peak_tracked_viewers);
   $("k-avg").textContent = compact(t.avg_tracked_viewers);
@@ -526,7 +530,7 @@ function render(d) {
   const covText = cov === null ? "no data" : cov >= 0.99 ? "Full" : cov >= 0.5 ? "Thin" : "Missing";
   const covBox = $("k-cov-s");
   covBox.replaceChildren(h("span", { class: "ico " + covKind, "aria-hidden": "true" }, covKind === "good" ? "✓ " : covKind === "warn" ? "! " : covKind === "crit" ? "✕ " : ""), `${covText}; ${d.gaps.count} ${d.gaps.count === 1 ? "gap" : "gaps"}, ${fmt(d.gaps.seconds)} s`);
-  if (d.station.stale) setStatus("warn", "Stale: no recent samples");
+  if (d.station.stale || d.board_status !== "available") setStatus("warn", "Some sources stale or unavailable");
   else setStatus("good", "Live data");
 
   register($("c-view"), () => drawLine($("c-view"), { points: d.series, key: "tracked_viewers", name: "Tracked viewers", label: "Tracked viewers over time", fmtV: fmt, peakLabel: true, height: 220 }));
@@ -570,7 +574,16 @@ async function load() {
   }
 }
 
-document.querySelectorAll('input[name="range"]').forEach((input) => input.addEventListener("change", () => { state.hours = Number(input.value); load(); }));
+document.querySelectorAll('input[name="range"]').forEach((input) => {
+  input.checked = Number(input.value) === state.hours;
+  input.addEventListener("change", () => {
+    state.hours = Number(input.value);
+    const url = new URL(location.href);
+    url.searchParams.set("hours", String(state.hours));
+    history.replaceState(null, "", url);
+    load();
+  });
+});
 $("table-toggle").addEventListener("change", (e) => document.body.classList.toggle("table-view", e.target.checked));
 $("download").addEventListener("click", () => {
   if (!state.data) return;

@@ -1,0 +1,12 @@
+{
+  "note": "Station-authored placeholder polls, one per UTC day from 2026-10-03, until the operator publishes real questions. Each is marked placeholder and the hub says so on the poll card. Point RADIOLAN_HUB_POLLS at a copy, or replace the questions in place.",
+  "polls": [
+    { "id": "sat-1003", "day": "2026-10-03", "question": "Which sound should open the next show?", "options": ["Boom bap", "Drill", "Jersey club", "Lo-fi"], "placeholder": true },
+    { "id": "sun-1004", "day": "2026-10-04", "question": "Best length for a live producer set?", "options": ["15 minutes", "30 minutes", "45 minutes", "A full hour"], "placeholder": true },
+    { "id": "mon-1005", "day": "2026-10-05", "question": "Which city should Radio LAN spotlight next?", "options": ["Atlanta", "Chicago", "Houston", "London"], "placeholder": true },
+    { "id": "tue-1006", "day": "2026-10-06", "question": "How should the chat agents talk during a set?", "options": ["Only between songs", "Short reactions anytime", "Quiet unless asked"], "placeholder": true },
+    { "id": "wed-1007", "day": "2026-10-07", "question": "What should the next guest bring?", "options": ["Unreleased beats", "A crate-digging story", "A live remix", "A freestyle"], "placeholder": true },
+    { "id": "thu-1008", "day": "2026-10-08", "question": "Best time for the weekly show (UTC)?", "options": ["18:00", "20:00", "22:00", "00:00"], "placeholder": true },
+    { "id": "fri-1009", "day": "2026-10-09", "question": "Which extra would you use most?", "options": ["Setlist after the show", "Clip of the week", "Producer Q&A", "Behind-the-scenes notes"], "placeholder": true }
+  ]
+}
