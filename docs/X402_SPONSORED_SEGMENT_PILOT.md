@@ -5,6 +5,10 @@ operator provides and configures the listed commercial and runtime terms. No
 payment is accepted by default, and merging this change does not deploy or
 activate the seller.
 
+When deployed without complete x402 configuration, `GET /hub/api/x402/offer`
+returns an explicit disabled status and planned protocol metadata. Quote and
+purchase routes return 503 and never issue a payment challenge.
+
 ## Offer and moderation
 
 Offer one fixed-price, clearly disclosed 60-second sponsored read. Watching the
@@ -24,8 +28,9 @@ The seller uses x402 v2 `exact` on Solana mainnet, with USDC mint
 `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` and network identifier
 `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`.
 
-- `GET /hub/api/x402/offer` describes the service, price, accepted categories,
-  fulfillment window, cancellation policy, and quote/purchase routes.
+- `GET /hub/api/x402/offer` describes the configured service, price, accepted
+  categories, fulfillment window, cancellation policy, and quote/purchase
+  routes. With the seller disabled, it reports that state without a price.
 - `POST /hub/api/x402/quotes` accepts only sponsor name, category, and copy.
   It creates a 24-hour quote in `pending_review`; it does not return a payment
   challenge.

@@ -95,6 +95,31 @@ test("x402 routes expose only radiolan.live and leave other hub paths loopback-o
   assert.deepEqual(seen, ["/hub/api/x402/offer"]);
 });
 
+test("unconfigured x402 route advertises disabled state and never issues a payment challenge", async (t) => {
+  const live = createLiveServer({ oauthToken: "" });
+  t.after(() => live.close());
+  const address = await live.listen({ port: 0 });
+  const call = (path, method = "GET", host = "radiolan.live") => new Promise((resolve, reject) => {
+    const request = http.request({ host: address.host, port: address.port, path, method, headers: { host } }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: body.startsWith("{") ? JSON.parse(body) : body }));
+    });
+    request.on("error", reject);
+    request.end();
+  });
+  const offer = await call("/hub/api/x402/offer");
+  assert.equal(offer.status, 200);
+  assert.equal(offer.body.status, "disabled");
+  assert.equal(offer.body.payment_enabled, false);
+  const quote = await call("/hub/api/x402/quotes", "POST");
+  assert.equal(quote.status, 503);
+  assert.equal(quote.body.error, "x402_disabled");
+  assert.equal(quote.headers["payment-required"], undefined);
+  assert.equal((await call("/hub/api/x402/offer", "GET", "twzrd.xyz")).status, 403);
+});
+
 test("authenticated IRC observations reach SSE without private fields", async (t) => {
   let options;
   let starts = 0;

@@ -272,12 +272,22 @@ export function createLiveServer({
     const pathname = requestUrl.pathname;
     const host = String(request.headers.host ?? "").trim().toLowerCase();
     const x402Host = /^radiolan\.live(?::[0-9]{1,5})?$/.test(host);
-    if (pathname.startsWith(X402_API_PREFIX) && sponsorApi) {
+    if (pathname.startsWith(X402_API_PREFIX)) {
       if (!x402Host) { response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden"); return; }
-      await sponsorApi(request, response); return;
+      if (sponsorApi) await sponsorApi(request, response);
+      else if (request.method === "GET" && pathname === `${X402_API_PREFIX}offer`) {
+        response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({
+          service: "Radio LAN sponsor reads",
+          status: "disabled",
+          payment_enabled: false,
+          reason: "operator_configuration_required",
+          planned_protocol: { version: 2, scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+        }));
+      } else response.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: "x402_disabled" }));
+      return;
     }
     // The public starter remains local, including its account API and RPC relay.
-    if (pathname.startsWith("/hub/") && !isLoopbackHost(request.headers.host) && !(pathname.startsWith(X402_API_PREFIX) && x402Host && sponsorApi)) {
+    if (pathname.startsWith("/hub/") && !isLoopbackHost(request.headers.host)) {
       response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden"); return;
     }
     if (hubRelay && pathname === "/hub/rpc") { await hubRelay(request, response); return; }
