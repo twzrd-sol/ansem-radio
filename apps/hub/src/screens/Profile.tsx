@@ -27,7 +27,7 @@ function AccountPanel({ snapshot, wallet, onAccount, onSignOut, links }: { snaps
         <Fact label="Hub account">
           {snapshot.fan ? (
             <>
-              {snapshot.fan.handle} <SampleTag />
+              {snapshot.fan.handle} {snapshot.scenario === "sample" && <SampleTag />}
               {onSignOut && (
                 <button className="btn btn--ghost" type="button" style={{ marginLeft: 8 }} onClick={() => void onSignOut()}>
                   Sign out
@@ -76,14 +76,21 @@ export function Profile({ snapshot, load, backer, wallet, onRetry, onAccount, on
     );
   }
   const last = snapshot.history[0];
-  const badges: Array<[string, string, string, boolean]> = [
-    ["First poll", "P", "", true],
-    ["Question asked", "?", "cream", true],
-    ["3-day streak", "3", "lime", true],
-    ["5-day streak", "5", "", false],
-    ["Accepted work", "A", "", false],
-    ["Backer", "B", "silver", backer],
-  ];
+  const earned = new Set(snapshot.season?.me?.badges ?? []);
+  const badges: Array<[string, string, string, boolean]> = snapshot.scenario === "sample"
+    ? [
+        ["First poll", "P", "", true],
+        ["Question asked", "?", "cream", true],
+        ["3-day streak", "3", "lime", true],
+        ["5-day streak", "5", "", false],
+        ["Accepted work", "A", "", false],
+        ["Backer", "B", "silver", backer],
+      ]
+    : [
+        ["First play", "1", "lime", earned.has("first_play")],
+        ["Three days played", "3", "cream", earned.has("three_days")],
+        ["Backer", "B", "silver", backer],
+      ];
   return (
     <>
       {head}
@@ -93,7 +100,7 @@ export function Profile({ snapshot, load, backer, wallet, onRetry, onAccount, on
             <h2 className="h3" id="h-recap">
               Season {last.season} recap
             </h2>
-            <SampleTag />
+            {snapshot.scenario === "sample" && <SampleTag />}
           </div>
           <div className="who">
             <span className="who__avatar" aria-hidden="true">
@@ -124,7 +131,7 @@ export function Profile({ snapshot, load, backer, wallet, onRetry, onAccount, on
             <h2 className="label" id="h-badges">
               Badges
             </h2>
-            <SampleTag />
+            {snapshot.scenario === "sample" && <SampleTag />}
           </div>
           <p className="small" style={{ marginBottom: 14 }}>
             Streaks count days you did an activity on this site. Badges stay when points reset.
@@ -145,7 +152,7 @@ export function Profile({ snapshot, load, backer, wallet, onRetry, onAccount, on
             <h2 className="label" id="h-history">
               History
             </h2>
-            <SampleTag />
+            {snapshot.scenario === "sample" && <SampleTag />}
           </div>
           {snapshot.history.length === 0 ? (
             <p className="small">No finished seasons yet. Each season you play shows here with your points and rank.</p>
@@ -179,7 +186,7 @@ export function Profile({ snapshot, load, backer, wallet, onRetry, onAccount, on
             <h2 className="label" id="h-receipts">
               Receipts
             </h2>
-            <SampleTag />
+            {snapshot.scenario === "sample" && <SampleTag />}
           </div>
           {snapshot.history.map((r) => (
             <div key={r.season} className="receipt">

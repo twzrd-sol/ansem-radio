@@ -9,8 +9,11 @@
 - Included pinned frontend dependencies, MIT/font notices, public arena contract
   checks and a reproducible two-terminal local run. The station retains its
   loopback-only data boundary, including the new hub routes.
-- Twitch context and account links add no points. Published polls, final recaps,
-  live identity/device verification, native season collecting and mainnet
+- Added one published poll per UTC day, a provisional points board, account
+  ranks and credited-activity badges. Placeholder polls remain visible for
+  preview and cannot earn points.
+- Twitch context and account links add no points. Final recaps, live
+  identity/device verification, native season collecting and mainnet
   activation remain outside this source snapshot.
 
 ## 2026-10-02 — Arena program source

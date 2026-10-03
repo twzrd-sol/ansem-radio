@@ -66,7 +66,7 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
   submit: Submit;
   toast: (text: string) => void;
 }) {
-  const [choice, setChoice] = useState<number | null>(null);
+  const [choice, setChoice] = useState<{ pollId: string; index: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const points = season ? season.policy.weights[a.action] : null;
   const capped = season?.me ? season.me.today >= season.policy.dailyCap : false;
@@ -109,19 +109,20 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
       waiting("No poll is open right now. The streamer posts one during the show.")
     ) : (
       <div>
+        {poll.placeholder && <p className="small">Placeholder poll for preview. Answers here do not earn points.</p>}
         <p className="poll__q" id="poll-q">
           {poll.question}
         </p>
         <div className="choices" role="radiogroup" aria-labelledby="poll-q">
           {poll.options.map((option, i) => (
-            <button key={option} className="choice" type="button" role="radio" aria-checked={choice === i} onClick={() => setChoice(i)}>
+            <button key={option} className="choice" type="button" role="radio" aria-checked={choice?.pollId === poll.id && choice.index === i} onClick={() => setChoice({ pollId: poll.id, index: i })}>
               <span className="choice__dot" aria-hidden="true" />
               {option}
             </button>
           ))}
         </div>
-        <button className="btn btn--primary btn--block" type="button" disabled={choice === null || busy} onClick={() => choice !== null && void send({ action: "poll_response", pollId: poll.id, choice }, capped ? "Answer counted; today's cap is reached" : `+${points} points`)}>
-          {busy ? "Sending…" : "Lock in answer"}
+        <button className="btn btn--primary btn--block" type="button" disabled={poll.placeholder || choice?.pollId !== poll.id || busy} onClick={() => choice?.pollId === poll.id && void send({ action: "poll_response", pollId: poll.id, choice: choice.index }, capped ? "Answer counted; today's cap is reached" : `+${points} points`)}>
+          {busy ? "Sending…" : poll.placeholder ? "Preview only" : "Lock in answer"}
         </button>
       </div>
     );
@@ -167,8 +168,13 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
 
 /** What the fan already did this season, from the hub's records (one of each kind in P0). */
 function doneFrom(season: CurrentSeason | null): Done {
-  const sent = new Set(season?.me?.submissions.map((s) => s.action) ?? []);
-  return { poll: sent.has("poll_response"), question: sent.has("question"), prompt: false, clip: sent.has("accepted_work") };
+  const submissions = season?.me?.submissions ?? [];
+  return {
+    poll: Boolean(season?.poll && submissions.some((s) => s.action === "poll_response" && s.pollId === season.poll?.id)),
+    question: submissions.some((s) => s.action === "question"),
+    prompt: false,
+    clip: submissions.some((s) => s.action === "accepted_work"),
+  };
 }
 
 export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, submit, nextSeasonAt = null }: {
@@ -186,8 +192,14 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
 }) {
   const season = snapshot?.season ?? null;
   const [doneHere, setDoneHere] = useState<Partial<Done>>({});
-  const done = { ...doneFrom(season), ...doneHere };
-  const markDone = (id: ActivityDef["id"]) => setDoneHere((d) => ({ ...d, [id]: true }));
+  const [donePollId, setDonePollId] = useState<string | null>(null);
+  const serverDone = doneFrom(season);
+  const done = { ...serverDone, ...doneHere };
+  if (doneHere.poll) done.poll = donePollId === season?.poll?.id;
+  const markDone = (id: ActivityDef["id"]) => {
+    setDoneHere((d) => ({ ...d, [id]: true }));
+    if (id === "poll") setDonePollId(season?.poll?.id ?? null);
+  };
   const send: Submit = submit ?? (async () => {});
   const head = (
     <PageHead

@@ -42,6 +42,13 @@ arena's published schedule. The shown dates illustrate one weekly season; they
 are not a schedule announcement. A declared budget is not funding. An optional
 account link is not a unique-human proof, a scoring input or permission to claim.
 
+Daily questions are supplied through the optional `RADIOLAN_HUB_POLLS` JSON file.
+The tracked [poll example](examples/hub-devnet/polls.placeholder.json) is dated
+for interface review; its questions are marked preview-only, and answers to them
+cannot earn points. Replace them in a runtime copy with questions actually
+published for the station. Only the current UTC day's poll accepts a point-bearing
+answer.
+
 `src/arena/season.js` accepts creator-signed native events, applies caps and
 revocations, and produces a deterministic unsigned plan. It builds inclusion
 proofs and conserves integer base units, dust and unpaid allocations. The CLI
@@ -61,8 +68,9 @@ their verification remain necessary before real collecting can be enabled.
 
 ## Current scope
 
-Local passkey accounts, native activity points, wallet/Twitch identity proofs,
-browser Follow and the devnet backing frontend are inspectable here. Live provider
-and wallet-device certification, published polls/ranks/badges/recaps, mainnet
-activation and native season collection are not established by this source batch.
-No source test signs or sends a live chain transaction.
+Local passkey accounts, native activity points, daily polls, a provisional board,
+ranks and credited-activity badges, wallet/Twitch identity proofs, browser Follow
+and the devnet backing frontend are inspectable here. Live provider and wallet-device
+certification, final recaps, mainnet activation and native season collection are
+not established by this source batch. No source test signs or sends a live chain
+transaction.

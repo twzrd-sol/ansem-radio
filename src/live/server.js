@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createHubApi } from "../hub/api.js";
 import { createHubStore } from "../hub/store.js";
 import { createArenaIndex } from "../hub/market.js";
+import { loadPolls } from "../hub/polls.js";
 import { loadRegistry } from "../hub/registry.js";
 import { createRpcRelay } from "../hub/relay.js";
 import { quoteProvenance } from "../markets/quote-provenance.js";
@@ -84,6 +85,8 @@ export function createLiveServer({
   hubStore = null,
   hubSeasonPath = process.env.RADIOLAN_HUB_SEASON,
   hubSeason = null,
+  hubPollsPath = process.env.RADIOLAN_HUB_POLLS,
+  hubPolls = null,
   hubSecure = process.env.RADIOLAN_HUB_INSECURE_COOKIE !== "1",
   hubClock = null,
   // The backing board: the registry (RADIOLAN_HUB_REGISTRY, or the default) joined to an arena index that reads
@@ -106,7 +109,8 @@ export function createLiveServer({
       arenaIndex = createArenaIndex({ upstream: hubRpcUrl, fetchImpl: hubRpcFetch, dir: store.dir, log, ...(hubMarketIntervalMs ? { intervalMs: hubMarketIntervalMs } : {}) });
       market = { registry: hubRegistry ?? loadRegistry(), index: arenaIndex, board: (login) => boardRow(login) };
     }
-    hubApi = createHubApi({ origins: hubOrigins, store, season, secure: hubSecure, log, market, ...(hubClock ? { now: hubClock } : {}) });
+    const polls = hubPolls ?? (hubPollsPath ? loadPolls(hubPollsPath) : null);
+    hubApi = createHubApi({ origins: hubOrigins, store, season, polls, secure: hubSecure, log, market, ...(hubClock ? { now: hubClock } : {}) });
   }
   const feed = createObservationFeed({ maxObservations });
   const clients = new Set();

@@ -28,6 +28,12 @@ export const SEASON = {
   policy: { dailyCap: 25, weeklyCap: 100, weights: { question: 10, poll_response: 5, accepted_work: 20 } },
 };
 const OPEN_AT = SEASON.startsAt + 3 * 86_400 + 60; // Thursday of season 2
+const dayOf = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 10);
+const POLLS = [
+  { id: "thu-1", day: dayOf(OPEN_AT), question: "Which sound opens Thursday's show?", options: ["Boom bap", "Drill", "Jersey club", "Lo-fi"] },
+  { id: "fri-1", day: dayOf(OPEN_AT + 86_400), question: "Best length for a live set?", options: ["15 minutes", "30 minutes"], placeholder: true },
+  { id: "sat-1", day: dayOf(OPEN_AT + 2 * 86_400), question: "Which city should Radio LAN spotlight next?", options: ["Atlanta", "Chicago"] },
+];
 
 const sha256 = (b) => createHash("sha256").update(b).digest();
 const logs = () => ({ info() {}, warn() {}, error() {} });
@@ -98,7 +104,7 @@ describe("hub API: passkeys, sessions, the season and the free activities", () =
   let clock = OPEN_AT;
   before(async () => {
     dir = mkdtempSync(join(tmpdir(), "hub-api-"));
-    live = createLiveServer({ oauthToken: "", createIrcSession: () => { throw new Error("must not start"); }, hubOrigins: `${ORIGIN},http://localhost:4173`, hubStore: createHubStore({ dir }), hubSeason: SEASON, hubClock: () => clock, log: logs() });
+    live = createLiveServer({ oauthToken: "", createIrcSession: () => { throw new Error("must not start"); }, hubOrigins: `${ORIGIN},http://localhost:4173`, hubStore: createHubStore({ dir }), hubSeason: SEASON, hubPolls: POLLS, hubClock: () => clock, log: logs() });
     const { port } = await live.listen({ port: 0 });
     base = `http://127.0.0.1:${port}`;
   });
@@ -311,7 +317,8 @@ describe("hub API: passkeys, sessions, the season and the free activities", () =
     const smuggled = await c.post("/hub/api/activities", { action: "question", source: "twitch", text: "From chat" });
     assert.equal(smuggled.status, 400);
     assert.equal(smuggled.json.error, "unknown_field");
-    assert.equal((await c.post("/hub/api/activities", { action: "poll_response", pollId: "thu-2", choice: 99 })).json.error, "choice_required");
+    assert.equal((await c.post("/hub/api/activities", { action: "poll_response", pollId: "thu-1", choice: 4 })).json.error, "choice_required");
+    assert.equal((await c.post("/hub/api/activities", { action: "poll_response", pollId: "invented", choice: 0 })).json.error, "poll_not_open");
   });
 
   it("requires the session cookie and the CSRF token on writes, and nothing but Origin on sign-up", async () => {
@@ -376,5 +383,94 @@ describe("hub API: passkeys, sessions, the season and the free activities", () =
       await none.close?.();
     }
     assert.throws(() => createLiveServer({ oauthToken: "", hubOrigins: "http://10.0.0.1", log: logs() }), /IP literal/);
+  });
+});
+
+describe("hub API: published polls, the provisional board, ranks and badges", () => {
+  let dir;
+  let live;
+  let base;
+  let testClock = OPEN_AT;
+  before(async () => {
+    dir = mkdtempSync(join(tmpdir(), "hub-board-"));
+    live = createLiveServer({ oauthToken: "", createIrcSession: () => { throw new Error("must not start"); }, hubOrigins: ORIGIN, hubStore: createHubStore({ dir }), hubSeason: SEASON, hubPolls: POLLS, hubClock: () => testClock, log: logs() });
+    const { port } = await live.listen({ port: 0 });
+    base = `http://127.0.0.1:${port}`;
+  });
+  after(async () => {
+    await live.close?.();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const fan = async () => {
+    const c = client(base);
+    const options = await c.post("/hub/api/register/options");
+    const account = await c.post("/hub/api/register", authenticator().create(options.json.publicKey));
+    assert.equal(account.status, 200);
+    assert.equal((await c.post("/hub/api/join")).status, 200);
+    return { c, accountId: account.accountId };
+  };
+
+  it("serves only the poll for today's UTC date and shows when a poll is a placeholder", async () => {
+    const c = client(base);
+    assert.deepEqual((await c.get("/hub/api/state")).json.season.poll, { id: "thu-1", question: "Which sound opens Thursday's show?", options: ["Boom bap", "Drill", "Jersey club", "Lo-fi"], placeholder: false });
+    testClock = OPEN_AT + 86_400;
+    assert.deepEqual((await c.get("/hub/api/state")).json.season.poll, { id: "fri-1", question: "Best length for a live set?", options: ["15 minutes", "30 minutes"], placeholder: true });
+    testClock = OPEN_AT + 2 * 86_400;
+    assert.equal((await c.get("/hub/api/state")).json.season.poll.id, "sat-1");
+    testClock = OPEN_AT + 3 * 86_400;
+    assert.equal((await c.get("/hub/api/state")).json.season.poll, null);
+    testClock = OPEN_AT;
+  });
+
+  it("allows one answer per real poll across UTC days and reports the current poll separately", async () => {
+    const { c } = await fan();
+    assert.equal((await c.post("/hub/api/activities", { action: "poll_response", pollId: "thu-1", choice: 0 })).status, 200);
+    testClock = OPEN_AT + 2 * 86_400;
+    assert.equal((await c.get("/hub/api/state")).json.season.poll.id, "sat-1");
+    const next = await c.post("/hub/api/activities", { action: "poll_response", pollId: "sat-1", choice: 1 });
+    assert.equal(next.status, 200);
+    assert.equal(next.json.points, "10");
+    assert.deepEqual(next.json.submissions.filter((s) => s.action === "poll_response").map((s) => s.pollId), ["thu-1", "sat-1"]);
+    testClock = OPEN_AT;
+  });
+
+  it("never awards points for a placeholder poll, even if the client submits it directly", async () => {
+    const { c } = await fan();
+    testClock = OPEN_AT + 86_400;
+    const response = await c.post("/hub/api/activities", { action: "poll_response", pollId: "fri-1", choice: 0 });
+    assert.equal(response.status, 409);
+    assert.equal(response.json.error, "poll_not_creditable");
+    assert.equal((await c.get("/hub/api/state")).json.me.points, "0");
+    testClock = OPEN_AT;
+  });
+
+  it("ranks credited points, exposes short handles only, and reports activity badges", async () => {
+    const a = await fan();
+    const b = await fan();
+    const idle = await fan();
+    await a.c.post("/hub/api/activities", { action: "question", text: "A's first" });
+    await b.c.post("/hub/api/activities", { action: "poll_response", pollId: "thu-1", choice: 1 });
+    await a.c.post("/hub/api/activities", { action: "poll_response", pollId: "thu-1", choice: 0 });
+    const state = (await a.c.get("/hub/api/state")).json;
+    assert.deepEqual(state.season.board, [[`fan-${a.accountId.slice(0, 8)}`, "15"], [`fan-${b.accountId.slice(0, 8)}`, "5"]]);
+    assert.equal(JSON.stringify(state.season.board).includes(a.accountId), false);
+    assert.equal(state.me.rank, 1);
+    assert.equal((await b.c.get("/hub/api/state")).json.me.rank, 2);
+    assert.equal((await idle.c.get("/hub/api/state")).json.me.rank, null);
+    assert.deepEqual(state.me.badges.map(({ id }) => id), ["first_play"]);
+    testClock = OPEN_AT + 86_400;
+    await a.c.post("/hub/api/activities", { action: "question", text: "A on day two" });
+    testClock = OPEN_AT + 2 * 86_400;
+    const thirdDay = await a.c.post("/hub/api/activities", { action: "question", text: "A on day three" });
+    assert.deepEqual(thirdDay.json.badges.map(({ id }) => id), ["first_play", "three_days"]);
+    testClock = OPEN_AT;
+  });
+
+  it("credits one of twenty identical submissions sent concurrently", async () => {
+    const { c } = await fan();
+    const responses = await Promise.all(Array.from({ length: 20 }, () => c.post("/hub/api/activities", { action: "question", text: "One identical action" })));
+    assert.deepEqual(responses.map((r) => r.status).sort(), [200, ...Array(19).fill(409)]);
+    assert.ok(responses.filter((r) => r.status === 409).every((r) => r.json.error === "already_submitted"));
   });
 });

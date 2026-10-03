@@ -77,11 +77,11 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
         {tab === "this" ? (
           <>
             <div className="board-head">
-              <span className="label">{fmt(season.players)} players · points so far</span>
-              <SampleTag />
+              <span className="label">{fmt(season.players)} players · provisional points so far</span>
+              {snapshot.scenario === "sample" && <SampleTag />}
             </div>
             {season.board.length === 0 ? (
-              <EmptyBlock icon="board" title="No board published yet" text={joined && season.me ? `Your points so far: ${fmt(season.me.points)}. Ranks appear once the station publishes the season's board.` : "Ranks appear once the station publishes the season's board."} />
+              <EmptyBlock icon="board" title="No points yet" text={joined && season.me ? `Your points so far: ${fmt(season.me.points)}. The provisional board updates as activities are credited.` : "The provisional board updates as activities are credited."} />
             ) : (
               <ol className="board">
                 {season.board.map(([name, points], i) => (
@@ -90,7 +90,7 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
                 <li className="board__gap" aria-hidden="true">
                   ···
                 </li>
-                {joined && season.me && season.me.rank !== null && snapshot.fan && <Row rank={season.me.rank} name={`${snapshot.fan.handle} (you)`} points={season.me.points} me />}
+                {joined && season.me && season.me.rank !== null && season.me.rank > season.board.length && snapshot.fan && <Row rank={season.me.rank} name={`${snapshot.fan.handle} (you)`} points={season.me.points} me />}
               </ol>
             )}
           </>

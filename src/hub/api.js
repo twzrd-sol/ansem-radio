@@ -16,6 +16,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { normalizeConfig } from "../arena/season.js";
 import { createRateLimiter, HttpError, readJson } from "../platform/guard.js";
 import { ACTIONS, actionId, provisionalPoints } from "./points.js";
+import { normalizePolls, pollFor, utcDay } from "./polls.js";
 import { createIdentityRoutes } from "./identity.js";
 import { clientKey } from "./relay.js";
 import { base64url, verifyAssertion, verifyRegistration } from "./webauthn.js";
@@ -26,6 +27,8 @@ const SESSION_SECONDS = 30 * 86_400;
 const CHALLENGE_SECONDS = 300;
 const CHALLENGES_PER_CLIENT = 10;
 const TEXT_MAX = 280;
+const BOARD_SIZE = 10;
+export const handleOf = (accountId) => `fan-${accountId.slice(0, 8)}`;
 
 /** Allowed page origins, and their RP ids. An IP literal cannot be an RP id, so such an origin is refused here. */
 export function parseOrigins(text) {
@@ -51,9 +54,11 @@ export function parseOrigins(text) {
 const sha256hex = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const parseCookies = (header) => Object.fromEntries(String(header ?? "").split(";").map((p) => p.trim().split("=")).filter(([k, v]) => k && v !== undefined).map(([k, ...v]) => [k, v.join("=")]));
 
-export function createHubApi({ origins: originText, store, season = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, identity = {} }) {
+export function createHubApi({ origins: originText, store, season = null, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, identity = {} }) {
   const { origins, rpIds } = parseOrigins(originText);
-  const config = season ? normalizeConfig(season) : null;
+  const { polls: seasonPolls, ...seasonConfig } = season ?? {};
+  const config = season ? normalizeConfig(seasonConfig) : null;
+  const polls = normalizePolls(pollsInput ?? seasonPolls ?? null);
   const challenges = new Map();
   const readLimit = createRateLimiter({ limit: limits.read, clock: () => now() * 1000 });
   const writeLimit = createRateLimiter({ limit: limits.write, clock: () => now() * 1000 });
@@ -84,21 +89,50 @@ export function createHubApi({ origins: originText, store, season = null, now = 
 
   const seasonOpen = () => config !== null && now() >= config.startsAt && now() < config.endsAt;
   const seasonRows = () => (config ? store.submissions().filter((s) => s.season === config.season) : []);
+  /** Provisional points for this season, ranked by points, first credit, then private account id. */
+  const ranking = () => {
+    const credited = seasonRows().filter((s) => s.status === "credited");
+    const { scores, today } = provisionalPoints(config.policy, credited, { now: now() });
+    const firstAt = new Map();
+    for (const submission of credited) if (!firstAt.has(submission.accountId) || submission.occurredAt < firstAt.get(submission.accountId)) firstAt.set(submission.accountId, submission.occurredAt);
+    const ranked = [...scores].filter(([, points]) => points > 0n).sort(([a, pa], [b, pb]) => pa === pb ? (firstAt.get(a) - firstAt.get(b)) || a.localeCompare(b) : pa > pb ? -1 : 1);
+    return { scores, today, ranked };
+  };
+  /** Badges derive from credited activity only and count distinct UTC days across seasons. */
+  const badges = (accountId) => {
+    const mine = store.submissions().filter((s) => s.accountId === accountId && s.status === "credited").sort((a, b) => a.occurredAt - b.occurredAt);
+    const out = [];
+    if (mine.length) out.push({ id: "first_play", earnedAt: mine[0].occurredAt });
+    const days = new Set();
+    for (const submission of mine) {
+      days.add(utcDay(submission.occurredAt));
+      if (days.size === 3) {
+        out.push({ id: "three_days", earnedAt: submission.occurredAt });
+        break;
+      }
+    }
+    return out;
+  };
   const standing = (accountId) => {
     if (!config) return null;
     const rows = seasonRows();
-    const { scores, today } = provisionalPoints(config.policy, rows.filter((s) => s.status === "credited"), { now: now() });
+    const { scores, today, ranked } = ranking();
+    const rank = ranked.findIndex(([id]) => id === accountId);
     return {
       joined: Boolean(store.account(accountId)?.joined?.[config.season]),
       points: (scores.get(accountId) ?? 0n).toString(),
       today: (today.get(accountId) ?? 0n).toString(),
+      rank: rank === -1 ? null : rank + 1,
+      badges: badges(accountId),
       pending: rows.filter((s) => s.accountId === accountId && s.status === "pending").length,
-      submissions: rows.filter((s) => s.accountId === accountId).map(({ id, action, status, occurredAt }) => ({ id, action, status, occurredAt })),
+      submissions: rows.filter((s) => s.accountId === accountId).map(({ id, action, status, occurredAt, detail }) => ({ id, action, status, occurredAt, ...(action === "poll_response" && typeof detail?.pollId === "string" ? { pollId: detail.pollId } : {}) })),
     };
   };
   const seasonState = () => {
     if (!config) return null;
     const rows = seasonRows();
+    const poll = pollFor(polls, now());
+    const { ranked } = ranking();
     return {
       number: config.season,
       arena: config.arena,
@@ -109,6 +143,8 @@ export function createHubApi({ origins: originText, store, season = null, now = 
       policy: config.policy,
       players: store.joinedCount(config.season),
       credited: rows.filter((s) => s.status === "credited").length,
+      poll: poll ? { id: poll.id, question: poll.question, options: poll.options, placeholder: poll.placeholder } : null,
+      board: ranked.slice(0, BOARD_SIZE).map(([id, points]) => [handleOf(id), points.toString()]),
     };
   };
 
@@ -299,7 +335,10 @@ export function createHubApi({ origins: originText, store, season = null, now = 
       let detail;
       if (body.action === "poll_response") {
         if (typeof body.pollId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(body.pollId)) throw new HttpError(400, "poll_id_required");
-        if (!Number.isInteger(body.choice) || body.choice < 0 || body.choice > 15) throw new HttpError(400, "choice_required");
+        const poll = pollFor(polls, now());
+        if (!poll || poll.id !== body.pollId) throw new HttpError(409, "poll_not_open");
+        if (poll.placeholder) throw new HttpError(409, "poll_not_creditable");
+        if (!Number.isInteger(body.choice) || body.choice < 0 || body.choice >= poll.options.length) throw new HttpError(400, "choice_required");
         id = actionId([config.season, "poll_response", body.pollId]);
         detail = { pollId: body.pollId, choice: body.choice };
       } else {

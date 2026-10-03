@@ -27,13 +27,13 @@ describe("today's snapshot from the API", () => {
     expect(buildToday({ season: null, me: null, generatedAt: 1 })).toEqual(EMPTY_TODAY);
   });
 
-  it("maps the season, the policy verbatim, the fan's standing, and leaves poll, prompt, board and rank unpublished", () => {
+  it("maps the season, the policy verbatim and the fan's standing, with no invented poll or board", () => {
     const snap = buildToday(state);
     expect(snap.scenario).toBe("today");
     expect(snap.fan).toEqual({ handle: "fan-ab12cd34", since: 2 });
     expect(snap.season).toMatchObject({ number: 2, opensAt: 1_791_158_400_000, freezesAt: 1_791_763_200_000, players: 3, backers: 0, reward: { kind: "provisional" }, poll: null, prompt: null, board: [] });
     expect(snap.season?.policy).toEqual(state.season?.policy);
-    expect(snap.season?.me).toEqual({ points: 15, rank: null, streakDays: 0, today: 10, submissions: [{ action: "question", status: "credited" }, { action: "accepted_work", status: "pending" }] });
+    expect(snap.season?.me).toEqual({ points: 15, rank: null, streakDays: 0, today: 10, submissions: [{ action: "question", status: "credited" }, { action: "accepted_work", status: "pending" }], badges: [] });
     expect(snap.lastSeason).toBeNull();
     expect(snap.history).toEqual([]);
     expect(snap.arena).toBeNull();
@@ -43,6 +43,20 @@ describe("today's snapshot from the API", () => {
     const snap = buildToday({ ...state, me: { ...state.me!, joined: false } });
     expect(snap.season?.me).toBeNull();
     expect(snap.fan?.handle).toBe(handleOf(state.me!.accountId));
+    expect(JSON.stringify(snap)).not.toContain(state.me!.accountId);
+  });
+
+  it("maps published poll metadata, provisional points, rank and earned badges", () => {
+    const snap = buildToday({
+      ...state,
+      season: { ...state.season!, poll: { id: "thu-1", question: "Which sound opens the show?", options: ["Boom bap", "Drill"], placeholder: true }, board: [["fan-ab12cd34", "15"], ["fan-99887766", "5"]] },
+    me: { ...state.me!, rank: 1, badges: [{ id: "first_play", earnedAt: 1 }, { id: "three_days", earnedAt: 2 }], submissions: [...state.me!.submissions, { id: "poll-old", action: "poll_response", status: "credited", occurredAt: 3, pollId: "old-utc-day" }] },
+    });
+    expect(snap.season?.poll).toEqual({ id: "thu-1", question: "Which sound opens the show?", options: ["Boom bap", "Drill"], placeholder: true });
+    expect(snap.season?.board).toEqual([["fan-ab12cd34", 15], ["fan-99887766", 5]]);
+    expect(snap.season?.me?.rank).toBe(1);
+    expect(snap.season?.me?.badges).toEqual(["first_play", "three_days"]);
+    expect(snap.season?.me?.submissions.at(-1)?.pollId).toBe("old-utc-day");
     expect(JSON.stringify(snap)).not.toContain(state.me!.accountId);
   });
 });

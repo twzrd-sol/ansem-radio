@@ -64,6 +64,7 @@ Optional station settings:
 | `RADIOLAN_RPC_URL` | Devnet upstream for the relay and arena index. Without it, backing reads are unavailable. Provider keys stay in runtime configuration. |
 | `RADIOLAN_HUB_TEST_MINT` | Devnet test mint for the official featured creator. No mainnet RLAN is used for this rehearsal. |
 | `RADIOLAN_HUB_REGISTRY` | Outside-repository JSON listing registry; otherwise Radio LAN and the tracked creators are used. |
+| `RADIOLAN_HUB_POLLS` | Optional JSON file with one multiple-choice poll per UTC day. See [placeholder format](../../docs/examples/hub-devnet/polls.placeholder.json); placeholders are preview-only and do not award points. |
 | `RADIO_LAN_BOARD=1`, `RADIO_LAN_TIMELINE=1` | Collect local Twitch context using runtime provider credentials. No rewards use that data. |
 | `RADIOLAN_HUB_TWITCH_CLIENT_ID` | Registered public-client app ID for optional Twitch identity. No client secret is required. |
 | `RADIOLAN_HUB_TWITCH_REDIRECT_URI` | Exact registered callback, such as `http://localhost:5173/hub/twitch`. |
@@ -81,8 +82,10 @@ account. The backend holds no fan key.
   link opens the same window; range changes survive reload.
 - Play follows the published opening/closing instants, with local time, UTC,
   countdown and calendar download. Native questions and poll responses follow
-  the published caps; accepted work stays pending. Poll publication, ranks,
-  badges and final recaps remain future API work in this snapshot.
+  the published caps; accepted work stays pending. Live polls feed the
+  provisional points board, rank and two credited-activity badges. Placeholder
+  polls remain visible for preview and cannot credit points. Final recaps remain
+  future API work in this snapshot.
 - Follow is saved in this browser, includes Twitch-only creators and puts live
   followed creators first. It makes no provider write and adds no points.
 - Backing builds byte-identical arena instructions, checks devnet genesis,

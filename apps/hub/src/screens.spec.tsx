@@ -96,6 +96,52 @@ describe("copy rules (plan section 11)", () => {
     expect(all).toMatch(/Today: 30 of 60 points · season: 230 of 300/);
     for (const a of ACTIVITIES) expect(all).toContain(`+${sample.season!.policy.weights[a.action]}`);
   });
+
+  it("shows placeholder polls for preview without offering a points submission", () => {
+    const current: HubSnapshot = {
+      ...today,
+      scenario: "today",
+      fan: { handle: "fan-ab12cd34", since: 1 },
+      season: {
+        ...sample.season!,
+        poll: { id: "placeholder-1", question: "Which sound opens the show?", options: ["Boom bap", "Drill"], placeholder: true },
+        me: { points: 0, rank: null, streakDays: 0, today: 0, submissions: [] },
+      },
+    };
+    const markup = html(<Play snapshot={current} load="ready" now={NOW} joined onJoin={noop} onRetry={noop} toast={noop} />);
+    expect(markup).toContain("Answers here do not earn points");
+    expect(markup).toContain("Preview only");
+    expect(markup).toMatch(/disabled=""[^>]*>Preview only/);
+  });
+
+  it("does not mark today's poll answered when the fan answered yesterday's poll", () => {
+    const season = sample.season!;
+    const current: HubSnapshot = {
+      ...sample,
+      scenario: "today",
+      season: {
+        ...season,
+        poll: { id: "today-poll", question: "Which city should Radio LAN spotlight?", options: ["Atlanta", "Chicago"] },
+        me: { ...season.me!, submissions: [...season.me!.submissions, { action: "poll_response", status: "credited", pollId: "yesterday-poll" }] },
+      },
+    };
+    const markup = html(<Play snapshot={current} load="ready" now={NOW} joined onJoin={noop} onRetry={noop} toast={noop} />);
+    expect(markup).toContain("Which city should Radio LAN spotlight?");
+    expect(markup).not.toContain("Answer counted. The next poll opens when the streamer posts one.");
+  });
+
+  it("shows live earned badges from credited play and keeps invented badges in SAMPLE only", () => {
+    const live: HubSnapshot = {
+      ...sample,
+      scenario: "today",
+      season: { ...sample.season!, me: { ...sample.season!.me!, badges: ["first_play"] } },
+    };
+    const markup = text(<Profile snapshot={live} load="ready" backer={false} wallet={null} onRetry={noop} />);
+    expect(markup).toContain("First play");
+    expect(markup).toContain("Three days played (locked)");
+    expect(markup).not.toContain("First poll");
+    expect(html(<Profile snapshot={sample} load="ready" backer={false} wallet={null} onRetry={noop} />)).toContain("Sample");
+  });
 });
 
 describe("home load states", () => {

@@ -24,10 +24,10 @@ export function buildToday(state: ApiState | null = null): HubSnapshot {
           backers: 0,
           reward: { kind: "provisional" },
           policy: s.policy,
-          poll: null,
+          poll: s.poll ? { id: s.poll.id, question: s.poll.question, options: s.poll.options, placeholder: s.poll.placeholder } : null,
           prompt: null,
-          board: [],
-          me: me?.joined ? { points: Number(me.points), rank: null, streakDays: 0, today: Number(me.today), submissions: me.submissions.map(({ action, status }) => ({ action, status })) } : null,
+          board: (s.board ?? []).map(([handle, points]) => [handle, Number(points)] as [string, number]),
+          me: me?.joined ? { points: Number(me.points), rank: me.rank ?? null, streakDays: 0, today: Number(me.today), submissions: me.submissions.map(({ action, status, pollId }) => ({ action, status, ...(pollId ? { pollId } : {}) })), badges: (me.badges ?? []).map((badge) => badge.id) } : null,
         }
       : null,
   };

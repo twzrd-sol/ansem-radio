@@ -22,12 +22,16 @@ export interface ApiSeason {
   policy: ApiPolicy;
   players: number;
   credited: number;
+  poll?: { id: string; question: string; options: string[]; placeholder: boolean } | null;
+  board?: Array<[string, string]>;
 }
+export type BadgeId = "first_play" | "three_days";
 export interface ApiSubmission {
   id: string;
   action: Action;
   status: "credited" | "pending";
   occurredAt: number;
+  pollId?: string;
 }
 export interface ApiMe {
   accountId: string;
@@ -35,6 +39,8 @@ export interface ApiMe {
   joined: boolean;
   points: string;
   today: string;
+  rank?: number | null;
+  badges?: Array<{ id: BadgeId; earnedAt: number }>;
   pending: number;
   submissions: ApiSubmission[];
 }
@@ -61,6 +67,7 @@ export function explainApiError(error: unknown): string {
     case "season_not_open": return "This season isn't open right now.";
     case "join_first": return "Join the season first. It's free.";
     case "already_submitted": return "You already sent that one.";
+    case "poll_not_creditable": return "That placeholder poll is for preview; it doesn't earn points.";
     case "slow_down": return "Too fast. Try again in a minute.";
     case "credential_already_registered": return "This passkey already has an account. Sign in instead.";
     case "unknown_credential": return "No account for that passkey here. Create one instead.";

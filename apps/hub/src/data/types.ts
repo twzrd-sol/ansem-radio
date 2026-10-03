@@ -46,13 +46,14 @@ export const showsMoney = (reward: RewardState): reward is Extract<RewardState, 
 
 export interface Standing {
   points: number;
-  /** null while no board is published for the season (the live P0 state). */
+  /** null until this fan has credited points. */
   rank: number | null;
   streakDays: number;
   /** Points awarded today (UTC), against the daily cap. */
   today: number;
   /** What this fan has sent this season; pending work waits for the streamer. */
-  submissions: Array<{ action: Action; status: "credited" | "pending" }>;
+  submissions: Array<{ action: Action; status: "credited" | "pending"; pollId?: string }>;
+  badges?: Array<"first_play" | "three_days">;
 }
 
 export interface CurrentSeason {
@@ -64,10 +65,10 @@ export interface CurrentSeason {
   backers: number;
   reward: RewardState;
   policy: Policy;
-  /** null until the streamer publishes one. */
-  poll: { id: string; question: string; options: string[] } | null;
+  /** One UTC-day poll; placeholders are visible but cannot earn points. */
+  poll: { id: string; question: string; options: string[]; placeholder?: boolean } | null;
   prompt: string | null;
-  /** Empty until a board is published; the live P0 state. */
+  /** Top accounts with credited provisional points; short pseudonymous handles only. */
   board: Array<[string, number]>;
   /** null until the fan joins. */
   me: Standing | null;

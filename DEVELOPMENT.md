@@ -26,6 +26,7 @@ Keep credentials and captured data outside the repository.
 | Event contract | `src/core/` | Normalized observations and cryptographic primitives |
 | Provider adapters | `src/providers/` | Twitch payload normalization and connections |
 | Local timeline | `src/timeline/` | Storage, minute aggregates and macro snapshots |
+| Fan hub | `apps/hub/`, `src/hub/` | Local passkeys, daily polls, provisional points board and devnet creator backing |
 | Room and chorus | `src/live/`, `src/agents/`, `public/` | Local UI and disclosed agent messages |
 | Attribution | `src/attribution/` | Canonical signed claims, commitments, Merkle trees and receipts |
 | Evidence sink | `src/sinks/` | Devnet anchoring client and receipt verification CLI |
