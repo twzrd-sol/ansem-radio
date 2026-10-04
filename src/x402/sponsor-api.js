@@ -116,7 +116,7 @@ function safeQuote(quote, config) {
     sponsor_name: quote.sponsor_name,
     category: quote.category,
     copy: quote.copy,
-    amount_usdc: config.priceUsdc,
+    amount_usdc: quote.amount_usdc,
     network: X402_NETWORK,
     asset: X402_USDC_MINT,
     expires_at: quote.expires_at,
@@ -205,7 +205,7 @@ export function createSponsorApi({
   };
   const isExpired = (quote) => Date.parse(quote.expires_at) <= now();
 
-  const handlePurchase = async (request, response, requestUrl, quote) => {
+  const purchase = async (request, response, requestUrl, quote) => {
     if (isExpired(quote)) return reply(response, 410, { error: "quote_expired" });
     if (!STATES.has(quote.status)) return reply(response, 409, { error: "quote_not_payable" });
     if (quote.status === "paid" && quote.order_id) {
@@ -219,6 +219,7 @@ export function createSponsorApi({
       const paymentHash = createHash("sha256").update(signature).digest("hex");
       const prior = store.orderByPaymentHash(paymentHash);
       if (prior) {
+        if (prior.quote_id !== quote.id) return reply(response, 409, { error: "payment_bound_to_another_quote" });
         if (prior.status === "paid_pending_fulfillment" || prior.status === "fulfilled") {
           return reply(response, 200, { order: safeOrder(prior), replayed: true }, prior.payment_response ? { "PAYMENT-RESPONSE": prior.payment_response } : {});
         }
@@ -226,7 +227,7 @@ export function createSponsorApi({
       }
     }
     if (quote.status !== "approved") return reply(response, quote.status === "settling" ? 503 : 409, { error: quote.status === "settling" ? "settlement_outcome_unknown" : "quote_not_approved", ...(quote.order_id ? { order_id: quote.order_id } : {}) });
-    if (busyQuotes.has(quote.id)) return reply(response, 409, { error: "quote_payment_in_progress" });
+    if (quote.amount_usdc !== config.priceUsdc) return reply(response, 409, { error: "quote_price_changed" });
 
     const adapter = paymentAdapter(request, requestUrl, config.origin);
     const context = { adapter, path: `${requestUrl.pathname}${requestUrl.search}`, method: request.method ?? "GET" };
@@ -242,8 +243,9 @@ export function createSponsorApi({
     }
     if (processed.type !== "payment-verified") return reply(response, 404, { error: "payment_route_unavailable" });
 
-    busyQuotes.add(quote.id);
     const paymentHash = createHash("sha256").update(signature).digest("hex");
+    // Another quote can finish verification while this request is awaiting it.
+    if (store.orderByPaymentHash(paymentHash)) return reply(response, 409, { error: "payment_already_used" });
     const orderId = randomUUID().replaceAll("-", "");
     const createdAt = new Date(now()).toISOString();
     const order = {
@@ -264,7 +266,6 @@ export function createSponsorApi({
       store.createOrder(order);
       store.updateQuote(quote.id, { status: "settling", order_id: orderId });
     } catch {
-      busyQuotes.delete(quote.id);
       return reply(response, 503, { error: "order_store_unavailable" });
     }
 
@@ -293,12 +294,10 @@ export function createSponsorApi({
       );
     } catch {
       store.updateOrder(orderId, { status: "settlement_unknown" });
-      busyQuotes.delete(quote.id);
       return reply(response, 503, { error: "settlement_outcome_unknown", order_id: orderId });
     }
     if (!settled.success) {
       store.updateOrder(orderId, { status: "settlement_unknown" });
-      busyQuotes.delete(quote.id);
       return reply(response, settled.response.status, settled.response.body ?? { error: "settlement_failed" }, settled.response.headers);
     }
     let verified = false;
@@ -320,7 +319,6 @@ export function createSponsorApi({
         payer: settled.payer ?? null,
         payment_response: settled.headers?.["PAYMENT-RESPONSE"] ?? null,
       });
-      busyQuotes.delete(quote.id);
       return reply(response, 503, { error: "settlement_not_finally_verified", order_id: orderId }, settled.headers);
     }
     try {
@@ -331,14 +329,19 @@ export function createSponsorApi({
         payment_response: settled.headers?.["PAYMENT-RESPONSE"] ?? null,
       });
       store.updateQuote(quote.id, { status: "paid" });
-      busyQuotes.delete(quote.id);
       return reply(response, 201, { order: safeOrder(stored), sponsorship_copy: quote.copy }, settled.headers);
     } catch {
       // The write-ahead order remains locked for operator reconciliation; retrying must not charge again.
-      busyQuotes.delete(quote.id);
       log.error?.("x402 sponsor order: settlement succeeded but durable record update failed");
       return reply(response, 503, { error: "settled_order_needs_reconciliation", order_id: orderId }, settled.headers);
     }
+  };
+
+  const handlePurchase = async (request, response, requestUrl, quote) => {
+    if (busyQuotes.has(quote.id)) return reply(response, 409, { error: "quote_payment_in_progress" });
+    busyQuotes.add(quote.id);
+    try { return await purchase(request, response, requestUrl, quote); }
+    finally { busyQuotes.delete(quote.id); }
   };
 
   const handle = async (request, response) => {

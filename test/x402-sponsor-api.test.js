@@ -183,6 +183,77 @@ test("quote review precedes x402, settlement is durable and retries do not charg
   }
 });
 
+async function approveQuote(api) {
+  let res = response();
+  await api(request("POST", "/hub/api/x402/quotes", {
+    body: { sponsor_name: "Orbit Labs", category: "software", copy: "Orbit Labs supports independent creator tools." },
+    headers: { "content-type": "application/json" },
+  }), res);
+  const id = res.json().quote.quote_id;
+  res = response();
+  await api(request("POST", `/hub/api/x402/quotes/${id}/review`, {
+    body: { decision: "approve" },
+    headers: { "content-type": "application/json", authorization: `Bearer ${REVIEW_TOKEN}` },
+  }), res);
+  assert.equal(res.status, 200);
+  return id;
+}
+
+test("concurrent retries settle a quote only once and cannot reuse payment for another quote", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "radiolan-x402-concurrent-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const sameQuote of [true, false]) {
+    const statePath = join(directory, `state-${sameQuote}.json`);
+    let release;
+    const barrier = new Promise((resolve) => { release = resolve; });
+    let settled = 0;
+    const paymentServer = {
+      async processHTTPRequest() {
+        await barrier;
+        return { type: "payment-verified", paymentPayload: {}, paymentRequirements: {} };
+      },
+      async processSettlement() {
+        settled += 1;
+        return { success: true, transaction: "verified-transaction", headers: {} };
+      },
+    };
+    const api = createSponsorApi({ config: config(statePath), paymentServer, settlementVerifier: async () => true });
+    const firstId = await approveQuote(api);
+    const secondId = sameQuote ? firstId : await approveQuote(api);
+    const first = response();
+    const second = response();
+    const purchase = (id, res) => api(request("GET", `/hub/api/x402/quotes/${id}/purchase`, {
+      headers: { "payment-signature": "identical-signed-payment" },
+    }), res);
+    const pendingFirst = purchase(firstId, first);
+    const pendingSecond = purchase(secondId, second);
+    release();
+    await Promise.all([pendingFirst, pendingSecond]);
+    assert.equal(settled, 1, sameQuote ? "same quote retry" : "payment reused across quotes");
+    assert.deepEqual([first.status, second.status], [201, 409]);
+  }
+});
+
+test("a restart with a new price preserves the quoted amount and requests no payment for the old quote", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "radiolan-x402-price-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const statePath = join(directory, "state.json");
+  const paymentServer = {
+    async processHTTPRequest() { assert.fail("a changed quote price must be refused before verification"); },
+  };
+  const original = createSponsorApi({ config: config(statePath), paymentServer });
+  const id = await approveQuote(original);
+  const restarted = createSponsorApi({ config: { ...config(statePath), priceUsdc: "0.002", amountAtomic: "2000" }, paymentServer });
+  let res = response();
+  await restarted(request("GET", `/hub/api/x402/quotes/${id}`), res);
+  assert.equal(res.json().quote.amount_usdc, "0.001");
+  res = response();
+  await restarted(request("GET", `/hub/api/x402/quotes/${id}/purchase`), res);
+  assert.equal(res.status, 409);
+  assert.equal(res.json().error, "quote_price_changed");
+  assert.equal(res.headers["PAYMENT-REQUIRED"], undefined);
+});
+
 test("unknown settlement stays locked until an operator records the verified outcome", async () => {
   const directory = mkdtempSync(join(tmpdir(), "radiolan-x402-unknown-"));
   try {
