@@ -17,6 +17,7 @@ const COPY_MAX = 600;
 const SPONSOR_MAX = 80;
 const STATES = new Set(["pending_review", "approved", "rejected", "settling", "paid"]);
 const TOKEN_SCALE = 1_000_000n;
+const ROLLOUT_PRICE_LIMIT_ATOMIC = 10_000n; // Strictly below 0.01 USDC.
 
 function toAtomicUsdc(value) {
   const [whole, fraction = ""] = value.split(".");
@@ -73,8 +74,9 @@ export function loadSponsorConfig(env = process.env) {
   const payTo = required(env, "RADIOLAN_X402_RECEIVE_ADDRESS");
   if (!isSolanaAddress(payTo)) throw new TypeError("RADIOLAN_X402_RECEIVE_ADDRESS must be a Solana wallet address");
   const priceUsdc = required(env, "RADIOLAN_X402_PRICE_USDC");
-  if (!/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,6})?$/.test(priceUsdc) || Number(priceUsdc) <= 0) {
-    throw new TypeError("RADIOLAN_X402_PRICE_USDC must be a positive decimal with at most 6 places");
+  if (!/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,6})?$/.test(priceUsdc)
+      || toAtomicUsdc(priceUsdc) <= 0n || toAtomicUsdc(priceUsdc) >= ROLLOUT_PRICE_LIMIT_ATOMIC) {
+    throw new TypeError("RADIOLAN_X402_PRICE_USDC must be greater than 0 and less than 0.01 USDC, with at most 6 places");
   }
   const statePath = required(env, "RADIOLAN_X402_STORE_PATH");
   if (!statePath.startsWith("/")) throw new TypeError("RADIOLAN_X402_STORE_PATH must be absolute");

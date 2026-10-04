@@ -12,10 +12,10 @@ const PAY_TO = "11111111111111111111111111111111";
 const REVIEW_TOKEN = "review-token-for-tests-that-is-longer-than-32-chars";
 const config = (statePath) => ({
   payTo: PAY_TO,
-  priceUsdc: "5.00",
+  priceUsdc: "0.001",
   statePath,
   solanaRpcUrl: "https://mainnet.example-rpc.test",
-  amountAtomic: "5000000",
+  amountAtomic: "1000",
   reviewToken: REVIEW_TOKEN,
   allowedCategories: ["software"],
   fulfillmentWindow: "Within seven days of settlement.",
@@ -54,20 +54,28 @@ test("x402 stays off by default and enabled configuration fails closed", () => {
     RADIOLAN_X402_RECEIVE_ADDRESS: "not-an-address",
   }), /RADIOLAN_X402_RECEIVE_ADDRESS/);
 
-  const settings = loadSponsorConfig({
+  const env = {
     RADIOLAN_X402_ENABLED: "1",
     CDP_API_KEY_ID: "id",
     CDP_API_KEY_SECRET: "secret",
     RADIOLAN_X402_RECEIVE_ADDRESS: PAY_TO,
-    RADIOLAN_X402_PRICE_USDC: "5.00",
+    RADIOLAN_X402_PRICE_USDC: "0.001",
     RADIOLAN_X402_STORE_PATH: "/tmp/radiolan-x402-store.json",
     RADIOLAN_X402_SOLANA_RPC_URL: "https://mainnet.example-rpc.test",
     RADIOLAN_X402_REVIEW_TOKEN: REVIEW_TOKEN,
     RADIOLAN_X402_ALLOWED_CATEGORIES: "software, creator-tools",
     RADIOLAN_X402_FULFILLMENT_WINDOW: "Within seven days of settlement.",
     RADIOLAN_X402_CANCELLATION_POLICY: "Refunds if Radio LAN cancels before the read.",
-  });
-  assert.equal(settings.priceUsdc, "5.00");
+  };
+  const settings = loadSponsorConfig(env);
+  assert.equal(settings.priceUsdc, "0.001");
+  assert.equal(settings.amountAtomic, "1000");
+  for (const [price, atomic] of [["0.000001", "1"], ["0.009999", "9999"]]) {
+    assert.equal(loadSponsorConfig({ ...env, RADIOLAN_X402_PRICE_USDC: price }).amountAtomic, atomic);
+  }
+  for (const price of ["0", "0.000000", "-0.001", "0.0000001", "0.01", "0.010000", "0.010001", "5.00", "1e-3", "NaN"]) {
+    assert.throws(() => loadSponsorConfig({ ...env, RADIOLAN_X402_PRICE_USDC: price }), /less than 0\.01 USDC/, price);
+  }
   assert.deepEqual(settings.allowedCategories, ["software", "creator-tools"]);
   assert.equal(settings.origin, "https://radiolan.live");
 });
@@ -89,7 +97,7 @@ test("quote review precedes x402, settlement is durable and retries do not charg
         return {
           type: "payment-verified",
           paymentPayload: { x402Version: 2 },
-          paymentRequirements: { network: X402_NETWORK, amount: "5000000" },
+          paymentRequirements: { network: X402_NETWORK, amount: "1000" },
           declaredExtensions: undefined,
           beforeHandlerSettlement: undefined,
         };
@@ -265,7 +273,7 @@ test("Solana settlement verifier requires finalized transaction with exact recip
     meta: {
       err: null,
       preTokenBalances: [{ accountIndex: 1, mint: X402_USDC_MINT, owner: PAY_TO, uiTokenAmount: { amount: "1000000" } }],
-      postTokenBalances: [{ accountIndex: 1, mint: X402_USDC_MINT, owner: PAY_TO, uiTokenAmount: { amount: "6000000" } }],
+      postTokenBalances: [{ accountIndex: 1, mint: X402_USDC_MINT, owner: PAY_TO, uiTokenAmount: { amount: "1001000" } }],
     },
     transaction: { signatures: [signature] },
   };
@@ -274,13 +282,13 @@ test("Solana settlement verifier requires finalized transaction with exact recip
     rpcRequest = JSON.parse(init.body);
     return { ok: true, json: async () => ({ result: transaction }) };
   };
-  const args = { rpcUrl: "https://rpc.example", signature, payTo: PAY_TO, amountAtomic: "5000000", fetchImpl };
+  const args = { rpcUrl: "https://rpc.example", signature, payTo: PAY_TO, amountAtomic: "1000", fetchImpl };
   assert.equal(await verifySolanaSettlement(args), true);
   assert.equal(rpcRequest.method, "getTransaction");
   assert.equal(rpcRequest.params[1].commitment, "finalized");
-  transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "5999999";
+  transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "1000999";
   assert.equal(await verifySolanaSettlement(args), false);
-  transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "6000000";
+  transaction.meta.postTokenBalances[0].uiTokenAmount.amount = "1001000";
   transaction.meta.err = { InstructionError: [0, "Custom"] };
   assert.equal(await verifySolanaSettlement(args), false);
 });
@@ -322,7 +330,7 @@ test("the official x402 server advertises the exact mainnet USDC requirement for
     assert.equal(challenge.accepts.length, 1);
     assert.equal(challenge.accepts[0].scheme, "exact");
     assert.equal(challenge.accepts[0].network, X402_NETWORK);
-    assert.equal(challenge.accepts[0].amount, "5000000");
+    assert.equal(challenge.accepts[0].amount, "1000");
     assert.equal(challenge.accepts[0].asset, X402_USDC_MINT);
     assert.equal(challenge.accepts[0].payTo, PAY_TO);
   } finally {

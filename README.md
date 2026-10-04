@@ -1,6 +1,6 @@
 # Radio LAN
 
-Radio LAN builds attribution records for streamer culture. Creators and collaborators can sign each credit, and the record is anchored to Solana.
+Radio LAN is an MIT-licensed, open-source community dashboard and rewards experiment for streamer culture. Creators and collaborators can sign attribution credits, and the record is anchored to Solana.
 
 ## What is here
 
@@ -37,6 +37,10 @@ The public executable does not persist rotated Twitch credentials across restart
 Live product surfaces do not assign per-viewer status or points from watching or chatting. Twitch data stays on the collecting machine and is not published or shared. Credentials are supplied at runtime and never stored in this repository.
 
 The x402 route does not sell Twitch metrics, chat access or activity outcomes.
+Public community data stays free. During rollout, any optional x402 service
+charge must be strictly below 0.01 USDC; the server enforces that limit.
+RLAN's market value is independent and may be zero. x402 uses USDC and does
+not determine rewards or promise RLAN value.
 Sponsor copy must be reviewed before payment and the paid segment disclosed.
 The seller is disabled until the operator supplies and configures all payment,
 moderation, fulfillment and cancellation terms. Source availability does not

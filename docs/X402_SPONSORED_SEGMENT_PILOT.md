@@ -9,6 +9,25 @@ When deployed without complete x402 configuration, `GET /hub/api/x402/offer`
 returns an explicit disabled status and planned protocol metadata. Quote and
 purchase routes return 503 and never issue a payment challenge.
 
+## Community rollout terms
+
+Radio LAN is an MIT-licensed, open-source community dashboard and rewards
+experiment. Public community metrics are free; no data access is sold. RLAN's
+market value is independent of the dashboard and may be zero. This x402
+integration uses USDC and makes no promise about RLAN's price or redemption.
+
+Start with the free `GET /hub/api/x402/offer` endpoint and keep the seller
+disabled. This introduces service discovery without taking a payment. If the
+optional sponsor service is activated, its fixed charge must be strictly less
+than 0.01 USDC. Configuration enforces 0.000001 through 0.009999 USDC; tests use
+0.001 USDC. Zero-priced routes return ordinary HTTP 200 without x402.
+
+The sponsor service is the only paid resource in this integration. It has no
+hooks into reward eligibility, scores, allocation, or RLAN pricing. A payment
+buys the disclosed sponsor service, never access to community or Twitch data.
+MIT licenses the source code; external data retains its source and applicable
+terms. Publishing the code does not grant a new license to provider data.
+
 ## Offer and moderation
 
 Offer one fixed-price, clearly disclosed 60-second sponsored read. Watching the
@@ -51,7 +70,8 @@ existing `/hub/api/*` proxy is sufficient; no Caddy edit is included.
 The seller uses the CDP-hosted facilitator directly, avoiding the TWZRD
 facilitator revenue split. It requires `CDP_API_KEY_ID` and
 `CDP_API_KEY_SECRET`. The fixed amount and dedicated Solana recipient are
-runtime settings. Price uses at most six decimal places. The state file path
+runtime settings. Price uses at most six decimal places and must be below
+0.01 USDC. The state file path
 must be absolute; the process creates its parent with mode 0700 and file with
 mode 0600. The station process is the sole writer.
 
