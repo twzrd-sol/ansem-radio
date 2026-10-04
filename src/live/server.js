@@ -30,6 +30,8 @@ const STATIC_FILES = new Map([
   ["/src/live/station.js", [new URL("./station.js", import.meta.url), "text/javascript; charset=utf-8"]],
 ]);
 
+const X402_API_PREFIX = "/hub/api/x402/";
+
 export function encodeSseEvent(type, data) {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -94,12 +96,15 @@ export function createLiveServer({
   hubRegistry = null,
   hubMarket = null,
   hubMarketIntervalMs = undefined,
+  sponsorApi: configuredSponsorApi = null,
+  enableSponsorApi = envFlag("RADIOLAN_X402_ENABLED"),
   log = console,
 } = {}) {
   // A set but too-short key is an operator mistake: refuse to start rather than run with weak pseudonyms.
   assertParticipantKey(participantKey);
   const hubRelay = hubRpcUrl ? createRpcRelay({ upstream: hubRpcUrl, fetchImpl: hubRpcFetch, log }) : null;
   let hubApi = null;
+  let sponsorApi = configuredSponsorApi;
   let arenaIndex = null;
   if (hubOrigins) {
     const season = hubSeason ?? (hubSeasonPath ? JSON.parse(readFileSync(hubSeasonPath, "utf8")) : null);
@@ -265,6 +270,22 @@ export function createLiveServer({
     try { requestUrl = new URL(request.url ?? "/", "http://localhost"); }
     catch { response.writeHead(400).end("Bad request"); return; }
     const pathname = requestUrl.pathname;
+    const host = String(request.headers.host ?? "").trim().toLowerCase();
+    const x402Host = /^radiolan\.live(?::[0-9]{1,5})?$/.test(host);
+    if (pathname.startsWith(X402_API_PREFIX)) {
+      if (!x402Host) { response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden"); return; }
+      if (sponsorApi) await sponsorApi(request, response);
+      else if (request.method === "GET" && pathname === `${X402_API_PREFIX}offer`) {
+        response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({
+          service: "Radio LAN sponsor reads",
+          status: "disabled",
+          payment_enabled: false,
+          reason: "operator_configuration_required",
+          planned_protocol: { version: 2, scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+        }));
+      } else response.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: "x402_disabled" }));
+      return;
+    }
     // The public starter remains local, including its account API and RPC relay.
     if (pathname.startsWith("/hub/") && !isLoopbackHost(request.headers.host)) {
       response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden"); return;
@@ -373,8 +394,26 @@ export function createLiveServer({
     }
   };
 
-  const listen = ({ port = 8787, host = "127.0.0.1" } = {}) =>
-    new Promise((resolve, reject) => {
+  const listen = async ({ port = 8787, host = "127.0.0.1" } = {}) => {
+    try {
+      if (!sponsorApi && enableSponsorApi) {
+        const { createSponsorApi, loadSponsorConfig } = await import("../x402/sponsor-api.js");
+        sponsorApi = createSponsorApi({ config: loadSponsorConfig(), log });
+      }
+      if (sponsorApi?.initialize) {
+        let timer;
+        try {
+          await Promise.race([
+            sponsorApi.initialize(),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("facilitator_init_timeout")), 8_000); }),
+          ]);
+        } finally { clearTimeout(timer); }
+      }
+    } catch (error) {
+      log.error?.(`x402 disabled at startup: ${error?.message ?? "facilitator initialization failed"}`);
+      sponsorApi = null;
+    }
+    return new Promise((resolve, reject) => {
       server.once("error", reject);
       server.listen(port, host, async () => {
         server.off("error", reject);
@@ -390,6 +429,7 @@ export function createLiveServer({
         resolve(Object.freeze({ host, port: address.port }));
       });
     });
+  };
 
   const close = async () => {
     if (liveTimer) clearInterval(liveTimer);

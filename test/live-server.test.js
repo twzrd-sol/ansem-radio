@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import http from "node:http";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -61,6 +62,62 @@ test("live room runs without OAuth and reports an honest offline state", async (
   assert.match(await page.text(), /new EventSource\("\/live\/events"\)/);
   assert.equal(sessionCreated, false);
   assert.equal(live.snapshot().health.last_error, "oauth_not_configured");
+});
+
+test("x402 routes expose only radiolan.live and leave other hub paths loopback-only", async (t) => {
+  const seen = [];
+  const live = createLiveServer({
+    oauthToken: "",
+    sponsorApi: async (request, response) => {
+      seen.push(request.url);
+      response.writeHead(200, { "Content-Type": "application/json" }).end('{"enabled":true}');
+    },
+  });
+  t.after(() => live.close());
+  const address = await live.listen({ port: 0 });
+  const get = (path, host, method = "GET") => new Promise((resolve, reject) => {
+    const request = http.request({ host: address.host, port: address.port, path, method, headers: { host } }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, body }));
+    });
+    request.on("error", reject);
+    request.end();
+  });
+  let response = await get("/hub/api/x402/offer", "radiolan.live");
+  assert.equal(response.status, 200);
+  assert.deepEqual(JSON.parse(response.body), { enabled: true });
+  response = await get("/hub/api/x402/offer", "twzrd.xyz");
+  assert.equal(response.status, 403);
+  response = await get("/hub/rpc", "radiolan.live", "POST");
+  assert.equal(response.status, 403);
+  assert.deepEqual(seen, ["/hub/api/x402/offer"]);
+});
+
+test("unconfigured x402 route advertises disabled state and never issues a payment challenge", async (t) => {
+  const live = createLiveServer({ oauthToken: "" });
+  t.after(() => live.close());
+  const address = await live.listen({ port: 0 });
+  const call = (path, method = "GET", host = "radiolan.live") => new Promise((resolve, reject) => {
+    const request = http.request({ host: address.host, port: address.port, path, method, headers: { host } }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: body.startsWith("{") ? JSON.parse(body) : body }));
+    });
+    request.on("error", reject);
+    request.end();
+  });
+  const offer = await call("/hub/api/x402/offer");
+  assert.equal(offer.status, 200);
+  assert.equal(offer.body.status, "disabled");
+  assert.equal(offer.body.payment_enabled, false);
+  const quote = await call("/hub/api/x402/quotes", "POST");
+  assert.equal(quote.status, 503);
+  assert.equal(quote.body.error, "x402_disabled");
+  assert.equal(quote.headers["payment-required"], undefined);
+  assert.equal((await call("/hub/api/x402/offer", "GET", "twzrd.xyz")).status, 403);
 });
 
 test("authenticated IRC observations reach SSE without private fields", async (t) => {
