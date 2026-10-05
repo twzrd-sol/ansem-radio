@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { isPlaceholderSeason } from "../data/season";
+import { isPlaceholderSeason, pointsSeasonEyebrow } from "../data/season";
 import type { HubSnapshot, PastSeason } from "../data/types";
 import { showsMoney } from "../data/types";
 import { fmt, units } from "../lib/format";
@@ -61,7 +61,7 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
   const [tab, setTab] = useState<"this" | "last">("this");
   const season = snapshot?.season ?? null;
   const sampleSeason = isPlaceholderSeason(season);
-  const head = <PageHead eyebrow={season ? (sampleSeason ? `Sample season ${season.number} · Radio LAN` : `Season ${season.number} · Radio LAN`) : "Radio LAN"} title="Board" lede="Ranked by points. Points set your share of a funded season's perks and have no other value." />;
+  const head = <PageHead eyebrow={season ? pointsSeasonEyebrow(season) : "Radio LAN"} title="Board" lede="Ranked by points. Points set your share of a funded season's perks and have no other value." />;
   if (load === "loading") return <>{head}<Skeleton kinds={["line", "line", "line", "line", "line"]} /></>;
   if (load === "error" || !snapshot) return <>{head}<ErrorBlock text="The board didn't load. Scores are unchanged." onRetry={onRetry} /></>;
   if (!season) return <>{head}<EmptyBlock icon="board" title="No board yet" text="The first board appears when the first season opens. When that season closes, its board will be signed and anchored on Solana so anyone can check it." /></>;

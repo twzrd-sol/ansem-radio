@@ -121,6 +121,39 @@ describe("copy rules (plan section 11)", () => {
     expect(board).toContain("Sample season 12 · Radio LAN");
     expect(board).toContain("tag--sample");
     expect(board).toContain("Sample season. The board stays empty until a live season is published.");
+    expect(markup).not.toContain("Solana devnet");
+    expect(board).not.toContain("Solana devnet");
+  });
+
+  it("labels the live season 2 points pages as Solana devnet and leaves other seasons unlabeled", () => {
+    const live = (number: number): HubSnapshot => ({
+      ...today,
+      scenario: "today",
+      season: {
+        ...sample.season!,
+        number,
+        poll: { id: "live-poll", question: "Which city should Radio LAN spotlight?", options: ["Atlanta", "Chicago"] },
+        me: null,
+        board: [],
+        players: 0,
+      },
+    });
+    const season2 = live(2);
+    const play2 = html(<Play snapshot={season2} load="ready" now={NOW} joined={false} onJoin={noop} onRetry={noop} toast={noop} />);
+    const board2 = html(<Board snapshot={season2} load="ready" joined={false} onRetry={noop} />);
+    for (const page of [play2, board2]) {
+      expect(page).toContain("Season 2");
+      expect(page).toContain("Solana devnet");
+      expect(page).not.toContain("Season 2 · Radio LAN");
+      expect(page).toContain("Season 2 · Solana devnet · Radio LAN");
+    }
+    const season4 = live(4);
+    const play4 = html(<Play snapshot={season4} load="ready" now={NOW} joined={false} onJoin={noop} onRetry={noop} toast={noop} />);
+    const board4 = html(<Board snapshot={season4} load="ready" joined={false} onRetry={noop} />);
+    expect(play4).toContain("Season 4 · Radio LAN");
+    expect(board4).toContain("Season 4 · Radio LAN");
+    expect(play4).not.toContain("Solana devnet");
+    expect(board4).not.toContain("Solana devnet");
   });
 
   it("does not mark today's poll answered when the fan answered yesterday's poll", () => {

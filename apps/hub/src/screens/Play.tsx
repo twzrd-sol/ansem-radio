@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { ActivityInput } from "../data/api";
-import { isPlaceholderSeason, seasonPhase } from "../data/season";
+import { isPlaceholderSeason, pointsSeasonEyebrow, seasonPhase } from "../data/season";
 import type { Action, CurrentSeason, HubSnapshot } from "../data/types";
 import { fmt, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, type IconName, PageHead, SampleTag, Skeleton } from "../ui/atoms";
@@ -204,7 +204,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
   const send: Submit = submit ?? (async () => {});
   const head = (
     <PageHead
-      eyebrow={season ? (sampleSeason ? `Sample season ${season.number} · Radio LAN` : `Season ${season.number} · Radio LAN`) : "Radio LAN"}
+      eyebrow={season ? pointsSeasonEyebrow(season) : "Radio LAN"}
       title="Play"
       lede="Each activity has a published point value. Points are capped per day and per season, across all activities; the daily cap resets at 00:00 UTC. Everything happens on this site; nothing from Twitch chat counts."
     />
