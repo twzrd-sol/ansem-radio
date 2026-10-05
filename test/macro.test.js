@@ -7,7 +7,7 @@ import { request } from "node:http";
 import { createMarketFeed } from "../src/live/market-feed.js";
 import { createLiveServer } from "../src/live/server.js";
 import { TRACKED_STREAMERS } from "../src/markets/twitch-metrics.js";
-import { MACRO_NOTICE, MAX_SERIES_POINTS, downsample, macroSnapshot, parseHours } from "../src/timeline/macro.js";
+import { MACRO_NOTICE, MAX_SERIES_POINTS, downsample, isLoopbackHost, macroSnapshot, parseHours } from "../src/timeline/macro.js";
 import { twitchBoard } from "./twitch-fixtures.js";
 
 const NOW = Date.parse("2026-10-02T02:00:00Z");
@@ -47,6 +47,13 @@ test("only the three preset windows are accepted, anything else falls back", () 
   assert.deepEqual([6, 24, 168].map((h) => parseHours(String(h))), [6, 24, 168]);
   for (const bad of ["5", "abc", "-1", "10000", "", null, undefined, "6.5"]) assert.equal(parseHours(bad), 24, String(bad));
   assert.equal(parseHours("nope", 6), 6);
+});
+
+test("only a Host header naming this machine counts as loopback", () => {
+  for (const ok of ["127.0.0.1:8787", "127.0.0.1", "localhost", "LOCALHOST:3000", "[::1]:8787"]) assert.equal(isLoopbackHost(ok), true, ok);
+  for (const bad of [undefined, null, "", "evil.example", "127.0.0.1.evil.example", "localhost.evil.example:8787", "10.0.0.5:8787", "0.0.0.0:8787", "127.0.0.1@evil.example", "[::ffff:127.0.0.1]:8787", "studio-host:8787"]) {
+    assert.equal(isLoopbackHost(bad), false, String(bad));
+  }
 });
 
 test("downsampling caps the point count, keeps the peak and the worst coverage, and never invents points", () => {
@@ -127,7 +134,7 @@ test("board rows with a bad login are dropped and free text is trimmed", () => {
   assert.equal(snapshot.live_now[0].game_name.length, 80);
 });
 
-test("the room serves the macro page, state and export to any host, including through a proxy, read only", async (t) => {
+test("the room serves the macro page, state and export to this machine only, read only", async (t) => {
   const live = createLiveServer({
     oauthToken: "",
     enableBoard: true,
@@ -154,20 +161,25 @@ test("the room serves the macro page, state and export to any host, including th
   assert.equal(JSON.parse((await get(port, "/macro/state?hours=999")).body).hours, 24);
 
   const root = await get(port, "/");
-  assert.deepEqual([root.status, root.headers.location], [302, "/macro"]);
+  assert.deepEqual([root.status, root.headers.location], [302, "/public/live.html"]);
   const redirect = await get(port, "/macro");
   assert.deepEqual([redirect.status, redirect.headers.location], [302, "/public/macro.html"]);
   const page = await get(port, "/public/macro.html");
   assert.equal(page.status, 200);
   assert.match(page.headers["content-type"], /^text\/html/);
   assert.equal(page.headers["cache-control"], "no-store");
+  const stream = await get(port, "/stream?hours=6");
+  assert.equal(stream.status, 200);
+  assert.equal(stream.body, page.body, "the LAN link opens the same macro page");
 
   assert.equal((await get(port, "/macro/state", { headers: { Host: `localhost:${port}` } })).status, 200);
-  const proxied = { Host: "radio.example", "X-Forwarded-For": "203.0.113.1", "X-Forwarded-Proto": "https", Forwarded: "for=203.0.113.1", Via: "1.1 proxy", "Sec-Fetch-Site": "cross-site", Origin: "https://radio.example" };
-  for (const path of ["/macro/state", "/macro/export", "/public/macro.html"]) {
-    assert.equal((await get(port, path, { headers: proxied })).status, 200, path);
+  for (const path of ["/stream", "/macro", "/macro/state", "/macro/export", "/public/macro.html", "/live/events"]) {
+    for (const host of ["evil.example", `evil.example:${port}`, "127.0.0.1.evil.example", "0.0.0.0", "radio.example"]) {
+      const res = await get(port, path, { headers: { Host: host } });
+      assert.equal(res.status, 403, `${path} with Host ${host}`);
+      assert.equal(res.body.includes("kaicenat"), false);
+    }
   }
-  assert.equal((await get(port, "/macro", { headers: proxied })).status, 302);
   const csv = await get(port, "/macro/export?hours=6");
   assert.equal(csv.status, 200);
   assert.match(csv.headers["content-type"], /^text\/csv/);

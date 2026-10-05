@@ -16,7 +16,7 @@ import { STATION_CHANNEL } from "./station.js";
 import { createTwitchTokenManager } from "./twitch-token-manager.js";
 import { createTimelineIngest } from "../timeline/ingest.js";
 import { readRecordedAnchor, macroCsv } from "../timeline/macro-operations.js";
-import { MACRO_NOTICE, macroSnapshot, parseHours } from "../timeline/macro.js";
+import { MACRO_NOTICE, isLoopbackHost, macroSnapshot, parseHours } from "../timeline/macro.js";
 import { createTimelineStore } from "../timeline/store.js";
 import { createHubApi } from "../hub/api.js";
 import { createArenaIndex } from "../hub/market.js";
@@ -26,6 +26,7 @@ import { createHubStore } from "../hub/store.js";
 
 const STATIC_FILES = new Map([
   ["/public/live.html", [new URL("../../public/live.html", import.meta.url), "text/html; charset=utf-8"]],
+  ["/stream", [new URL("../../public/macro.html", import.meta.url), "text/html; charset=utf-8"]],
   ["/public/macro.html", [new URL("../../public/macro.html", import.meta.url), "text/html; charset=utf-8"]],
   ["/src/live/station.js", [new URL("./station.js", import.meta.url), "text/javascript; charset=utf-8"]],
   ["/src/markets/tape.js", [new URL("../markets/tape.js", import.meta.url), "text/javascript; charset=utf-8"]],
@@ -346,12 +347,19 @@ export function createLiveServer({
       return;
     }
     if (pathname === "/") {
-      response.writeHead(302, { Location: "/macro", "Cache-Control": "no-store" }).end();
+      response.writeHead(302, { Location: "/public/live.html" }).end();
       return;
     }
-    if (pathname === "/macro") {
-      response.writeHead(302, { Location: "/public/macro.html", "Cache-Control": "no-store" }).end();
-      return;
+    // Macro and live observations show Twitch data: this machine only. Do not publish or share it.
+    if (pathname === "/stream" || pathname === "/macro" || pathname === "/macro/state" || pathname === "/macro/export" || pathname === "/public/macro.html" || pathname === "/live/events") {
+      if (!isLoopbackHost(request.headers.host)) {
+        response.writeHead(403, { "Cache-Control": "no-store" }).end("Forbidden");
+        return;
+      }
+      if (pathname === "/macro") {
+        response.writeHead(302, { Location: "/public/macro.html", "Cache-Control": "no-store" }).end();
+        return;
+      }
     }
     if (pathname === "/macro/state" || pathname === "/macro/export") {
       const head = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };

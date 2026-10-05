@@ -22,6 +22,15 @@ export function parseHours(value, fallback = 24) {
   return MACRO_RANGES.includes(hours) ? hours : fallback;
 }
 
+/** True only for a Host header naming this machine, which also refuses DNS-rebinding names. */
+export function isLoopbackHost(hostHeader) {
+  if (typeof hostHeader !== "string") return false;
+  const match = /^(\[[0-9a-f:]+\]|[^:\s]+)(?::\d{1,5})?$/i.exec(hostHeader.trim());
+  if (!match) return false;
+  const host = match[1].toLowerCase();
+  return host === "127.0.0.1" || host === "localhost" || host === "[::1]";
+}
+
 const finite = (value) => (Number.isFinite(value) ? value : null);
 const round = (value, places = 1) => (value === null ? null : Math.round(value * 10 ** places) / 10 ** places);
 const text = (value, max) => {
