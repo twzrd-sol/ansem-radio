@@ -63,6 +63,11 @@ const b58 = (d, off) => encodeBase58(d.slice(off, off + 32));
 export function arenaAddress(streamer, mint) {
   return findProgramAddress([utf8("arena"), key(streamer), key(mint)], ARENA_PROGRAM_ID);
 }
+/** Market PDA. Its address is the arena's streamer, and it has no signer. */
+export function openMarketAddress(slug) {
+  if (!/^[a-z0-9][a-z0-9_-]{2,31}$/.test(slug)) throw new TypeError("open market slug must be 3-32 listing characters");
+  return findProgramAddress([utf8("open"), utf8(slug)], ARENA_PROGRAM_ID);
+}
 export function positionAddress(arena, fan) {
   return findProgramAddress([utf8("position"), key(arena), key(fan)], ARENA_PROGRAM_ID);
 }
@@ -83,6 +88,24 @@ export function initArenaInstruction({ streamer, mint, seasonStart, seasonSecond
   }
   const arena = arenaAddress(streamer, mint).address;
   return ix([meta(streamer, true, true), meta(arena, false, true), meta(mint, false, false), meta(SYSTEM_PROGRAM, false, false)], concat([0], i64(seasonStart), u64(seasonSeconds)));
+}
+
+/** Tag 5. Only the operator opener key may be the payer, and only for the $RLAN mint (the program checks both). The streamer does not sign, and no key can close the market. */
+export function initOpenMarketInstruction({ payer, slug, mint, seasonStart, seasonSeconds, now }) {
+  const seconds = checkedInteger(seasonSeconds, 0n, U64_MAX);
+  if (seconds < BigInt(MIN_SEASON_SECONDS) || seconds > BigInt(MAX_SEASON_SECONDS)) throw new RangeError(`seasonSeconds must be ${MIN_SEASON_SECONDS} to ${MAX_SEASON_SECONDS}`);
+  if (now !== undefined) {
+    const start = checkedInteger(seasonStart, I64_MIN, I64_MAX);
+    const t = checkedInteger(now, I64_MIN, I64_MAX);
+    if (start > t + seconds || start < t - 365n * 86_400n) throw new RangeError("seasonStart must be at most one season ahead and at most 365 days back");
+  }
+  const market = openMarketAddress(slug).address;
+  const arena = arenaAddress(market, mint).address;
+  const slugBytes = utf8(slug);
+  return ix(
+    [meta(payer, true, true), meta(market, false, true), meta(arena, false, true), meta(mint, false, false), meta(SYSTEM_PROGRAM, false, false)],
+    concat([5], Uint8Array.of(slugBytes.length), slugBytes, i64(seasonStart), u64(seasonSeconds)),
+  );
 }
 
 function positiveAmount(amount) {

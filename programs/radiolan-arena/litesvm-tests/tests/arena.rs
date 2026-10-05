@@ -340,7 +340,7 @@ fn nobody_else_can_move_a_fans_tokens() {
     let (victim_position, victim_support) = (w.fans[0].position, w.fans[0].support);
     let thief = w.fans[1].key.insecure_clone();
     let thief_wallet = w.fans[1].wallet;
-    // Fan 1 signs for fan 0's position, sending to their own wallet.
+    // Fan 1 signs for fan 0's position, paying to their own wallet.
     let ix = w.withdraw_ix(&thief.pubkey(), &victim_position, &victim_support, &thief_wallet, 1_000);
     assert!(err_code(&send(&mut w.svm, &[ix], &[&thief]).unwrap_err(), 6301));
     // Fan 0 cannot send to someone else's wallet either.
@@ -511,4 +511,67 @@ fn a_request_before_the_first_season_releases_when_it_starts() {
     assert!(err_code(&w.withdraw(0, 1_000).unwrap_err(), 6305));
     set_time(&mut w.svm, START + WEEK as i64);
     w.withdraw(0, 1_000).expect("released when the first season starts: at most one season after the request");
+}
+
+// ---- open markets (tag 5): only OPERATOR_OPENER may open, and only the RLAN mint ----------------------
+
+fn open_market_ix(payer: &Address, slug: &[u8], mint: &Address) -> Instruction {
+    let market = pda(&[b"open", slug]);
+    let arena = pda(&[b"arena", market.as_ref(), mint.as_ref()]);
+    let mut data = vec![5u8, slug.len() as u8];
+    data.extend_from_slice(slug);
+    data.extend_from_slice(&START.to_le_bytes());
+    data.extend_from_slice(&WEEK.to_le_bytes());
+    Instruction {
+        program_id: a(ARENA_ID),
+        accounts: vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new(market, false),
+            AccountMeta::new(arena, false),
+            AccountMeta::new_readonly(*mint, false),
+            AccountMeta::new_readonly(a("11111111111111111111111111111111"), false),
+        ],
+        data,
+    }
+}
+
+fn load_rlan_mint(svm: &mut LiteSVM) -> Address {
+    let fixture: Value = serde_json::from_str(&std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/rlan-mint-mainnet.json")).unwrap()).unwrap();
+    let data = base64::engine::general_purpose::STANDARD.decode(fixture["data_base64"].as_str().unwrap()).unwrap();
+    let rlan = a(fixture["address"].as_str().unwrap());
+    svm.set_account(rlan, Account { lamports: fixture["lamports"].as_u64().unwrap(), data, owner: a(T22), executable: false, rent_epoch: 0 }).unwrap();
+    rlan
+}
+
+#[test]
+fn a_non_opener_is_refused_even_for_the_real_rlan_mint() {
+    let mut w = World::new(0);
+    let rlan = load_rlan_mint(&mut w.svm);
+    let payer = Keypair::new();
+    w.svm.airdrop(&payer.pubkey(), 10_000_000_000).unwrap();
+    let ix = open_market_ix(&payer.pubkey(), b"jynxzi", &rlan);
+    let err = send(&mut w.svm, &[ix], &[&payer]).unwrap_err();
+    assert!(err_code(&err, 6310), "not the operator: {err}");
+    assert!(!exists(&w.svm, &pda(&[b"open", b"jynxzi"])), "no market account was created");
+}
+
+#[test]
+fn the_streamer_of_an_existing_arena_cannot_open_a_market_either() {
+    let mut w = World::new(0);
+    let rlan = load_rlan_mint(&mut w.svm);
+    let streamer = w.streamer.insecure_clone();
+    let ix = open_market_ix(&streamer.pubkey(), b"somebody", &rlan);
+    assert!(err_code(&send(&mut w.svm, &[ix], &[&streamer]).unwrap_err(), 6310));
+}
+
+#[test]
+fn an_open_market_without_the_payer_signature_is_refused_before_anything_else() {
+    let mut w = World::new(0);
+    let rlan = load_rlan_mint(&mut w.svm);
+    let payer = Keypair::new();
+    let sender = w.streamer.insecure_clone();
+    let mut ix = open_market_ix(&payer.pubkey(), b"jynxzi", &rlan);
+    ix.accounts[0].is_signer = false;
+    assert!(send(&mut w.svm, &[ix], &[&sender]).is_err());
+    assert!(!exists(&w.svm, &pda(&[b"open", b"jynxzi"])));
 }
