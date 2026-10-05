@@ -1,9 +1,10 @@
 # Hub source and native season plans
 
-This batch extracts owned MIT hub code from source snapshot
+The first hub batch extracted owned MIT hub code from source snapshot
 `295692738cdfd2e167d04452241c50f40db3a648`, aligned with public arena source
-`22bebf612e9f167cc9d56af0d93757b79ce67409`. It includes the frontend, account and
-identity API, devnet arena index/relay and native season math with their tests.
+`22bebf612e9f167cc9d56af0d93757b79ce67409`; later updates are listed in the
+[changelog](../CHANGELOG.md). The hub code includes the frontend, account and
+identity API, arena index/relay and native season math with their tests.
 Generated bundles, runtime stores, credentials and serving configuration are
 excluded. Public station integration preserves its loopback-only data boundary.
 

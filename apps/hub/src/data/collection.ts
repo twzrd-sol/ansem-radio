@@ -45,7 +45,9 @@ export function collectionSummary(snapshot: HubSnapshot | null, now: number) {
   if (!season) return { label: "No season record yet", text: "The next season appears here when its schedule is published." };
   switch (seasonPhase(season, now)) {
     case "upcoming": return { label: `Season ${season.number} is up next`, text: "Your season record starts when you join and play." };
-    case "open": return { label: `Season ${season.number} is still open`, text: season.me ? `You have ${season.me.points} points so far. Final results appear after the season closes.` : "Join free and do activities on this site. Final results appear after the season closes." };
+    case "open": return season.poll?.placeholder
+      ? { label: `Season ${season.number} is a sample`, text: "Today's poll is a placeholder. This is not a live scored season." }
+      : { label: `Season ${season.number} is still open`, text: season.me ? `You have ${season.me.points} points so far. Final results appear after the season closes.` : "Join free and do activities on this site. Final results appear after the season closes." };
     case "closed": return { label: `Season ${season.number} is closed`, text: "Its final record has not been published yet." };
   }
 }

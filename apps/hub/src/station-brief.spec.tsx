@@ -17,7 +17,7 @@ describe("LAN station brief", () => {
     expect(html).toContain("Data: Twitch");
     expect(html).toContain("13:59 UTC");
     expect(html).toContain("History through");
-    expect(html).toContain('href="/stream?hours=6"');
+    expect(html).not.toContain('href="/stream');
     expect(html).toContain('href="#/play"');
     expect(html).not.toContain("points");
   });

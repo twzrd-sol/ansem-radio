@@ -147,6 +147,21 @@ describe("arena index: devnet reads, snapshots, net flow, stale", () => {
     assert.equal(index.listingArena({ streamer: "GbscvafBJEkWutxm3Bi6AYfXztfojW6Jj7Yaw1TM3PhT", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" }), null, "decodable on chain, banned by address");
   });
 
+  it("reads mainnet when configured for it, and refuses devnet then; the default registry backs Radio LAN with RLAN on mainnet", async () => {
+    const mainnetState = { ...state, genesis: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" };
+    const index = createArenaIndex({ upstream: "https://mainnet.example", fetchImpl: fakeUpstream(mainnetState).fetchImpl, dir: mkdtempSync(join(tmpdir(), "hub-market-mn-")), expectNetwork: "mainnet", log: logs() });
+    await index.refresh();
+    assert.equal(index.status().network, "mainnet");
+    assert.equal(index.status().lastError, null);
+    const wrong = createArenaIndex({ upstream: "https://devnet.example", fetchImpl: fakeUpstream(state).fetchImpl, dir: mkdtempSync(join(tmpdir(), "hub-market-mn2-")), expectNetwork: "mainnet", log: logs() });
+    await wrong.refresh();
+    assert.match(wrong.status().lastError, /not Solana mainnet/);
+    assert.throws(() => createArenaIndex({ upstream: "https://x.example", dir: mkdtempSync(join(tmpdir(), "hub-market-mn3-")), expectNetwork: "testnet" }), /devnet or mainnet/);
+    const reg = loadRegistry({ path: undefined, network: "mainnet" });
+    assert.deepEqual([reg[0].streamer, reg[0].mint], [OFFICIAL_STREAMER, "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy"]);
+    assert.equal(loadRegistry({ path: undefined, network: "devnet", mint: null })[0].mint, null);
+  });
+
   it("refuses an upstream that is not devnet, and reports it instead of throwing", async () => {
     const { fetchImpl } = fakeUpstream({ ...state, genesis: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" });
     const index = createArenaIndex({ upstream: "https://mainnet.example", fetchImpl, dir: mkdtempSync(join(tmpdir(), "hub-market-m-")), log: logs() });

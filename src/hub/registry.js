@@ -86,13 +86,34 @@ export function registry(entries) {
 
 /** Radio LAN plus the tracked logins. `mint` is the devnet test mint the operator sets; without it nothing is backable. */
 export function defaultRegistry({ mint = null } = {}) {
-  const lan = { slug: "radiolanlive", name: "Radio LAN", kind: "featured", twitch: "radiolanlive", streamer: mint ? OFFICIAL_STREAMER : null, mint: mint ?? null, blurb: "The station that buys its next show. Founded by THE WZRD OF ZO." };
+  const lan = { slug: "radiolanlive", name: "Radio LAN", kind: "featured", twitch: "radiolanlive", streamer: mint ? OFFICIAL_STREAMER : null, mint: mint ?? null, blurb: "The station that buys its next show." };
   const tracked = TRACKED_STREAMERS.map((login) => ({ slug: login.replace(/_+$/, "") || login, name: login, kind: "tracked", twitch: login, streamer: null, mint: null }));
   return registry([lan, ...tracked]);
 }
 
 /** The registry from a JSON file (an array of listings), or the default when no path is given. */
-export function loadRegistry({ path = process.env.RADIOLAN_HUB_REGISTRY, mint = process.env.RADIOLAN_HUB_TEST_MINT ?? null } = {}) {
+/** $RLAN on mainnet: the featured listing's mint when the station runs on mainnet. */
+export const RLAN_MINT = "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy";
+
+/** The mint the station backs by default: $RLAN on mainnet, the operator's test mint on devnet, or none. */
+export const defaultMintFor = (network = "devnet", env = process.env) => (network === "mainnet" ? RLAN_MINT : env.RADIOLAN_HUB_TEST_MINT ?? null);
+
+/** The mint the featured listing already carries, or null. Never invents an address. */
+export function featuredMintOf(listings = []) {
+  if (!Array.isArray(listings)) return null;
+  const featured = listings.find((row) => row && row.kind === "featured");
+  return featured?.mint ?? null;
+}
+
+/**
+ * Mint used for a claim-derived pair: the station-wide default, else the featured listing's mint, else none.
+ * Does not substitute $RLAN or any other hardcoded address.
+ */
+export function mintForClaims({ defaultMint = null, listings = [] } = {}) {
+  return defaultMint ?? featuredMintOf(listings) ?? null;
+}
+
+export function loadRegistry({ path = process.env.RADIOLAN_HUB_REGISTRY, network = process.env.RADIOLAN_HUB_NETWORK ?? "devnet", mint = defaultMintFor(network) } = {}) {
   if (!path) return defaultRegistry({ mint });
   const parsed = JSON.parse(readFileSync(path, "utf8"));
   return registry(Array.isArray(parsed) ? parsed : parsed?.listings);

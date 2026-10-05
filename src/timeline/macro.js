@@ -1,16 +1,16 @@
 /**
- * Snapshot for the local /macro page. Reads the timeline store
+ * Snapshot for the /macro fan engagement chart. Reads the timeline store
  * and the room's board and returns plain JSON. Pure apart from the store reads.
  *
  * Every output field is picked by name, so a new field in the store cannot reach the page. It carries
  * counts and the tracked streamers' public stream rows only: never a participant id, never chat text.
- * It is an internal view of Twitch data and is served to loopback only.
  */
 
 import { TRACKED_STREAMERS } from "../markets/twitch-metrics.js";
+import { operationalContext } from "./macro-operations.js";
 import { summarize } from "./summary.js";
 
-export const MACRO_NOTICE = "Internal view of Twitch data. This machine only. Do not publish or share it.";
+export const MACRO_NOTICE = "Fan engagement view of Twitch data. Data: Twitch. Not sold, and never a payout input.";
 export const MACRO_RANGES = Object.freeze([6, 24, 168]);
 export const MAX_SERIES_POINTS = 240;
 const MAX_GAPS = 50;
@@ -77,7 +77,7 @@ function liveNow(board) {
     .sort((a, b) => (b.viewer_count ?? 0) - (a.viewer_count ?? 0));
 }
 
-export function macroSnapshot({ store, board = null, now = Date.now(), hours = 24, tracked = TRACKED_STREAMERS } = {}) {
+export function macroSnapshot({ store, board = null, now = Date.now(), hours = 24, anchor = null, tracked = TRACKED_STREAMERS } = {}) {
   if (!store) throw new TypeError("a timeline store is required");
   const lookbackMs = Math.max(hours, 30 * 24) * 3_600_000;
   const from = now - hours * 3_600_000;
@@ -120,17 +120,18 @@ export function macroSnapshot({ store, board = null, now = Date.now(), hours = 2
       top_category: text(r.top_category, 80) || null,
     }));
 
-  const boardAt = Date.parse(board?.updated_at);
-  const boardStatus = !Array.isArray(board?.board?.rows) ? "unavailable" : !Number.isFinite(boardAt) || boardAt > now || now - boardAt > 120_000 || board.last_error || board.board.errors?.length ? "stale" : "available";
-  const live = boardStatus === "available" ? liveNow(board) : [];
+  const boardRows = liveNow(board);
   const latest = allMinutes.length ? allMinutes.reduce((a, b) => (a.minute > b.minute ? a : b)) : null;
   const latestMs = latest ? Date.parse(latest.minute) : null;
   const windowGaps = gaps.filter((g) => Date.parse(g.end) >= from && Date.parse(g.start) < now);
   // Followers are sampled every five minutes, so the newest minute usually has none.
   const followerRow = [...allMinutes].sort((a, b) => b.minute.localeCompare(a.minute)).find((m) => Number.isFinite(m.followers_total));
 
+  const operations = operationalContext({ gaps: windowGaps, from, now,
+    stationStale: latestMs === null || now - latestMs > STALE_AFTER_MS, board, anchor });
+  const live = operations.board_status === "available" ? boardRows : [];
   return {
-    board_status: boardStatus,
+    ...operations,
     enabled: true,
     generated_at: new Date(now).toISOString(),
     notice: MACRO_NOTICE,
@@ -145,7 +146,7 @@ export function macroSnapshot({ store, board = null, now = Date.now(), hours = 2
     },
     tracked_total: new Set(tracked).size,
     totals: {
-      tracked_viewers_now: boardStatus === "available" ? live.reduce((sum, r) => sum + (r.viewer_count ?? 0), 0) : null,
+      tracked_viewers_now: operations.board_status === "available" ? live.reduce((sum, r) => sum + (r.viewer_count ?? 0), 0) : null,
       avg_tracked_live: summary.culture.avg_tracked_live,
       avg_tracked_viewers: summary.culture.avg_tracked_viewers,
       peak_tracked_viewers: summary.culture.peak_tracked_viewers,

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 // The repo's arena client, the reference the hub must match (plan section 2 and 6).
 import { seasonIndex as refSeasonIndex, withdrawAvailableAt as refWithdrawAvailableAt } from "../../../src/sinks/arena.js";
-import { backingTarget, marketFor, Ribbon, snapshotFor } from "./app/App";
+import { backingTarget, canSetUp, marketFor, PRIMARY_NAV, Ribbon, SampleBanner, snapshotFor } from "./app/App";
 import type { FlowStep, Position, PreviewState } from "./app/preview";
 import { parseHash } from "./app/route";
 import { ARENA_MINT, ARENA_PROGRAM } from "./chain/config";
@@ -27,6 +27,7 @@ import { Market } from "./screens/Market";
 import { ACTIVITIES, Play } from "./screens/Play";
 import { Profile } from "./screens/Profile";
 import { Positions } from "./screens/Positions";
+import { YourPageView } from "./ui/YourPage";
 import { EMBED_MIN_WIDTH, twitchEmbedSrc } from "./ui/Player";
 
 const NOW = Date.parse("2026-10-02T13:00:00Z");
@@ -112,6 +113,47 @@ describe("copy rules (plan section 11)", () => {
     expect(markup).toContain("Answers here do not earn points");
     expect(markup).toContain("Preview only");
     expect(markup).toMatch(/disabled=""[^>]*>Preview only/);
+    expect(markup).toContain("Sample season 12 · Radio LAN");
+    expect(markup).toContain("tag--sample");
+    expect(markup).toContain("This points season is a sample");
+    const emptyBoard: HubSnapshot = { ...current, season: { ...current.season!, players: 0, board: [] } };
+    const board = html(<Board snapshot={emptyBoard} load="ready" joined onRetry={noop} />);
+    expect(board).toContain("Sample season 12 · Radio LAN");
+    expect(board).toContain("tag--sample");
+    expect(board).toContain("Sample season. The board stays empty until a live season is published.");
+    expect(markup).not.toContain("Solana devnet");
+    expect(board).not.toContain("Solana devnet");
+  });
+
+  it("labels the live season 2 points pages as Solana devnet and leaves other seasons unlabeled", () => {
+    const live = (number: number): HubSnapshot => ({
+      ...today,
+      scenario: "today",
+      season: {
+        ...sample.season!,
+        number,
+        poll: { id: "live-poll", question: "Which city should Radio LAN spotlight?", options: ["Atlanta", "Chicago"] },
+        me: null,
+        board: [],
+        players: 0,
+      },
+    });
+    const season2 = live(2);
+    const play2 = html(<Play snapshot={season2} load="ready" now={NOW} joined={false} onJoin={noop} onRetry={noop} toast={noop} />);
+    const board2 = html(<Board snapshot={season2} load="ready" joined={false} onRetry={noop} />);
+    for (const page of [play2, board2]) {
+      expect(page).toContain("Season 2");
+      expect(page).toContain("Solana devnet");
+      expect(page).not.toContain("Season 2 · Radio LAN");
+      expect(page).toContain("Season 2 · Solana devnet · Radio LAN");
+    }
+    const season4 = live(4);
+    const play4 = html(<Play snapshot={season4} load="ready" now={NOW} joined={false} onJoin={noop} onRetry={noop} toast={noop} />);
+    const board4 = html(<Board snapshot={season4} load="ready" joined={false} onRetry={noop} />);
+    expect(play4).toContain("Season 4 · Radio LAN");
+    expect(board4).toContain("Season 4 · Radio LAN");
+    expect(play4).not.toContain("Solana devnet");
+    expect(board4).not.toContain("Solana devnet");
   });
 
   it("does not mark today's poll answered when the fan answered yesterday's poll", () => {
@@ -211,7 +253,7 @@ describe("on-chain screens", () => {
     expect(parseHash("#/back").onchain).toBe(true);
     expect(parseHash("#/back/crate-breed")).toMatchObject({ key: "back", arg: "crate-breed", onchain: true });
     for (const key of ["#/", "#/s/radiolanlive", "#/lan", "#/play", "#/board", "#/positions", "#/me", "#/claim"]) expect(parseHash(key).onchain, key).toBe(false);
-    expect(text(<Ribbon />)).toMatch(/^DEVNET Test tokens with no real value\./);
+    expect(text(<Ribbon />)).toMatch(/^Solana devnet Test tokens only\. No real value\./);
     const back = html(<Back snapshot={sample} load="ready" preview={preview({ flow: "review" })} now={NOW} onRetry={noop} />);
     expect(back).toContain(`https://explorer.solana.com/address/${ARENA_PROGRAM}?cluster=devnet`);
     if (ARENA_MINT) expect(back).toContain(`https://explorer.solana.com/address/${ARENA_MINT}?cluster=devnet`);
@@ -221,7 +263,7 @@ describe("on-chain screens", () => {
     expect(decode(back).match(/<dt>Network<\/dt>/g)?.length).toBe(1);
     expect(decode(back)).not.toContain("The radiolan-arena program has been live on mainnet");
     const amountStep = html(<Back snapshot={sample} load="ready" preview={preview({ flow: "edit" })} now={NOW} onRetry={noop} />);
-    expect(decode(amountStep)).toContain("The radiolan-arena program has been live on mainnet since 2 Oct 2026. No arena is open on mainnet yet, so this flow uses devnet.");
+    expect(decode(amountStep)).toContain("The radiolan-arena program has been live on mainnet since 2 Oct 2026. This build rehearses on devnet with test tokens.");
     // The unlock rule is a subtitle under the action, not the page's loudest line; the review's way back says what it does.
     expect(back).toMatch(/<p class="rule-sub">Request withdrawal anytime\. Available after/);
     expect(back).not.toContain('class="rule"');
@@ -278,7 +320,7 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(board).toMatch(/Backing open · 2 1 Crate Breed Demo .*2 Dusty Rhymes Demo/);
     expect(board).toMatch(/On Twitch, not listed yet · 2 channels, 1 live/);
     expect(boardHtml).toMatch(/<details class="mkt__more">/);
-    expect(board).toMatch(/ninja .*Backing Not listed for backing Twitch Live · 18,240 Fortnite Data: Twitch/);
+    expect(board).toMatch(/ninja .*Backing Not open yet Twitch Live · 18,240 Fortnite Data: Twitch/);
     expect(board).not.toMatch(/Crate Breed Demo [^]*?Twitch No Twitch/);
     expect(boardHtml).not.toContain('class="mkt__rank num" aria-label="Backing rank 3"');
     expect(board).toMatch(/Read from Solana devnet 1 min ago\./);
@@ -300,6 +342,104 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(empty).not.toContain("Sample");
   });
 
+  it("says plainly whether the streamer has joined a listing, and never implies they were paid", () => {
+    const tracked = sampleListingDetail(NOW, "ninja")!;
+    const page = (claimed: boolean) => text(<Listing listing={{ ...tracked.listing, claimed }} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
+    expect(page(false)).toContain("The streamer hasn't joined yet.");
+    expect(page(false)).toContain("never goes to them");
+    expect(page(true)).toContain("Streamer joined: they signed in with Twitch");
+    expect(page(true)).not.toContain("hasn't joined");
+  });
+
+  it("offers category lanes and a collection meter on a full board, with no money words", () => {
+    const mk = (slug: string, game: string, live = true) => ({ slug, name: slug, kind: "tracked" as const, demo: false, blurb: null, twitch: slug, keys: null, backingOpen: false, arena: null, performance: { live, viewers: live ? 100 : null, game, startedAt: null, rank: null, deltaViewers: null, provenance: "Data: Twitch. Recorded by Radio LAN." } });
+    const full: MarketData = { ...emptyMarket, listings: [mk("aa", "Just Chatting"), mk("bb", "Just Chatting"), mk("cc", "Minecraft"), mk("dd", "Minecraft"), mk("ee", "Fortnite"), mk("ff", "Fortnite", false)] };
+    const page = text(<Market market={full} load="ready" onRetry={noop} station={station} now={NOW} />);
+    expect(page).toContain("Collect today's channels");
+    expect(page).toContain("0 of 6 followed");
+    expect(page).toContain("3 more to be a Scout");
+    expect(page).toContain("All categories");
+    expect(page).toMatch(/Just Chatting 2/);
+    expect(page).toContain("add no points");
+    expect(page).not.toMatch(/\b(pay|payout|earn|earned|money|price|pool|claim)\b/i);
+    const small = text(<Market market={{ ...emptyMarket, listings: full.listings.slice(0, 2) }} load="ready" onRetry={noop} station={station} now={NOW} />);
+    expect(small).not.toContain("Collect today's channels");
+    expect(small).not.toContain("All categories");
+  });
+
+  it("walks a streamer from linking a wallet to creating their arena, and never offers it before it can work", () => {
+    const tracked = sampleListingDetail(NOW, "ninja")!.listing;
+    const joined = { ...tracked, claimed: true, keys: null, backingOpen: false, arena: null };
+    const noWallet = text(<YourPageView claim={{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }} listing={joined} />);
+    expect(noWallet).toContain("Your page");
+    expect(noWallet).toContain("Link your wallet");
+    expect(noWallet).toContain("Link a wallet first");
+    expect(noWallet).not.toContain("Create your arena Create your arena");
+    expect(html(<YourPageView claim={{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }} listing={joined} />)).not.toContain("#/back/ninja");
+    const ready = { ...joined, claimDerived: true, keys: { streamer: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" } };
+    const withWallet = html(<YourPageView claim={{ slug: "ninja", wallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", ready: true, reason: null }} listing={ready} />);
+    expect(decode(withWallet)).toContain("Create your arena");
+    expect(withWallet).toContain('href="#/back/ninja"');
+    expect(decode(withWallet)).toContain("One signature from the linked wallet");
+    const noMint = text(<YourPageView claim={{ slug: "ninja", wallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", ready: false, reason: "no_default_mint" }} listing={{ ...joined, claimDerived: false }} />);
+    expect(noMint).toContain("no token set");
+    const opened = text(<YourPageView claim={{ slug: "ninja", wallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", ready: true, reason: null }} listing={{ ...ready, backingOpen: true }} />);
+    expect(opened).toContain("Your arena is open");
+    const swapped = text(<YourPageView claim={{ slug: "ninja", wallet: "Other111111111111111111111111111111111111111", pinned: { streamer: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" }, ready: true, reason: "wallet_differs_from_pinned" }} listing={ready} onRelease={() => {}} />);
+    expect(swapped).toContain("tied to wallet 9xQe…VFin");
+    expect(decode(swapped)).toContain("Connect 9xQe…VFin to create the arena");
+    expect(decode(swapped)).not.toContain("One signature from the linked wallet");
+    expect(swapped).toContain("anyone who backed it can always withdraw");
+    expect(swapped).toContain("Release this page");
+    expect(noWallet).not.toContain("Release this page");
+    const money = /\b(pay|pays|paid|payout|payment|earn|earns|earned|money|claim|claims|claiming|pool|price|prices|trade|trading|sell|stock)\b/i;
+    for (const t of [noWallet, withWallet, noMint, opened, swapped]) expect(money.exec(decode(t))).toBeNull();
+  });
+
+  it("offers the arena setup for the featured listing and for a listing whose pair came from its streamer's wallet, and for nothing else", () => {
+    const tracked = sampleListingDetail(NOW, "ninja")!.listing;
+    const keys = { streamer: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" };
+    expect(canSetUp({ ...tracked, kind: "featured" }, "radiolanlive")).toBe(true);
+    expect(canSetUp(null, "radiolanlive")).toBe(true);
+    expect(canSetUp(null, "someone")).toBe(false);
+    expect(canSetUp({ ...tracked, keys, claimDerived: true }, "ninja")).toBe(true);
+    expect(canSetUp({ ...tracked, keys }, "ninja")).toBe(false);
+    expect(canSetUp({ ...tracked, keys: null, claimDerived: true }, "ninja")).toBe(false);
+    expect(canSetUp(tracked, "ninja")).toBe(false);
+  });
+
+  it("has three places to start from, and keeps positions and the collection one tap away on Profile", () => {
+    expect(PRIMARY_NAV.map(([, href, label]) => [label, href])).toEqual([["Discover", "#/"], ["Play", "#/play"], ["About", "#/lan"]]);
+    const profile = html(<Profile snapshot={sample} load="ready" backer={false} wallet="So11111111111111111111111111111111111111112" onRetry={noop} />);
+    expect(profile).toContain('href="#/positions"');
+    expect(profile).toContain('href="#/claim"');
+  });
+
+  it("marks every screen of the sample season as made up, with a way back, and offers the sample only where a real season is empty", () => {
+    const banner = text(<SampleBanner />);
+    expect(banner).toContain("Sample season");
+    expect(banner).toContain("made up");
+    expect(banner).toContain("Nothing is real");
+    expect(html(<SampleBanner />)).toContain('href="./#/"');
+    const money = /\b(pay|pays|paid|payout|payment|earn|earns|earned|money|claim|claims|claiming|pool|price|prices|trade|trading|sell|stock)\b/i;
+    expect(money.exec(banner)).toBeNull();
+    const emptyLive = { ...sample, scenario: "today" as const, season: { ...sample.season!, board: [], players: 0, me: null } };
+    const live = html(<Board snapshot={emptyLive} load="ready" joined={false} onRetry={noop} />);
+    expect(live).toContain('href="?preview=sample#/board"');
+    expect(decode(live)).toContain("Nobody has played this season yet.");
+    expect(html(<Board snapshot={{ ...emptyLive, scenario: "sample" }} load="ready" joined={false} onRetry={noop} />)).not.toContain("?preview=sample");
+    expect(html(<Board snapshot={sample} load="ready" joined onRetry={noop} />)).not.toContain("See a sample season");
+  });
+
+  it("offers streamers a badge to add to their channel on listings with a Twitch channel, and not on demos", () => {
+    const tracked = sampleListingDetail(NOW, "ninja")!;
+    const page = html(<Listing listing={tracked.listing} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
+    expect(decode(page)).toContain("Add this to your channel");
+    expect(page).toContain("/hub/api/badge/ninja.svg");
+    const demo = sampleListingDetail(NOW, "crate-breed")!;
+    expect(text(<Listing listing={demo.listing} observed={demo} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="crate-breed" />)).not.toContain("Add this to your channel");
+  });
+
   it("keeps the listing's two panels apart: backing is on chain, the channel is Twitch, points are free", () => {
     const demo = sampleListingDetail(NOW, "crate-breed")!;
     const page = text(<Listing listing={demo.listing} observed={demo} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="crate-breed" />);
@@ -310,7 +450,8 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(page).toContain("Back Crate Breed");
     const tracked = sampleListingDetail(NOW, "ninja")!;
     const other = text(<Listing listing={tracked.listing} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
-    expect(other).toMatch(/Not listed for backing yet\. A creator is backable only after they create their own arena with their own key/);
+    expect(other).toMatch(/Backing for ninja is not open yet\. Radio LAN opens arenas itself, listing by listing/);
+    expect(other).not.toMatch(/their own arena|on anyone's behalf/);
     expect(other).toMatch(/Viewers 18,240 \+120 since last read Playing Fortnite/);
     expect(other).toMatch(/Data: Twitch\. Recorded by radiolanlive at \S+\./);
     const lan = sampleListingDetail(NOW, "radiolanlive")!;

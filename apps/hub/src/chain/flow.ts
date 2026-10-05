@@ -18,7 +18,7 @@ import {
   type ArenaAccount,
   type PositionAccount,
 } from "./arena";
-import { DEVNET_GENESIS_HASH } from "./config";
+import { GENESIS_HASH, NETWORK_LABEL } from "./config";
 import type { RpcPort } from "./rpc";
 import { mostRecentMondayUtc, seasonIndex, withdrawAvailableAt } from "./season";
 import { compileWire, isFullySigned, signatureOf } from "./tx";
@@ -102,19 +102,21 @@ export async function readChain(rpc: RpcPort, target: { streamer: Address; mint:
   return { arena, arenaAddress: at, position, token };
 }
 
-/** Refuses to build for any cluster but devnet (plan sections 6 and 13). */
-export async function onDevnet(rpc: RpcPort): Promise<boolean> {
-  return (await rpc.genesisHash()) === DEVNET_GENESIS_HASH;
+/** Refuses to build for any cluster but the build's own (plan sections 6 and 13), by genesis hash. */
+export async function onNetwork(rpc: RpcPort, genesis: string = GENESIS_HASH): Promise<boolean> {
+  return (await rpc.genesisHash()) === genesis;
 }
+/** The devnet check by its old name, for specs and callers that pin devnet explicitly. */
+export const onDevnet = (rpc: RpcPort) => onNetwork(rpc, "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG");
 
 const explain = (error: { code: number } | { message: string }) => ("code" in error ? ARENA_ERRORS[error.code] ?? `The program refused it (error ${error.code}).` : error.message);
 
 /** connect is done; build, simulate, and stop at review. Nothing is signed or sent. */
 export async function prepare(rpc: RpcPort, input: { action: FlowAction; fan: Address; streamer: Address; mint: Address; amount: bigint; now: bigint }): Promise<FlowState> {
   try {
-    if (!(await onDevnet(rpc))) return { step: "failed", kind: "wrong-network", detail: "The RPC is not Solana devnet, so nothing was built." };
+    if (!(await onNetwork(rpc))) return { step: "failed", kind: "wrong-network", detail: `The RPC is not ${NETWORK_LABEL}, so nothing was built.` };
     const view = await readChain(rpc, input, input.fan);
-    if (!view.arena) return { step: "failed", kind: "no-arena", detail: "No arena exists yet for the official streamer and this build's devnet test mint." };
+    if (!view.arena) return { step: "failed", kind: "no-arena", detail: "No arena exists yet for this listing's streamer and token." };
     const arena = view.arena;
     const at = view.arenaAddress;
     const position = await positionAddress(at, input.fan);
@@ -128,7 +130,7 @@ export async function prepare(rpc: RpcPort, input: { action: FlowAction; fan: Ad
     let destination: Address | null = null;
     if (input.action === "deposit") {
       if (arena.closed) return { step: "failed", kind: "simulation", detail: ARENA_ERRORS[6304] };
-      if (!view.token || view.token.amount < input.amount) return { step: "failed", kind: "no-tokens", detail: "Your wallet does not hold enough of this token on devnet." };
+      if (!view.token || view.token.amount < input.amount) return { step: "failed", kind: "no-tokens", detail: `Your wallet does not hold enough of this token on ${NETWORK_LABEL}.` };
       amount = input.amount;
       source = view.token.address;
       if (!view.position) rentLamports = (await rpc.rentExemption(POSITION_LEN)) + (await rpc.rentExemption(165));
@@ -188,8 +190,8 @@ export const SETUP_SEASON_SECONDS = 604_800n;
  */
 export async function prepareSetup(rpc: RpcPort, input: { signer: Address; streamer: Address; mint: Address; now: bigint }): Promise<FlowState> {
   try {
-    if (!(await onDevnet(rpc))) return { step: "failed", kind: "wrong-network", detail: "The RPC is not Solana devnet, so nothing was built." };
-    if (input.signer !== input.streamer) return { step: "failed", kind: "not-streamer", detail: "The connected wallet is not the official streamer key, which is the only key that can create this arena." };
+    if (!(await onNetwork(rpc))) return { step: "failed", kind: "wrong-network", detail: `The RPC is not ${NETWORK_LABEL}, so nothing was built.` };
+    if (input.signer !== input.streamer) return { step: "failed", kind: "not-streamer", detail: "The connected wallet is not this listing's streamer wallet, which is the only key that can create this arena." };
     const at = await arenaAddress(input.streamer, input.mint);
     if (await rpc.account(at)) return { step: "failed", kind: "simulation", detail: ARENA_ERRORS[6300] };
     const seasonStart = mostRecentMondayUtc(input.now);

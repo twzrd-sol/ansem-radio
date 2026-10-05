@@ -1,6 +1,7 @@
-// Radio LAN: the station, its founder, and how a free season works. The featured listing on the Board links here.
+// About radiolan.live: an open board of Twitch streamers and how a free season works. Not one streamer's page.
 import type { Station } from "../data/station";
 import type { HubSnapshot } from "../data/types";
+import { BRAND } from "../brand";
 import { fmt } from "../lib/format";
 import { ErrorBlock, Icon, LanMark, SampleTag, Skeleton, StationPill } from "../ui/atoms";
 import { HowLink } from "../ui/HowItWorks";
@@ -24,21 +25,20 @@ export function Lan({ snapshot, load, onRetry, station }: { snapshot: HubSnapsho
           <LanMark className="lan__mark" />
           <StationPill station={station} />
         </div>
-        <p className="eyebrow">Founded by THE WZRD OF ZO</p>
+        <p className="eyebrow">{BRAND.host}</p>
         <h1 className="h1" tabIndex={-1}>
           Radio LAN
         </h1>
-        <p className="lede">A station for streamer culture. Follow who's live, play each season, and back creators with RLAN. THE WZRD OF ZO founded Radio LAN.</p>
+        <p className="lede">{BRAND.tagline} Every streamer on Twitch can have a page here. A streamer who has not joined yet can sign in with Twitch later and make the page their own.</p>
         <div className="hero__actions">
-          <a className="btn btn--primary" href="#/s/radiolanlive">
-            <Icon name="stream" />
-            Open the Radio LAN listing
-          </a>
-          <a className="btn btn--ghost" href="#/">
+          <a className="btn btn--primary" href="#/">
             <Icon name="board" />
-            The Board
+            See who's live
           </a>
-          <a className="btn btn--ghost" href="/stream">Macro view</a>
+          <a className="btn btn--ghost" href="#/play">
+            <Icon name="play" />
+            Play this season
+          </a>
         </div>
         {season ? (
           <p className="counter">

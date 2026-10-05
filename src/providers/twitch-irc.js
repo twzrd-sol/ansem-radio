@@ -1,4 +1,4 @@
-/** Extracted from an earlier internal implementation.rs parse_irc_line. No logins or legacy weights. */
+/** Extracted from wzrd-final crates/stream/src/twitch.rs parse_irc_line. No logins or legacy weights. */
 
 import { createHash, createHmac } from "node:crypto";
 

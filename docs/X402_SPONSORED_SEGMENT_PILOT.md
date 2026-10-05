@@ -11,7 +11,7 @@ purchase routes return 503 and never issue a payment challenge.
 
 ## Community rollout terms
 
-Radio LAN is an MIT-licensed, open-source community dashboard and rewards
+Radio LAN is an MIT-licensed, open-source fan hub and attribution
 experiment. Public community metrics are free; no data access is sold. RLAN's
 market value is independent of the dashboard and may be zero. This x402
 integration uses USDC and makes no promise about RLAN's price or redemption.

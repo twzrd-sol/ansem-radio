@@ -2,8 +2,7 @@
  * The culture macro view: the tracked streamers' public stream rows, sampled once a
  * minute, rolled up per streamer per UTC hour. Per-minute rows are Twitch API data and
  * live only in the 24-hour raw store; the hourly rollups (minutes live, average and peak
- * viewers, sessions, top category) are derived, local, and never published
- *.
+ * viewers, sessions, top category) are derived counts behind the /macro fan engagement chart.
  */
 
 export function hourOf(time) {

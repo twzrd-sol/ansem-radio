@@ -1,3 +1,4 @@
+import { IS_MAINNET } from "../chain/config";
 import type { CurrentSeason, RewardState } from "../data/types";
 import { seasonPhase } from "../data/season";
 import { showsMoney } from "../data/types";
@@ -22,7 +23,7 @@ export const rewardLabel: Record<RewardState["kind"], string> = {
   claimable: "Final points, ready to collect",
 };
 
-export function SeasonCard({ season, now, onJoin }: { season: CurrentSeason; now: number; onJoin: () => void }) {
+export function SeasonCard({ season, now, onJoin, backingOpen = false }: { season: CurrentSeason; now: number; onJoin: () => void; backingOpen?: boolean }) {
   const phase = seasonPhase(season, now);
   const open = phase === "open";
   const max = seasonMax(season);
@@ -40,6 +41,7 @@ export function SeasonCard({ season, now, onJoin }: { season: CurrentSeason; now
           {open ? `Points freeze in ${left(season.freezesAt - now)}` : phase === "upcoming" ? `Starts in ${left(season.opensAt - now)}` : "Points are frozen"}
         </span>
       </div>
+      {season.poll?.placeholder && <p className="small">Sample season. Today's poll is a placeholder and does not count for points.</p>}
       {phase === "upcoming" ? <SeasonOpening season={season} now={now} /> : me ? (
         <div className="crt">
           <div className="crt__row">
@@ -78,16 +80,16 @@ export function SeasonCard({ season, now, onJoin }: { season: CurrentSeason; now
           <Icon name="play" />
           Play activities
         </a>
-        <a className="btn" href="#/back">
+        {backingOpen && <a className="btn" href="#/back">
           <Icon name="heart" />
           Back the streamer
-        </a>
+        </a>}
       </div>
     </section>
   );
 }
 
-export function SeasonNotOpen() {
+export function SeasonNotOpen({ backingOpen = false }: { backingOpen?: boolean } = {}) {
   return (
     <section className="case" aria-labelledby="h-season">
       <div className="season__head">
@@ -104,7 +106,7 @@ export function SeasonNotOpen() {
       <div className="stats">
         <Stat label="Perks" value="Not funded" note="An unfunded season has no perks" word />
         <Stat label="Players" value="0" note="This season" />
-        <Stat label="Backing" value="Devnet test" note="Program on mainnet; Radio LAN's arena isn't open yet" word />
+        <Stat label="Backing" value={IS_MAINNET ? (backingOpen ? "Open" : "Not open") : "Devnet test"} note={IS_MAINNET ? (backingOpen ? "Your own support account, on mainnet" : "No mainnet arena is open") : "Program on mainnet; this build rehearses on devnet"} word />
       </div>
     </section>
   );

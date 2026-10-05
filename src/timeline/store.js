@@ -1,7 +1,7 @@
 /**
  * Timeline files, outside the repository:
  *   raw/<UTC hour>.jsonl     normalized events, deleted once older than 24 hours
- *   minutes/<UTC day>.jsonl  per-minute aggregates (counts only), local and internal
+ *   minutes/<UTC day>.jsonl  per-minute aggregates (counts only), kept locally
  *   culture/<UTC day>.jsonl  hourly per-streamer rollups of the tracked streamers
  *   gaps.jsonl               intervals when the ingest was disconnected
  * Nothing here is published or shared.
@@ -47,7 +47,7 @@ export function createTimelineStore({ dir = defaultTimelineDir(), clock = Date.n
       write(join(dir, "minutes", `${bucket.minute.slice(0, 10)}.jsonl`), bucket);
     },
 
-    /** Hourly per-streamer culture rollups (derived counts; local, never published). */
+    /** Hourly per-streamer culture rollups (derived counts). */
     appendCulture(rollup) {
       write(join(dir, "culture", `${rollup.hour.slice(0, 10)}.jsonl`), rollup);
     },
@@ -92,6 +92,19 @@ export function createTimelineStore({ dir = defaultTimelineDir(), clock = Date.n
 
     readGaps({ since = 0 } = {}) {
       return lines(join(dir, "gaps.jsonl")).filter((gap) => Date.parse(gap.end) >= since);
+    },
+
+    /** Normalized events still inside the raw retention window. Missing dir reads as none. */
+    readRaw({ since = 0 } = {}) {
+      const rawDir = join(dir, "raw");
+      if (!existsSync(rawDir)) return [];
+      const cutoff = Math.max(since, clock() - RAW_RETENTION_HOURS * 3_600_000);
+      const sinceHour = new Date(cutoff).toISOString().slice(0, 13);
+      return readdirSync(rawDir)
+        .filter((name) => /^\d{4}-\d{2}-\d{2}T\d{2}\.jsonl$/.test(name) && name.slice(0, 13) >= sinceHour)
+        .sort()
+        .flatMap((name) => lines(join(rawDir, name)))
+        .filter((item) => Date.parse(item.received_at ?? item.event?.observed_at ?? "") >= cutoff);
     },
   });
 }

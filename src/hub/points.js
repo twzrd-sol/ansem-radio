@@ -8,6 +8,17 @@ import { createHash } from "node:crypto";
 
 export const ACTIONS = Object.freeze(["question", "poll_response", "accepted_work"]);
 
+/**
+ * Rank accounts by provisional points: points desc, then the earlier first credit, then account id, so the order is
+ * reproducible from the submissions alone. Accounts with no points are not ranked. Returns [accountId, points] pairs.
+ */
+export function rankAccounts(policy, credited) {
+  const { scores } = provisionalPoints(policy, credited);
+  const firstAt = new Map();
+  for (const s of credited) if (!firstAt.has(s.accountId) || s.occurredAt < firstAt.get(s.accountId)) firstAt.set(s.accountId, s.occurredAt);
+  return [...scores].filter(([, p]) => p > 0n).sort(([a, pa], [b, pb]) => (pa === pb ? (firstAt.get(a) - firstAt.get(b)) || a.localeCompare(b) : pa > pb ? -1 : 1));
+}
+
 /** A stable 32-byte hex action id, so a resubmission is the same logical credit and never a second one. */
 export function actionId(parts) {
   return createHash("sha256").update(parts.map(String).join("\n")).digest("hex");

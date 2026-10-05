@@ -44,8 +44,21 @@ export interface ApiMe {
   pending: number;
   submissions: ApiSubmission[];
 }
+/** The most recent frozen season, as the station serves it: frozen points, labelled provisional, never a settlement. */
+export interface ApiLastSeason {
+  number: number;
+  players: number;
+  eligiblePoints: number;
+  reward: { kind: "provisional" };
+  me: { points: number; rank: number } | null;
+  top: Array<[string, number]>;
+  endsAt: number;
+  frozenAt: number;
+  label: string;
+}
 export interface ApiState {
   season: ApiSeason | null;
+  lastSeason?: ApiLastSeason | null;
   me: ApiMe | null;
   generatedAt: number;
 }

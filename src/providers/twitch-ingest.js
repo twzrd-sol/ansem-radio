@@ -1,4 +1,4 @@
-/** Extracted from an earlier internal implementation.rs @ 45ac7018. No claims. */
+/** Extracted from wzrd-final twitch_attention.rs @ 45ac7018. No claims. */
 
 export function nextIrcBackoffSeconds(currentSeconds) {
   const current = Number(currentSeconds);

@@ -1,5 +1,5 @@
-// Bounds follow the public program: index 0 before the start, then
-// 1 + one per season, and invalid values are rejected before encoding.
+// From Codex's #49, adapted to the season rule fixed after /code-review: index 0 before the start, then
+// 1 + one per season, and a zero duration gives 0 (as the program) instead of throwing.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { encodeBase58 } from "../src/core/base58.js";

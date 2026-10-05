@@ -9,10 +9,10 @@ import type { Wallet } from "@wallet-standard/base";
 import { StandardConnect, StandardEvents, type StandardConnectFeature, type StandardEventsFeature } from "@wallet-standard/features";
 import { useEffect, useState } from "react";
 
-import { CHAIN } from "./config";
+import { CHAIN, NETWORK_LABEL } from "./config";
 import type { ConnectedWallet } from "../data/wallet-session";
 
-/** A wallet the hub can use: it connects, signs a transaction without sending it, and offers devnet. */
+/** A wallet the hub can use: it connects, signs a transaction without sending it, and offers the build's network. */
 export const isUsable = (wallet: Wallet) => StandardConnect in wallet.features && SolanaSignTransaction in wallet.features && wallet.chains.includes(CHAIN);
 
 /** Dispatched when Mobile Wallet Adapter finds no wallet app, so the page can say so in its own words. */
@@ -58,7 +58,7 @@ export async function connectWallet(wallet: Wallet): Promise<ConnectedWallet> {
   const connect = (wallet.features as StandardConnectFeature)[StandardConnect];
   const { accounts } = await connect.connect();
   const account = accounts.find((a) => a.chains.includes(CHAIN) && a.features.includes(SolanaSignTransaction));
-  if (!account) throw new Error("The wallet returned no account that can sign on Solana devnet.");
+  if (!account) throw new Error(`The wallet returned no account that can sign on ${NETWORK_LABEL}.`);
   const sign = (wallet.features as SolanaSignTransactionFeature)[SolanaSignTransaction];
   const messages = (wallet.features as Partial<SolanaSignMessageFeature>)[SolanaSignMessage];
   const stillConnected = (a: typeof account) => a.address === account.address && a.chains.includes(CHAIN) && a.features.includes(SolanaSignTransaction);

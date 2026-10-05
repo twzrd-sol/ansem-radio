@@ -12,7 +12,7 @@ import {
 test("station is the locked Radio LAN channel", () => {
   assert.equal(STATION_CHANNEL, "radiolanlive");
   assert.equal(STATION_URL, "https://www.twitch.tv/radiolanlive");
-  assert.equal(STATION_TITLE, "THE WZRD OF ZO presents RADIO LAN");
+  assert.equal(STATION_TITLE, "RADIO LAN");
 });
 
 test("player URL is the official embed, not a clip or third-party host", () => {

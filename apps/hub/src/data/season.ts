@@ -4,6 +4,17 @@ export type SeasonPhase = "upcoming" | "open" | "closed";
 export const seasonPhase = (season: Pick<CurrentSeason, "opensAt" | "freezesAt">, now: number): SeasonPhase =>
   now < season.opensAt ? "upcoming" : now < season.freezesAt ? "open" : "closed";
 
+/** A season whose current poll is a station placeholder: label it as a sample, never as a live scored season. */
+export const isPlaceholderSeason = (season: Pick<CurrentSeason, "poll"> | null | undefined): boolean =>
+  Boolean(season?.poll?.placeholder);
+
+/** Play and the points Board share this eyebrow. Season 2 is the devnet points season, even on the mainnet creator board. */
+export function pointsSeasonEyebrow(season: Pick<CurrentSeason, "number" | "poll">): string {
+  if (isPlaceholderSeason(season)) return `Sample season ${season.number} · Radio LAN`;
+  if (season.number === 2) return `Season 2 · Solana devnet · Radio LAN`;
+  return `Season ${season.number} · Radio LAN`;
+}
+
 /** The published points schedule, not the backing arena's withdrawal schedule. */
 export function seasonCalendar(season: Pick<CurrentSeason, "number" | "opensAt" | "freezesAt">): string {
   const stamp = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
