@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 const EMPTY = () => ({ version: 1, quotes: {}, orders: {} });
@@ -31,7 +31,14 @@ export function createSponsorStore({ path } = {}) {
 
   const flush = () => {
     const temp = `${path}.tmp.${process.pid}`;
-    writeFileSync(temp, JSON.stringify(state), { mode: 0o600 });
+    // Write, fsync, then rename: a crash leaves either the old file or the whole new one, never a truncated log.
+    const fd = openSync(temp, "w", 0o600);
+    try {
+      writeFileSync(fd, JSON.stringify(state));
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
     renameSync(temp, path);
   };
   const insert = (table, row) => {

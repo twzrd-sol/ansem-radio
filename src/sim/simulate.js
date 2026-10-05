@@ -48,7 +48,10 @@ export const PRESETS = Object.freeze({
 function merge(base, over) {
   if (Array.isArray(base) || Array.isArray(over) || typeof over !== "object" || over === null) return over ?? base;
   const out = { ...base };
-  for (const [k, v] of Object.entries(over)) out[k] = typeof base?.[k] === "object" && !Array.isArray(base[k]) ? merge(base[k], v) : v;
+  for (const [k, v] of Object.entries(over)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    out[k] = typeof base?.[k] === "object" && !Array.isArray(base[k]) ? merge(base[k], v) : v;
+  }
   return out;
 }
 

@@ -151,3 +151,12 @@ test("first-cheer points come at most once per 30 days", () => {
   const monthly = simulate(resolveParams({ streams: 3, days_between_streams: 31, behaviour: { first_cheer_probability: 1 } }));
   assert.ok(monthly.world_a.minted_by_source.first_cheer > 350 * monthly.audience.unique_viewers);
 });
+
+test("--set refuses prototype keys and keeps an equals sign inside the value", () => {
+  for (const path of ["__proto__.polluted", "constructor.prototype.polluted", "farm.__proto__.x", "a..b"]) {
+    assert.throws(() => parseArgs(["--set", `${path}=1`]), /refuses the key path/, path);
+  }
+  assert.equal(({}).polluted, undefined, "Object.prototype is untouched");
+  assert.equal(parseArgs(["--set", "label=b=c"]).overrides.label, "b=c");
+  assert.throws(() => parseArgs(["--set", "novalue"]), /needs key.path=value/);
+});
