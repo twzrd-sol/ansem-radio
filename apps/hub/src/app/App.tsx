@@ -62,11 +62,11 @@ export const SampleBanner = () => (
 );
 
 /** Plan section 8: the network stays visible on every on-chain screen, as a calm note rather than a warning banner. */
-export const Ribbon = () =>
+export const Ribbon = ({ backingOpen = false }: { backingOpen?: boolean } = {}) =>
   IS_MAINNET ? (
     <div className="network-note" role="note">
-      <span className="network-note__chip">Solana mainnet</span>
-      <span>Real $RLAN. Backing is optional; it sits in your own support account and comes back on request after the season ends.</span>
+      <span className="network-note__chip">Mainnet board</span>
+      <span>{backingOpen ? "Solana mainnet data. Backing is open for listed creators." : "Solana mainnet data. No mainnet arena is open, so backing is not available here."}</span>
     </div>
   ) : (
     <div className="network-note" role="note">
@@ -105,8 +105,9 @@ export function backingTarget(listing: ListingData | null, fallbackMint: string 
   return null;
 }
 
-/** Whether the "Create the arena" step is offered: the featured listing, or a listing whose pair the station derived from its streamer's own wallet. The step itself still refuses any other connected wallet. */
+/** Arena creation is a devnet rehearsal only; the mainnet hub offers no arena setup action. Whether the "Create the arena" step is offered on devnet: the featured listing, or a listing whose pair the station derived from its streamer's own wallet. The step itself still refuses any other connected wallet. */
 export function canSetUp(listing: ListingData | null, slug: string | null): boolean {
+  if (IS_MAINNET) return false;
   if (listing?.kind === "featured") return true;
   if (!listing) return slug === "radiolanlive";
   return listing.claimDerived === true && Boolean(listing.keys);
@@ -320,7 +321,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
           )}
         </header>
         {preview.enabled && preview.scenario === "sample" && <SampleBanner />}
-        {route.onchain && <Ribbon />}
+        {route.onchain && <Ribbon backingOpen={Boolean(board?.listings.some((l) => l.backingOpen))} />}
         <main id="view" ref={view} className="view" tabIndex={-1}>
           <LanCompanion market={board} snapshot={shown} now={now} ready={boardLoad === "ready"} station={station} />
           {screen}

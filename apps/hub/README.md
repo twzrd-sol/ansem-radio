@@ -27,7 +27,7 @@ npm run preview   # serves dist/ on 127.0.0.1 under /hub/
 ```
 
 `?preview=sample` shows every screen with fixtures, each marked SAMPLE; `?preview=today` shows today's real state with
-the review controls. Without `preview`, the hub shows the real state and the live backing flow.
+the review controls. Without `preview`, the hub shows the real state; the backing flow appears only for a listing with an open arena.
 
 | Build variable | Default | Meaning |
 |---|---|---|
@@ -178,7 +178,6 @@ Fixes from the first pass:
 - the home lede listed watching beside the point activities (0.83);
 - the collect and profile screens did per-fan SOL arithmetic (0.71); they now show a share as a percentage set by points;
 - withdrawal lines lacked "after release";
-- the mainnet note said "no arena" after the internal test arena went live.
 
 Two lines remain at 0.5 or above, both reviewed by hand: a percentage on the sample collect screen (it is about
 collecting perks for points, which the design allows) and the wallet row, read as a Twitch line although it never

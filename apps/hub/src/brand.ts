@@ -3,5 +3,5 @@
 export const BRAND = Object.freeze({
   name: "Radio LAN",
   host: "radiolan.live",
-  tagline: "Follow the streamers you watch, play free every season, and back the ones you believe in.",
+  tagline: "Follow the streamers you watch and play free each season.",
 });

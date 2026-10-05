@@ -18,6 +18,7 @@ export function LanCompanion({ market, snapshot, now, ready, station = { status:
   const { slugs } = useFollowing();
   const live = ready && market && !market.stale ? followingListings(market.listings, slugs).filter((l) => l.performance?.live) : [];
   const season = snapshot?.season;
+  const backingOpen = Boolean(market?.listings.some((l) => l.backingOpen));
   const sampleSeason = isPlaceholderSeason(season);
   const record = collectionSummary(snapshot, now);
   return <aside className="lan-guide" aria-label="LAN station guide">
@@ -38,10 +39,10 @@ export function LanCompanion({ market, snapshot, now, ready, station = { status:
         <p>{record.label}. {record.text}</p>
         <div className="lan-guide__links"><a href="#/claim">Season record <Icon name="receipt" size="sm" /></a><a href="#/board">Points board</a></div>
       </> : <>
-        <p>RLAN is Radio LAN's mainnet token, launched through ClawPump. {IS_MAINNET ? "Backing on this hub uses it." : "This build rehearses creator backing with devnet test tokens."}</p>
+        <p>RLAN is Radio LAN's mainnet token, launched through ClawPump. {IS_MAINNET ? "No mainnet arena is open on this hub, so there is nothing to back yet." : "This build rehearses creator backing with devnet test tokens."}</p>
         <div className="lan-guide__links"><a href="https://clawpump.tech" target="_blank" rel="noopener noreferrer">ClawPump</a><a href={`https://explorer.solana.com/address/${RLAN_MINT}?cluster=mainnet-beta`} target="_blank" rel="noopener noreferrer" title={RLAN_MINT}>RLAN mint {short(RLAN_MINT)}</a><a href={PUBLIC_SOURCE} target="_blank" rel="noopener noreferrer">MIT source</a></div>
       </>}
     </div>
-    <div className="lan-guide__foot"><span>Play is free · Backing is optional</span><HowLink /></div>
+    <div className="lan-guide__foot"><span>Play is free · {backingOpen ? "Backing is open for listed creators" : "Backing is not open"}</span><HowLink /></div>
   </aside>;
 }

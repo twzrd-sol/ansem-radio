@@ -197,7 +197,7 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
             </h2>
             <span className="label">Free · separate from backing</span>
           </div>
-          {season ? <SeasonCard season={season} now={now} onJoin={onJoin} /> : <SeasonNotOpen />}
+          {season ? <SeasonCard season={season} now={now} onJoin={onJoin} backingOpen={listing.backingOpen} /> : <SeasonNotOpen backingOpen={listing.backingOpen} />}
           <p className="small fine">Points come from activities on this site and never from backing or Twitch. {season && <a href="#/board">See the points board</a>}{season && " · "}<a href="#/play">Play</a></p>
         </section>
       )}

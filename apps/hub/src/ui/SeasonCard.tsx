@@ -23,7 +23,7 @@ export const rewardLabel: Record<RewardState["kind"], string> = {
   claimable: "Final points, ready to collect",
 };
 
-export function SeasonCard({ season, now, onJoin }: { season: CurrentSeason; now: number; onJoin: () => void }) {
+export function SeasonCard({ season, now, onJoin, backingOpen = false }: { season: CurrentSeason; now: number; onJoin: () => void; backingOpen?: boolean }) {
   const phase = seasonPhase(season, now);
   const open = phase === "open";
   const max = seasonMax(season);
@@ -80,16 +80,16 @@ export function SeasonCard({ season, now, onJoin }: { season: CurrentSeason; now
           <Icon name="play" />
           Play activities
         </a>
-        <a className="btn" href="#/back">
+        {backingOpen && <a className="btn" href="#/back">
           <Icon name="heart" />
           Back the streamer
-        </a>
+        </a>}
       </div>
     </section>
   );
 }
 
-export function SeasonNotOpen() {
+export function SeasonNotOpen({ backingOpen = false }: { backingOpen?: boolean } = {}) {
   return (
     <section className="case" aria-labelledby="h-season">
       <div className="season__head">
@@ -106,7 +106,7 @@ export function SeasonNotOpen() {
       <div className="stats">
         <Stat label="Perks" value="Not funded" note="An unfunded season has no perks" word />
         <Stat label="Players" value="0" note="This season" />
-        <Stat label="Backing" value={IS_MAINNET ? "$RLAN" : "Devnet test"} note={IS_MAINNET ? "Your own support account, on mainnet" : "Program on mainnet; this build rehearses on devnet"} word />
+        <Stat label="Backing" value={IS_MAINNET ? (backingOpen ? "Open" : "Not open") : "Devnet test"} note={IS_MAINNET ? (backingOpen ? "Your own support account, on mainnet" : "No mainnet arena is open") : "Program on mainnet; this build rehearses on devnet"} word />
       </div>
     </section>
   );
