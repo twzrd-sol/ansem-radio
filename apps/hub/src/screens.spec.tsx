@@ -22,6 +22,7 @@ import { Back } from "./screens/Back";
 import { Board } from "./screens/Board";
 import { Claim } from "./screens/Claim";
 import { Lan } from "./screens/Lan";
+import { SampleTag } from "./ui/atoms";
 import { Listing } from "./screens/Listing";
 import { Market } from "./screens/Market";
 import { ACTIVITIES, Play } from "./screens/Play";
@@ -476,5 +477,28 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(backingTarget({ ...lan, keys: null }, "Mint7estRLAN1111111111111111111111111111111")).toEqual({ streamer: "A2fN4LCB5se9nDtttqQj6fx5yg3TpZLuphiZVJ4JZLyb", mint: "Mint7estRLAN1111111111111111111111111111111" });
     expect(backingTarget({ ...market.listings[3]!, keys: null }, "Mint7estRLAN1111111111111111111111111111111")).toBeNull();
     expect(backingTarget(null, "Mint7estRLAN1111111111111111111111111111111")).toBeNull();
+  });
+});
+
+describe("review fixes", () => {
+  it("a live season on the Lan page is not labelled as a sample", () => {
+    const live: HubSnapshot = { ...today, scenario: "today", season: { ...sample.season!, poll: { id: "real-1", question: "Q?", options: ["A", "B"], placeholder: false } } };
+    const tag = html(<SampleTag />);
+    expect(html(<Lan snapshot={live} load="ready" onRetry={noop} station={station} />)).not.toContain(tag);
+    expect(html(<Lan snapshot={{ ...live, scenario: "sample" }} load="ready" onRetry={noop} station={station} />)).toContain(tag);
+  });
+
+  it("share math survives a season with no eligible points", async () => {
+    const { sharePercent, shareOf } = await import("./screens/Profile");
+    expect(sharePercent(5, 0)).toBe("0.00%");
+    expect(shareOf(1_000n, 5, 0)).toBe(0n);
+    expect(sharePercent(1, 4)).toBe("25.00%");
+  });
+
+  it("unitsFloor never asks for more decimals than the token has", async () => {
+    const { unitsFloor } = await import("./lib/format");
+    expect(() => unitsFloor(123_456_789n, 6, 9)).not.toThrow();
+    expect(unitsFloor(123_456_789n, 6, 9)).toBe("123.456789");
+    expect(unitsFloor(123_456_789n, 6, 2)).toBe("123.45");
   });
 });

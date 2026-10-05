@@ -22,6 +22,7 @@ export function units(baseUnits: bigint, decimals: number): string {
 
 /** Base units to a fixed number of decimals, rounded down so a short figure never overstates. */
 export function unitsFloor(baseUnits: bigint, decimals: number, shown: number): string {
+  shown = Math.min(Math.max(0, shown), decimals); // never show more decimals than the token has
   const scale = 10n ** BigInt(decimals - shown);
   const kept = baseUnits / scale;
   const whole = kept / 10n ** BigInt(shown);

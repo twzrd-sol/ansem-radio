@@ -112,11 +112,14 @@ export function createHubApi({ fetchImpl = (input: string, init?: RequestInit) =
       headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...(csrf ? { [CSRF_HEADER]: csrf } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    const json = (await response.json().catch(() => ({ error: "bad_response" }))) as Record<string, unknown>;
+    const parsed = await response.json().then((value: unknown) => ({ ok: true as const, value }), () => ({ ok: false as const, value: { error: "bad_response" } }));
+    const json = parsed.value as Record<string, unknown>;
     if (!response.ok) {
       if (response.status === 401) csrf = "";
       throw new HubApiError(response.status, String(json.error ?? "request_failed"), typeof json.detail === "string" ? json.detail : undefined);
     }
+    // A 2xx body that is not JSON is a broken response, not a success.
+    if (!parsed.ok) throw new HubApiError(response.status, "bad_response");
     if (typeof json.csrf === "string") csrf = json.csrf;
     return json as T;
   };

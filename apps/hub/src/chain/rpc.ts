@@ -64,7 +64,13 @@ export function kitRpc(url: string): RpcPort {
       return value ? { data: fromBase64(value.data[0]), lamports: value.lamports } : null;
     },
     rentExemption: (size) => {
-      const known = rent.get(size) ?? rpc.getMinimumBalanceForRentExemption(BigInt(size)).send();
+      const cached = rent.get(size);
+      if (cached) return cached;
+      // A failed read is not cached, so the next deposit prepare retries instead of failing until reload.
+      const known = rpc.getMinimumBalanceForRentExemption(BigInt(size)).send().catch((error: unknown) => {
+        rent.delete(size);
+        throw error;
+      });
       rent.set(size, known);
       return known;
     },

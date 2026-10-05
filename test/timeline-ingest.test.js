@@ -155,3 +155,12 @@ test("an offline station is reported offline, and culture rolls up per streamer 
   const n = h.store.culture.find((r) => r.login === "ninja");
   assert.deepEqual([n.minutes_live, n.avg_viewers, n.sampled_minutes], [0, null, 4]);
 });
+
+test("a failing raw purge or gap write is logged and does not throw out of the timer", async () => {
+  const h = harness();
+  h.store.purgeRaw = () => { throw Object.assign(new Error("disk"), { code: "EIO" }); };
+  h.store.appendGap = () => { throw Object.assign(new Error("disk"), { code: "EIO" }); };
+  await assert.doesNotReject(h.ingest.setToken("oauth:tok1"), "the start-up purge does not throw");
+  for (const t of h.intervals) assert.doesNotThrow(() => t.fn(), `interval ${t.ms}`);
+  assert.doesNotThrow(() => h.sessions[0].options.onGap({ from: "a", to: "b", reason: "x" }));
+});
