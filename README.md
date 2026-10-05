@@ -57,9 +57,9 @@ Launched 1 October 2026, 23:58 EST (04:58 UTC on 2 October; launch transaction `
 The optional Radio LAN arena program is available for inspection and build reproduction.
 
 - Mainnet program: `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`
-- Deployed ELF: SHA-256 `22a613fecb394d13a484bd982c9a0536c78f14f0db4ca00b27cf3fe96c6c69fb` (39,728 bytes)
+- Deployed ELF: SHA-256 `7ad624b983a7dfae6e3fdd5d77283b480b69e990b5374ac1b0c48f465ef0e893` (45,696 bytes), upgraded 2026-10-05; the first deploy (2026-10-02) was `22a613fe…`
 - Reproduce the build with Solana CLI 2.3.0: see [`programs/radiolan-arena/BUILD.md`](programs/radiolan-arena/BUILD.md).
 
-No arena is open on this program yet, so it holds no fan tokens. A daily check compares the deployed bytes to the build record above and fails if they differ.
+No arena is open on this program yet, so it holds no fan tokens. The 2026-10-05 version adds one instruction (tag 5) that lets a single operator key open a market for the `$RLAN` mint only; no market has been opened, and nobody can close one once it is. A daily check compares the deployed bytes to the build record above and fails if they differ.
 
 We state the current control plainly: one Radio LAN operator key can upgrade the program today. It is not controlled by a multisig. The deployed version returns tokens only to the fan who deposited them, but an upgrade could replace it with different behavior. Please account for that operator-managed status when deciding whether to use it.
