@@ -1,7 +1,7 @@
 //! Radio LAN arena: optional fan support positions (Pinocchio).
 //!
-//! The arena itself is free to play; nothing here gates participation.
-//! A fan may commit tokens of the arena's mint to back a streamer. Each fan's tokens
+//! The arena itself is free to play; nothing here gates participation or carries reward
+//! weight. A fan may commit tokens of the arena's mint to back a streamer. Each fan's tokens
 //! sit in their own program-owned Token-2022 account, PDA `["support", arena, fan]`, whose
 //! token authority is the fan's position PDA `["position", arena, fan]`. No instruction moves
 //! those tokens anywhere except back to that fan.
@@ -41,6 +41,25 @@ pub const SYSTEM_ID: Pubkey = [0u8; 32];
 const ARENA_SEED: &[u8] = b"arena";
 const POSITION_SEED: &[u8] = b"position";
 const SUPPORT_SEED: &[u8] = b"support";
+const OPEN_SEED: &[u8] = b"open";
+/// Operator-opened market record. The arena it creates names this account as its streamer, and this
+/// account has no private key, so `close_arena` cannot be signed for it.
+pub const OPEN_MARKET_LEN: usize = 128;
+const OPEN_MAGIC: [u8; 8] = *b"RLOPEN01";
+/// The only mint an open market accepts: `$RLAN`, CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy. The check is the
+/// same in every build; there is no second build with another mint.
+pub const RLAN_MINT: Pubkey = [
+    0xaa, 0x59, 0x3f, 0xd1, 0xe4, 0xb5, 0x23, 0xba, 0x04, 0xd4, 0x33, 0xb9, 0x08, 0xde, 0x47, 0x5f,
+    0xcb, 0x5d, 0x0f, 0xbe, 0x9e, 0x8c, 0xac, 0xa8, 0xd3, 0x9b, 0x87, 0x12, 0x0b, 0x24, 0x37, 0xae,
+];
+/// The one key that may open a market, and pays its rent: CrgnT4wE3KAemXyUvHgMbXiTamHxgx8LEiPzstEYX7gY, a dedicated
+/// key created 2026-10-05 for this purpose only. It is not `EatwUpB2…` (the upgrade key) and not the official
+/// streamer wallet; it holds no fan tokens and no program authority. Changing it is a source change and a new build
+/// record. An all-zero value would authorize nobody.
+pub const OPERATOR_OPENER: Pubkey = [
+    0xb0, 0x2a, 0xff, 0xd2, 0x96, 0x88, 0x60, 0xd2, 0x84, 0xb8, 0xbc, 0x0e, 0x58, 0x4e, 0xfb, 0xc9,
+    0xa5, 0x24, 0x4b, 0xf5, 0xc8, 0x86, 0xe5, 0x08, 0x0f, 0xc6, 0x19, 0xaf, 0x58, 0xf3, 0xb3, 0x4d,
+];
 const ARENA_MAGIC: [u8; 8] = *b"RLARENA1";
 const POSITION_MAGIC: [u8; 8] = *b"RLPOSIT1";
 pub const ARENA_LEN: usize = 112;
@@ -73,6 +92,7 @@ pub enum ArenaError {
     AlreadyRequested = 6307,
     BadTokenAccount = 6308,
     NotStreamer = 6309,
+    NotOperator = 6310,
 }
 impl From<ArenaError> for ProgramError {
     fn from(e: ArenaError) -> Self {
@@ -98,6 +118,7 @@ pub fn process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], data: 
         2 => request_withdraw(accounts),
         3 => withdraw(accounts, rest),
         4 => close_arena(accounts),
+        5 => init_open_market(accounts, rest),
         _ => Err(ProgramError::InvalidInstructionData),
     }
 }
@@ -357,6 +378,106 @@ fn init_arena(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     Arena { bump, decimals, closed: false, streamer: *streamer.key(), mint: *mint.key(), season_start, season_seconds, positions: 0, total: 0 }.store(arena_ai)
 }
 
+/// A listing slug: 3 to 32 bytes, ASCII lowercase, digits, `_` or `-`, starting with a letter or digit.
+pub fn valid_open_slug(slug: &[u8]) -> bool {
+    if slug.len() < 3 || slug.len() > 32 {
+        return false;
+    }
+    if !slug[0].is_ascii_alphanumeric() {
+        return false;
+    }
+    slug.iter().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'_' || *b == b'-')
+}
+
+fn season_window(season_start: i64, season_seconds: u64, created: i64) -> Result<(), ProgramError> {
+    if !(MIN_SEASON_SECONDS..=MAX_SEASON_SECONDS).contains(&season_seconds)
+        || season_start > created.saturating_add(season_seconds as i64)
+        || season_start < created.saturating_sub(365 * 86_400)
+    {
+        return Err(ArenaError::BadConfig.into());
+    }
+    Ok(())
+}
+
+/// Open market for one listing. The dedicated opener signs and pays the rent. Fans later deposit
+/// with the existing deposit instruction. Nobody can close it: the arena's streamer is this PDA.
+/// Accounts: [opener (signer, writable), market PDA ["open", slug] (writable),
+///            arena PDA ["arena", market, mint] (writable), mint, system]
+/// Data: [slug_len u8][slug][season_start i64][season_seconds u64]
+/// Whether `payer` is OPERATOR_OPENER. The all-zero key is not an opener.
+fn open_authorized(payer: &Pubkey, operator: &Pubkey) -> bool {
+    operator != &[0u8; 32] && payer == operator
+}
+
+fn init_open_market(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+    let [payer, market_ai, arena_ai, mint, system] = accounts else {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    };
+    if !payer.is_signer() {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    if !open_authorized(payer.key(), &OPERATOR_OPENER) {
+        return Err(ArenaError::NotOperator.into());
+    }
+    if system.key() != &SYSTEM_ID || mint.key() != &RLAN_MINT || mint.owner() != &TOKEN_2022_ID {
+        return Err(ArenaError::BadMint.into());
+    }
+    let decimals = check_mint(&mint.try_borrow_data()?)?;
+    let slug_len = *data.first().ok_or(ProgramError::InvalidInstructionData)? as usize;
+    if slug_len < 3 || slug_len > 32 || data.len() != 1 + slug_len + 16 {
+        return Err(ArenaError::BadConfig.into());
+    }
+    let slug = data.get(1..1 + slug_len).ok_or(ProgramError::InvalidInstructionData)?;
+    if !valid_open_slug(slug) {
+        return Err(ArenaError::BadConfig.into());
+    }
+    let season_start = i64::from_le_bytes(read::<8>(data, 1 + slug_len)?);
+    let season_seconds = u64::from_le_bytes(read::<8>(data, 1 + slug_len + 8)?);
+    season_window(season_start, season_seconds, now()?)?;
+    let (market_key, market_bump) = pubkey::find_program_address(&[OPEN_SEED, slug], &ID);
+    if market_ai.key() != &market_key {
+        return Err(ArenaError::WrongAccount.into());
+    }
+    let (arena_key, arena_bump) = pubkey::find_program_address(&[ARENA_SEED, market_ai.key(), mint.key()], &ID);
+    if arena_ai.key() != &arena_key {
+        return Err(ArenaError::WrongAccount.into());
+    }
+    let market_bump_b = [market_bump];
+    create_pda(payer, market_ai, OPEN_MARKET_LEN, &ID, &[Seed::from(OPEN_SEED), Seed::from(slug), Seed::from(market_bump_b.as_ref())])?;
+    let arena_bump_b = [arena_bump];
+    create_pda(
+        payer,
+        arena_ai,
+        ARENA_LEN,
+        &ID,
+        &[Seed::from(ARENA_SEED), Seed::from(market_ai.key().as_ref()), Seed::from(mint.key().as_ref()), Seed::from(arena_bump_b.as_ref())],
+    )?;
+    let mut slug_bytes = [0u8; 32];
+    slug_bytes[..slug_len].copy_from_slice(slug);
+    let mut record = market_ai.try_borrow_mut_data()?;
+    record[0..8].copy_from_slice(&OPEN_MAGIC);
+    record[8] = market_bump;
+    record[9] = slug_len as u8;
+    record[10..42].copy_from_slice(&slug_bytes);
+    record[42..74].copy_from_slice(mint.key());
+    record[74..106].copy_from_slice(arena_ai.key());
+    record[106..114].copy_from_slice(&season_start.to_le_bytes());
+    record[114..122].copy_from_slice(&season_seconds.to_le_bytes());
+    drop(record);
+    Arena {
+        bump: arena_bump,
+        decimals,
+        closed: false,
+        streamer: *market_ai.key(),
+        mint: *mint.key(),
+        season_start,
+        season_seconds,
+        positions: 0,
+        total: 0,
+    }
+    .store(arena_ai)
+}
+
 /// Accounts: [fan (signer, writable), arena (writable), position PDA (writable), support PDA (writable),
 ///            fan's source token account (writable), mint, token-2022, system]
 /// Data: [amount u64]
@@ -545,6 +666,61 @@ mod tests {
             }
         }
         d
+    }
+
+    #[test]
+    fn an_all_zero_opener_would_authorize_nobody() {
+        assert!(!open_authorized(&[0u8; 32], &[0u8; 32]), "the zero key does not match itself");
+        assert!(!open_authorized(&[7u8; 32], &[0u8; 32]));
+    }
+
+    fn base58(s: &str) -> [u8; 32] {
+        const ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        let mut out = [0u8; 32];
+        for ch in s.bytes() {
+            let mut carry = ALPHABET.iter().position(|c| *c == ch).expect("base58 digit") as u32;
+            for byte in out.iter_mut().rev() {
+                carry += *byte as u32 * 58;
+                *byte = (carry & 0xff) as u8;
+                carry >>= 8;
+            }
+            assert_eq!(carry, 0);
+        }
+        out
+    }
+
+    #[test]
+    fn the_opener_is_the_dedicated_key_and_not_the_upgrade_or_streamer_key() {
+        assert_eq!(OPERATOR_OPENER, base58("CrgnT4wE3KAemXyUvHgMbXiTamHxgx8LEiPzstEYX7gY"));
+        assert_ne!(OPERATOR_OPENER, base58("EatwUpB2eCRcCEJgvQvzNb1hiPKqasjzXQ7NtVVFuLYX"), "not the upgrade authority");
+        assert_ne!(OPERATOR_OPENER, base58("A2fN4LCB5se9nDtttqQj6fx5yg3TpZLuphiZVJ4JZLyb"), "not the official streamer wallet");
+        assert!(OPERATOR_OPENER != [0u8; 32]);
+    }
+
+    #[test]
+    fn only_the_configured_opener_is_authorized() {
+        let operator = [9u8; 32];
+        assert!(open_authorized(&operator, &operator));
+        assert!(!open_authorized(&[8u8; 32], &operator));
+        assert!(!open_authorized(&[0u8; 32], &operator));
+    }
+
+    #[test]
+    fn the_pinned_mint_is_the_rlan_mint_from_the_mainnet_fixture() {
+        let fixture = include_str!("../litesvm-tests/fixtures/rlan-mint-mainnet.json");
+        assert!(fixture.contains("CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy"));
+        let out = base58("CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy");
+        assert_eq!(RLAN_MINT, out, "the pinned bytes are the base58 mint");
+    }
+
+    #[test]
+    fn an_open_market_slug_is_a_listing_name() {
+        assert!(valid_open_slug(b"jynxzi"));
+        assert!(valid_open_slug(b"caseoh_"));
+        assert!(!valid_open_slug(b"ab"));
+        assert!(!valid_open_slug(b"-jynxzi"));
+        assert!(!valid_open_slug(b"Jynxzi"));
+        assert!(!valid_open_slug(&[b'a'; 33]));
     }
 
     #[test]
