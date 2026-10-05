@@ -58,3 +58,13 @@ test("attention events gain follow and redemption, keyed participants only", () 
   assert.equal(follow.signal, "follow");
   assert.equal(follow.version, 1);
 });
+
+test("an outcome entry that is not an object is refused with a clear message", () => {
+  for (const bad of [null, 7, "Yes", ["Yes"]]) {
+    assert.throws(
+      () => createChannelEvent({ ...base, kind: "prediction_end", content_id: "prediction:p2", outcomes: [{ label: "Yes" }, bad] }),
+      /outcomes\[1\] must be an object/,
+      String(bad),
+    );
+  }
+});

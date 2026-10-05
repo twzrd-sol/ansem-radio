@@ -80,3 +80,12 @@ test("public board carries twitch rows with their own field set, and the feed ha
   assert.deepEqual(seen, [null, raw.generated_at]);
   feed.stop();
 });
+
+test("a listener that throws does not stop the next listener or the feed", async () => {
+  const feed = createMarketFeed({ fetchBoard: async () => board(), intervalMs: 5000, schedule: () => 1, cancel: () => {} });
+  const seen = [];
+  feed.subscribe(() => { throw new Error("bad consumer"); });
+  feed.subscribe((type) => seen.push(type));
+  await assert.doesNotReject(feed.refresh());
+  assert.deepEqual(seen, ["board"]);
+});

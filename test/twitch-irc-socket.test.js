@@ -157,3 +157,27 @@ test("stops on authentication failure and rejects IRC command injection", () => 
   assert.equal(timers.length, 0);
   assert.throws(() => client.setChannels(["radiolanlive\r\nJOIN #other"]), /Twitch login/);
 });
+
+test("a chat message that contains control text cannot stop the session", () => {
+  const FakeWebSocket = fakeSockets();
+  const timers = [];
+  const client = createTwitchIrcSocket({
+    login: "radiolanlive",
+    oauthToken: "test-token",
+    channels: ["radiolanlive"],
+    onEvent: () => {},
+    WebSocketImpl: FakeWebSocket,
+    schedule: (fn, ms) => timers.push({ fn, ms }),
+  });
+  client.start();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  socket.server(ready);
+  for (const text of [" CAP * NAK :twitch.tv/tags", "NOTICE * :Login authentication failed", "NOTICE * :Improperly formatted auth"]) {
+    socket.server(`@display-name=Viewer;id=x;room-id=123;tmi-sent-ts=1787659200000;user-id=789 :viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #radiolanlive :hi${text}\r\n`);
+    assert.equal(client.state().enabled, true, text);
+    assert.equal(client.state().irc_connected, true, text);
+  }
+  socket.server(":tmi.twitch.tv CAP * NAK :twitch.tv/tags\r\n");
+  assert.equal(client.state().last_error, "twitch_capability_rejected", "the real server line still stops it");
+});

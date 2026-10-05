@@ -5,10 +5,10 @@ import { fmt } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Fact, Icon, PageHead, SampleTag, Skeleton, Stat, Tag } from "../ui/atoms";
 
 /** A fan's share of a funded pool: pool x points / eligible points, rounded down. Shown as an amount only on a review. */
-export const shareOf = (pool: bigint, points: number, eligiblePoints: number) => (pool * BigInt(points)) / BigInt(eligiblePoints);
+export const shareOf = (pool: bigint, points: number, eligiblePoints: number) => (eligiblePoints > 0 ? (pool * BigInt(points)) / BigInt(eligiblePoints) : 0n);
 
 /** The share as a percentage of the season's perks, rounded down to two decimals. */
-export const sharePercent = (points: number, eligiblePoints: number) => `${(Math.floor((points * 10_000) / eligiblePoints) / 100).toFixed(2)}%`;
+export const sharePercent = (points: number, eligiblePoints: number) => (eligiblePoints > 0 ? `${(Math.floor((points * 10_000) / eligiblePoints) / 100).toFixed(2)}%` : "0.00%");
 
 function shareCell(r: HistoryRow): string {
   if (!showsMoney(r.reward)) return r.reward.kind === "anchored" || r.reward.kind === "finalized" ? "Not funded, nothing to share" : "Season still open";

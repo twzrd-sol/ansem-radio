@@ -8,6 +8,8 @@
 import { readFileSync } from "node:fs";
 
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+/** A YYYY-MM-DD that names a real calendar day (Date.parse accepts 2026-02-31 and rolls it over). */
+const realDay = (day) => { const t = Date.parse(`${day}T00:00:00Z`); return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === day; };
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 const text = (value, field, max) => {
@@ -24,7 +26,7 @@ export function normalizePolls(input) {
   const polls = input.map((p) => {
     if (!p || typeof p !== "object") throw new TypeError("polls: each poll is an object");
     if (typeof p.id !== "string" || !ID.test(p.id)) throw new TypeError(`polls: bad id ${JSON.stringify(p.id)}`);
-    if (typeof p.day !== "string" || !DAY.test(p.day) || Number.isNaN(Date.parse(`${p.day}T00:00:00Z`))) throw new TypeError(`polls: ${p.id} needs a day as YYYY-MM-DD`);
+    if (typeof p.day !== "string" || !DAY.test(p.day) || !realDay(p.day)) throw new TypeError(`polls: ${p.id} needs a day as YYYY-MM-DD`);
     if (ids.has(p.id)) throw new TypeError(`polls: duplicate id ${p.id}`);
     if (days.has(p.day)) throw new TypeError(`polls: two polls on ${p.day}`);
     ids.add(p.id);

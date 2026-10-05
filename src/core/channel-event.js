@@ -98,7 +98,8 @@ function outcomesOf(input) {
   if (!Array.isArray(input) || input.length > MAX_OUTCOMES) throw new TypeError(`outcomes: at most ${MAX_OUTCOMES}`);
   return Object.freeze(
     input.map((outcome, i) => {
-      const extra = Object.keys(outcome ?? {}).filter((key) => key !== "label" && key !== "totals");
+      if (!outcome || typeof outcome !== "object" || Array.isArray(outcome)) throw new TypeError(`outcomes[${i}] must be an object`);
+      const extra = Object.keys(outcome).filter((key) => key !== "label" && key !== "totals");
       if (extra.length > 0) throw new TypeError(`outcomes[${i}]: only label and totals (got ${extra.join(", ")})`);
       return Object.freeze({ label: cleanLabel(text(outcome.label, `outcomes[${i}].label`), `outcomes[${i}].label`, 80), totals: totalsOf(outcome.totals, `outcomes[${i}].totals`) });
     }),

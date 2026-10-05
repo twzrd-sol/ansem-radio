@@ -146,16 +146,18 @@ export function createTwitchIrcSocket({
       send(pong);
       return;
     }
-    if (line.includes(" CAP * NAK ")) {
+    // Control lines come from the server prefix only. A chat message that merely contains this text is not one,
+    // so a viewer cannot stop the session by typing it.
+    if (line.startsWith(":tmi.twitch.tv CAP * NAK ")) {
       stopFor("twitch_capability_rejected");
       return;
     }
-    if (line.includes("NOTICE * :Login authentication failed") ||
-        line.includes("NOTICE * :Improperly formatted auth")) {
+    if (line.startsWith(":tmi.twitch.tv NOTICE * :Login authentication failed") ||
+        line.startsWith(":tmi.twitch.tv NOTICE * :Improperly formatted auth")) {
       stopFor("twitch_auth_failed");
       return;
     }
-    if (line.includes(" CAP * ACK ")) {
+    if (line.startsWith(":tmi.twitch.tv CAP * ACK ")) {
       if (line.includes("twitch.tv/tags")) capabilityAck.add("tags");
       if (line.includes("twitch.tv/commands")) capabilityAck.add("commands");
       markReady();

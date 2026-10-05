@@ -27,10 +27,12 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
   if (existsSync(submissionsPath)) {
     for (const line of readFileSync(submissionsPath, "utf8").split("\n")) if (line.trim()) submissions.push(JSON.parse(line));
   }
-  const flush = () => {
+  // Writes the next state to disk first and only then adopts it, so a failed write leaves memory and disk agreeing.
+  const flush = (next = state) => {
     const tmp = `${statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(state), { mode: 0o600 });
+    writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 });
     renameSync(tmp, statePath);
+    state = next;
   };
   return {
     dir,
@@ -43,23 +45,21 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
     createAccount: (account) => {
       if (state.accounts[account.id]) throw new Error("account exists");
       for (const c of account.credentials) if (state.credentials[c.credentialId]) throw new Error("credential exists");
-      state.accounts[account.id] = account;
-      for (const c of account.credentials) state.credentials[c.credentialId] = account.id;
-      flush();
+      const credentials = { ...state.credentials };
+      for (const c of account.credentials) credentials[c.credentialId] = account.id;
+      flush({ ...state, accounts: { ...state.accounts, [account.id]: account }, credentials });
       return account;
     },
     updateAccount: (id, patch) => {
       const current = state.accounts[id];
       if (!current) throw new Error("no such account");
-      state.accounts[id] = { ...current, ...patch };
-      flush();
+      flush({ ...state, accounts: { ...state.accounts, [id]: { ...current, ...patch } } });
       return state.accounts[id];
     },
     joinedCount: (season) => Object.values(state.accounts).filter((a) => a.joined?.[season]).length,
     session: (id) => state.sessions[id] ?? null,
     createSession: (session) => {
-      state.sessions[session.id] = session;
-      flush();
+      flush({ ...state, sessions: { ...state.sessions, [session.id]: session } });
       return session;
     },
     deleteSession: (id) => {

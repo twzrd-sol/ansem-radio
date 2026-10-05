@@ -149,11 +149,25 @@ export function createTimelineIngest({
         WebSocketImpl,
         fetchImpl,
         onEvent: record,
-        onGap: (gap) => store.appendGap(gap),
+        onGap: (gap) => {
+          try {
+            store.appendGap(gap);
+          } catch (error) {
+            log.warn?.(`timeline: gap write failed (${error.code ?? "error"})`);
+          }
+        },
         onState: (state) => {
           lastState = state;
         },
       });
+      // A failed purge is logged and retried next interval; it must not throw out of a timer and stop the room.
+      const purge = () => {
+        try {
+          store.purgeRaw();
+        } catch (error) {
+          log.warn?.(`timeline: raw purge failed (${error.code ?? "error"})`);
+        }
+      };
       eventsub.start();
       timers = [
         every(() => {
@@ -162,9 +176,9 @@ export function createTimelineIngest({
         }, TICK_MS),
         every(() => void sampleStream(), SAMPLE_MS),
         every(() => void sampleFollowers(), FOLLOWERS_MS),
-        every(() => store.purgeRaw(), PURGE_MS),
+        every(purge, PURGE_MS),
       ];
-      store.purgeRaw();
+      purge();
       void sampleStream();
       void sampleFollowers();
     },

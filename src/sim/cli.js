@@ -11,8 +11,11 @@ import { pathToFileURL } from "node:url";
 
 import { calibrationFrom, resolveParams, simulate } from "./simulate.js";
 
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function setPath(target, path, raw) {
   const keys = path.split(".");
+  if (keys.some((key) => key === "" || UNSAFE_KEYS.has(key))) throw new RangeError(`--set refuses the key path ${path}`);
   let node = target;
   for (const key of keys.slice(0, -1)) node = node[key] ??= {};
   const value = raw === "true" ? true : raw === "false" ? false : Number.isFinite(Number(raw)) && raw.trim() !== "" ? Number(raw) : raw;
@@ -36,7 +39,10 @@ export function parseArgs(argv) {
     else if (arg === "--streams") overrides.streams = Number(next());
     else if (arg === "--farm") setPath(overrides, "farm.agents", next());
     else if (arg === "--set") {
-      const [path, value] = next().split("=");
+      const pair = next();
+      const at = pair.indexOf("=");
+      const path = at < 0 ? "" : pair.slice(0, at);
+      const value = at < 0 ? undefined : pair.slice(at + 1);
       if (!path || value === undefined) throw new RangeError("--set needs key.path=value");
       setPath(overrides, path, value);
     } else if (arg === "--calibrate") calibrate = next();
