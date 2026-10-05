@@ -60,3 +60,12 @@ describe("today's snapshot from the API", () => {
     expect(JSON.stringify(snap)).not.toContain(state.me!.accountId);
   });
 });
+
+describe("the frozen season from the API", () => {
+  it("maps lastSeason as a provisional past season the collect view can validate", async () => {
+    const { recordFormatValid } = await import("./collection");
+    const snap = buildToday({ season: null, me: null, generatedAt: 1, lastSeason: { number: 1, players: 3, eligiblePoints: 30, reward: { kind: "provisional" }, me: { points: 15, rank: 2 }, top: [["fan-bbbbbbbb", 15], ["fan-aaaaaaaa", 15]], endsAt: 2, frozenAt: 2, label: "provisional, not a settlement" } });
+    expect(snap.lastSeason).toEqual({ number: 1, players: 3, eligiblePoints: 30, reward: { kind: "provisional" }, me: { points: 15, rank: 2 }, top: [["fan-bbbbbbbb", 15], ["fan-aaaaaaaa", 15]] });
+    expect(recordFormatValid(snap.lastSeason!)).toBe(true);
+  });
+});

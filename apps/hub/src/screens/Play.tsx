@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { ActivityInput } from "../data/api";
-import { seasonPhase } from "../data/season";
+import { isPlaceholderSeason, seasonPhase } from "../data/season";
 import type { Action, CurrentSeason, HubSnapshot } from "../data/types";
 import { fmt, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, type IconName, PageHead, SampleTag, Skeleton } from "../ui/atoms";
@@ -191,6 +191,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
   nextSeasonAt?: number | null;
 }) {
   const season = snapshot?.season ?? null;
+  const sampleSeason = isPlaceholderSeason(season);
   const [doneHere, setDoneHere] = useState<Partial<Done>>({});
   const [donePollId, setDonePollId] = useState<string | null>(null);
   const serverDone = doneFrom(season);
@@ -203,7 +204,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
   const send: Submit = submit ?? (async () => {});
   const head = (
     <PageHead
-      eyebrow={season ? `Season ${season.number} · Radio LAN` : "Radio LAN"}
+      eyebrow={season ? (sampleSeason ? `Sample season ${season.number} · Radio LAN` : `Season ${season.number} · Radio LAN`) : "Radio LAN"}
       title="Play"
       lede="Each activity has a published point value. Points are capped per day and per season, across all activities; the daily cap resets at 00:00 UTC. Everything happens on this site; nothing from Twitch chat counts."
     />
@@ -259,10 +260,12 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
           <ActivityCard key={a.id} a={a} season={season} open={open} now={now} joined={joined} done={done} markDone={markDone} submit={send} toast={toast} />
         ))}
       </div>
-      {snapshot.scenario === "sample" && (
+      {(snapshot.scenario === "sample" || sampleSeason) && (
         <p className="small fine">
           <SampleTag />
-          Point values and caps here are sample rules. Each season publishes its own before it opens.
+          {sampleSeason
+            ? "This points season is a sample. Today's poll is a placeholder and does not count for points."
+            : "Point values and caps here are sample rules. Each season publishes its own before it opens."}
         </p>
       )}
     </>

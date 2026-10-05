@@ -2,7 +2,7 @@
 // pasted or connected; nothing is signed here. Points are free and separate, and are only linked to, never mixed in.
 import { useEffect, useState } from "react";
 
-import { TOKEN_DECIMALS } from "../chain/config";
+import { NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
 import { fetchPositions, isAddress, positionStatus, type FanPositions, type Listing } from "../data/market";
 import { fmt, left, units, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, PageHead, SampleTag, Skeleton } from "../ui/atoms";
@@ -114,7 +114,7 @@ export function Positions({ listings, now, wallet, onConnect, sample, load: mark
         <>
           <ObservedLine data={state.data} sample={Boolean(sample)} now={now} />
           {state.data.positions.length === 0 ? (
-            <EmptyBlock icon="heart" title="No positions" text="This wallet backs no listed creator on devnet. Backing is optional; playing is free either way.">
+            <EmptyBlock icon="heart" title="No positions" text={`This wallet backs no listed creator on ${NETWORK_LABEL}. Backing is optional; playing is free either way.`}>
               <a className="btn" href="#/">
                 The Board
               </a>

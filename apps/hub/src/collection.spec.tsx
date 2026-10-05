@@ -63,6 +63,10 @@ describe("season records and collecting", () => {
     const season = live.season!;
     expect(collectionSummary(live, season.opensAt - 1).label).toContain("up next");
     expect(collectionSummary(live, season.opensAt).label).toContain("still open");
+    expect(collectionSummary({ ...live, season: { ...season, poll: { id: "placeholder-1", question: "Which sound opens the show?", options: ["Boom bap", "Drill"], placeholder: true } } }, season.opensAt)).toEqual({
+      label: "Season 12 is a sample",
+      text: "Today's poll is a placeholder. This is not a live scored season.",
+    });
     expect(collectionSummary(live, season.freezesAt - 1).text).toContain("230 points so far");
     expect(collectionSummary(live, season.freezesAt)).toEqual({ label: "Season 12 is closed", text: "Its final record has not been published yet." });
     expect(collectionSummary(null, NOW).label).toBe("No season record yet");

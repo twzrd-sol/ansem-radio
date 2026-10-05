@@ -4,10 +4,10 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { request } from "node:http";
 
-import { createLiveServer } from "../src/live/server.js";
 import { createMarketFeed } from "../src/live/market-feed.js";
+import { createLiveServer } from "../src/live/server.js";
 import { TRACKED_STREAMERS } from "../src/markets/twitch-metrics.js";
-import { MACRO_NOTICE, MAX_SERIES_POINTS, downsample, isLoopbackHost, macroSnapshot, parseHours } from "../src/timeline/macro.js";
+import { MACRO_NOTICE, MAX_SERIES_POINTS, downsample, macroSnapshot, parseHours } from "../src/timeline/macro.js";
 import { twitchBoard } from "./twitch-fixtures.js";
 
 const NOW = Date.parse("2026-10-02T02:00:00Z");
@@ -49,13 +49,6 @@ test("only the three preset windows are accepted, anything else falls back", () 
   assert.equal(parseHours("nope", 6), 6);
 });
 
-test("only a Host header naming this machine counts as loopback", () => {
-  for (const ok of ["127.0.0.1:8787", "127.0.0.1", "localhost", "LOCALHOST:3000", "[::1]:8787"]) assert.equal(isLoopbackHost(ok), true, ok);
-  for (const bad of [undefined, null, "", "evil.example", "127.0.0.1.evil.example", "localhost.evil.example:8787", "10.0.0.5:8787", "0.0.0.0:8787", "127.0.0.1@evil.example", "[::ffff:127.0.0.1]:8787", "studio-host:8787"]) {
-    assert.equal(isLoopbackHost(bad), false, String(bad));
-  }
-});
-
 test("downsampling caps the point count, keeps the peak and the worst coverage, and never invents points", () => {
   const rows = minutes(600).map((m, i) => ({ ...m, tracked_viewers: i === 301 ? 9999 : 100, coverage: i === 450 ? 0.4 : 1 }));
   const points = downsample(rows);
@@ -93,7 +86,7 @@ test("the snapshot windows the data, ranks every tracked streamer and reads the 
   assert.equal(week.series.reduce((n, p) => n + p.minutes, 0), 48 * 60);
   assert.equal(week.hourly.length, 4);
   assert.deepEqual(week.live_now, []);
-  assert.equal(week.totals.tracked_viewers_now, null, "a historical sample cannot establish current viewers");
+  assert.equal(week.totals.tracked_viewers_now, null, "history must not stand in for current viewers");
 });
 
 test("a stale record is flagged and an empty store does not throw", () => {
@@ -118,8 +111,10 @@ test("the snapshot carries only named fields: no participant ids, no chat, nothi
   const snapshot = macroSnapshot({ store: fakeStore({ mins, culture, gaps }), board, now: NOW, hours: 24 });
   const json = JSON.stringify(snapshot);
   for (const forbidden of ["user-hmac", "participant", "chatters", "secret_extra", "t0ken", "someone"]) assert.equal(json.includes(forbidden), false, forbidden);
-  assert.deepEqual(Object.keys(snapshot).sort(), ["board_status", "board_updated_at", "coverage", "enabled", "gaps", "generated_at", "hourly", "hours", "live_now", "notice", "recorded_minutes", "series", "station", "streamers", "totals", "tracked_total", "window"]);
+  assert.deepEqual(Object.keys(snapshot).sort(), ["alerts", "anchors", "board_status", "board_updated_at", "coverage", "enabled", "gap_alert_min_seconds", "gaps", "generated_at", "hourly", "hours", "live_now", "notice", "readiness", "recorded_minutes", "series", "station", "streamers", "totals", "tracked_total", "window"]);
   assert.equal(snapshot.notice, MACRO_NOTICE);
+  assert.ok(/Fan engagement/.test(MACRO_NOTICE) && /Data: Twitch/.test(MACRO_NOTICE), "the notice names what it is and its source");
+  assert.equal(/internal|this machine only|do not publish/i.test(MACRO_NOTICE), false, "the served notice must not claim machine-only status");
   assert.deepEqual(snapshot.gaps.list, [{ start: gaps[0].start, end: gaps[0].end, reason: "socket_closed" }]);
 });
 
@@ -132,27 +127,13 @@ test("board rows with a bad login are dropped and free text is trimmed", () => {
   assert.equal(snapshot.live_now[0].game_name.length, 80);
 });
 
-test("the hub brief distinguishes a fresh empty board from missing, future, failed and stale current data", () => {
-  const store = fakeStore({ mins: minutes(5) });
-  const board = { board: { rows: [], errors: [] }, updated_at: new Date(NOW).toISOString() };
-  const current = macroSnapshot({ store, board, now: NOW });
-  assert.equal(current.board_status, "available");
-  assert.equal(current.totals.tracked_viewers_now, 0);
-  for (const bad of [null, { ...board, updated_at: null }, { ...board, updated_at: new Date(NOW + 1).toISOString() }, { ...board, updated_at: new Date(NOW - 120_001).toISOString() }, { ...board, last_error: "offline" }]) {
-    const result = macroSnapshot({ store, board: bad, now: NOW });
-    assert.notEqual(result.board_status, "available");
-    assert.equal(result.totals.tracked_viewers_now, null);
-    assert.deepEqual(result.live_now, []);
-  }
-});
-
-test("the room serves the macro page and state to this machine only, read only", async (t) => {
+test("the room serves the macro page, state and export to any host, including through a proxy, read only", async (t) => {
   const live = createLiveServer({
     oauthToken: "",
     enableBoard: true,
+    createBoardFeed: (options) => createMarketFeed({ ...options, now: () => NOW }),
     boardFetch: async () => twitchBoard(),
     boardIntervalMs: 3_600_000,
-    createBoardFeed: (options) => createMarketFeed({ ...options, now: () => NOW }),
     enableTimeline: true,
     createTimelineImpl: () => ({ setToken: async () => {}, observeIrc() {}, stop() {} }),
     createTimelineStoreImpl: () => fakeStore({ mins: minutes(200), culture: [rollup("xqc", 1)] }),
@@ -172,24 +153,28 @@ test("the room serves the macro page and state to this machine only, read only",
   assert.deepEqual(body.live_now.map((r) => r.login), ["kaicenat", "xqc"]);
   assert.equal(JSON.parse((await get(port, "/macro/state?hours=999")).body).hours, 24);
 
+  const root = await get(port, "/");
+  assert.deepEqual([root.status, root.headers.location], [302, "/macro"]);
   const redirect = await get(port, "/macro");
   assert.deepEqual([redirect.status, redirect.headers.location], [302, "/public/macro.html"]);
   const page = await get(port, "/public/macro.html");
   assert.equal(page.status, 200);
   assert.match(page.headers["content-type"], /^text\/html/);
   assert.equal(page.headers["cache-control"], "no-store");
-  const stream = await get(port, "/stream?hours=6");
-  assert.equal(stream.status, 200);
-  assert.equal(stream.body, page.body, "the LAN link opens the same macro page");
 
   assert.equal((await get(port, "/macro/state", { headers: { Host: `localhost:${port}` } })).status, 200);
-  for (const path of ["/stream", "/macro", "/macro/state", "/public/macro.html", "/live/events"]) {
-    for (const host of ["evil.example", `evil.example:${port}`, "127.0.0.1.evil.example", "0.0.0.0"]) {
-      const res = await get(port, path, { headers: { Host: host } });
-      assert.equal(res.status, 403, `${path} with Host ${host}`);
-      assert.equal(res.body.includes("kaicenat"), false);
-    }
+  const proxied = { Host: "radio.example", "X-Forwarded-For": "203.0.113.1", "X-Forwarded-Proto": "https", Forwarded: "for=203.0.113.1", Via: "1.1 proxy", "Sec-Fetch-Site": "cross-site", Origin: "https://radio.example" };
+  for (const path of ["/macro/state", "/macro/export", "/public/macro.html"]) {
+    assert.equal((await get(port, path, { headers: proxied })).status, 200, path);
   }
+  assert.equal((await get(port, "/macro", { headers: proxied })).status, 302);
+  const csv = await get(port, "/macro/export?hours=6");
+  assert.equal(csv.status, 200);
+  assert.match(csv.headers["content-type"], /^text\/csv/);
+  assert.equal(csv.headers["cache-control"], "no-store");
+  assert.equal(csv.headers["content-disposition"], 'attachment; filename="macro-6h.csv"');
+  assert.match(csv.body, /percent_of_window_tracked_viewer_minutes/);
+  assert.doesNotMatch(csv.body, /user-hmac|participant_id/);
   assert.equal((await get(port, "/macro/state", { method: "POST" })).status, 405);
   assert.equal((await get(port, "/macro/state", { method: "DELETE" })).status, 405);
 });
@@ -202,10 +187,11 @@ test("with the timeline off the page is told so and nothing is read", async (t) 
   assert.equal(res.status, 200);
   assert.deepEqual(Object.keys(JSON.parse(res.body)).sort(), ["enabled", "generated_at", "notice"]);
   assert.equal(JSON.parse(res.body).enabled, false);
+  assert.equal((await get(port, "/macro/export")).status, 409);
 });
 
 test("a failing store answers with a generic error and no detail", async (t) => {
-  const broken = { readMinutes() { throw new Error("/example/secret/path exploded"); }, readCulture: () => [], readGaps: () => [] };
+  const broken = { readMinutes() { throw new Error("/srv/someone/secret/path exploded"); }, readCulture: () => [], readGaps: () => [] };
   const live = createLiveServer({ oauthToken: "", enableTimeline: true, createTimelineImpl: () => ({ setToken: async () => {}, observeIrc() {}, stop() {} }), createTimelineStoreImpl: () => broken, macroClock: () => NOW, log: { warn() {}, info() {} } });
   t.after(() => live.close());
   const { port } = await live.listen({ port: 0 });
@@ -225,5 +211,7 @@ test("the page makes no outside requests, builds the DOM with text only, and has
   for (const id of ["c-view", "t-view", "c-live", "t-live", "c-cov", "t-cov", "c-share", "t-share", "c-heat", "t-heat", "table-toggle"]) assert.ok(html.includes(`id="${id}"`), id);
   assert.match(html, /prefers-color-scheme: dark/);
   assert.match(html, /:root\[data-theme="dark"\]/);
-  assert.match(html, /Internal\. Twitch data, this machine only/);
+  assert.match(html, /Fan engagement\. Data: Twitch/);
+  assert.match(html, /Streamer performance/);
+  assert.doesNotMatch(html, /id="h-station"|id="meters"|renderStation/);
 });

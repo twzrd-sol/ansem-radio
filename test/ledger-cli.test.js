@@ -65,7 +65,7 @@ test("check prints the totals and one line per receipt", async () => {
 test("an invalid or unreadable file exits 1 with a coded reason, never a stack, value or path", async () => {
   const bad = example();
   bad.receipts[0].login = "someviewer";
-  const invalid = await run(["check", "/nonexistent/ledger.json"], { text: JSON.stringify(bad) });
+  const invalid = await run(["check", "/srv/radiolan/private/ledger.json"], { text: JSON.stringify(bad) });
   assert.equal(invalid.code, 1);
   assert.equal(invalid.err, "receipt_invalid: receipts[0].login: unknown field\n");
 
@@ -73,7 +73,7 @@ test("an invalid or unreadable file exits 1 with a coded reason, never a stack, 
   assert.equal(garbled.code, 1);
   assert.equal(garbled.err, "ledger_invalid: not valid JSON\n");
 
-  const missing = await run(["check", "/nonexistent/ledger.json"], { text: Object.assign(new Error("ENOENT /nonexistent/ledger.json"), { code: "ENOENT" }) });
+  const missing = await run(["check", "/srv/radiolan/private/ledger.json"], { text: Object.assign(new Error("ENOENT /srv/radiolan/private/ledger.json"), { code: "ENOENT" }) });
   assert.equal(missing.code, 1);
   assert.equal(missing.err, "ledger_unreadable\n");
   assert.equal(missing.err.includes("private"), false);

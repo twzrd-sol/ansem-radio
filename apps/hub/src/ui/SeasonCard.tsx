@@ -1,3 +1,4 @@
+import { IS_MAINNET } from "../chain/config";
 import type { CurrentSeason, RewardState } from "../data/types";
 import { seasonPhase } from "../data/season";
 import { showsMoney } from "../data/types";
@@ -40,6 +41,7 @@ export function SeasonCard({ season, now, onJoin }: { season: CurrentSeason; now
           {open ? `Points freeze in ${left(season.freezesAt - now)}` : phase === "upcoming" ? `Starts in ${left(season.opensAt - now)}` : "Points are frozen"}
         </span>
       </div>
+      {season.poll?.placeholder && <p className="small">Sample season. Today's poll is a placeholder and does not count for points.</p>}
       {phase === "upcoming" ? <SeasonOpening season={season} now={now} /> : me ? (
         <div className="crt">
           <div className="crt__row">
@@ -104,7 +106,7 @@ export function SeasonNotOpen() {
       <div className="stats">
         <Stat label="Perks" value="Not funded" note="An unfunded season has no perks" word />
         <Stat label="Players" value="0" note="This season" />
-        <Stat label="Backing" value="Devnet test" note="Program on mainnet; Radio LAN's arena isn't open yet" word />
+        <Stat label="Backing" value={IS_MAINNET ? "$RLAN" : "Devnet test"} note={IS_MAINNET ? "Your own support account, on mainnet" : "Program on mainnet; this build rehearses on devnet"} word />
       </div>
     </section>
   );

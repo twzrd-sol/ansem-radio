@@ -42,7 +42,22 @@ export function declareSessionPoll(input) {
   });
 }
 
-export function composeLanNote({ duration_seconds, counts, poll }) {
+/**
+ * Counts the station-tape events LAN may cite: raids, subscriptions, and predictions
+ * from the whitelisted public events. Names, ids, and totals stay out; only counts pass.
+ */
+export function countTapeEvents(events) {
+  if (!Array.isArray(events)) throw new TypeError("tape events must be an array");
+  const counts = { raid: 0, subscription: 0, prediction: 0 };
+  for (const event of events) {
+    const signal = event?.signal === "raid" ? "raid" : event?.signal === "subscription" ? "subscription" : /^prediction_/.test(event?.kind ?? "") ? "prediction" : null;
+    if (signal) counts[signal] += 1;
+  }
+  const total = counts.raid + counts.subscription + counts.prediction;
+  return Object.freeze({ ...counts, total });
+}
+
+export function composeLanNote({ duration_seconds, counts, poll, tape = null }) {
   const minutes = Math.max(0, Math.round(Number(duration_seconds) / 60));
   const activity = SIGNALS.filter((signal) => counts[signal] > 0)
     .map((signal) => `${counts[signal]} ${signal}`)
@@ -50,15 +65,26 @@ export function composeLanNote({ duration_seconds, counts, poll }) {
   const body = activity
     ? `${minutes}-minute session. Observed ${activity}.`
     : `${minutes}-minute session. No public observations. LAN has nothing to add.`;
-  return poll ? `${body} Poll: ${poll.question} — ${poll.winner}.` : body;
+  const tapeSentence = tape && tape.total > 0
+    ? ` Tape: ${["raid", "subscription", "prediction"].filter((signal) => tape[signal] > 0).map((signal) => `${tape[signal]} ${signal}${tape[signal] === 1 ? "" : "s"}`).join(", ")}.`
+    : "";
+  return poll ? `${body}${tapeSentence} Poll: ${poll.question} — ${poll.winner}.` : `${body}${tapeSentence}`;
 }
 
-export function finalizeSession({ id, started_at, ended_at, observations = [], poll = null }) {
+export function finalizeSession({ id, started_at, ended_at, observations = [], poll = null, tape = [] }) {
   const started = isoTimestamp(started_at, "started_at");
   const ended = isoTimestamp(ended_at, "ended_at");
   const duration_seconds = Math.floor((Date.parse(ended) - Date.parse(started)) / 1000);
   if (duration_seconds < 0) throw new TypeError("ended_at must be at or after started_at");
   const counts = countSessionSignals(observations);
+  // Only tape events inside the session window are cited; before and after are other sessions.
+  const startMs = Date.parse(started);
+  const endMs = Date.parse(ended);
+  const inSession = tape.filter((event) => {
+    const at = Date.parse(event?.observed_at ?? "");
+    return !Number.isNaN(at) && at >= startMs && at <= endMs;
+  });
+  const tapeCounts = countTapeEvents(inSession);
   const declared = poll ? declareSessionPoll(poll) : null;
   return Object.freeze({
     id: requiredText(id, "id"),
@@ -66,7 +92,8 @@ export function finalizeSession({ id, started_at, ended_at, observations = [], p
     ended_at: ended,
     duration_seconds,
     counts,
+    tape: tapeCounts,
     poll: declared,
-    note: composeLanNote({ duration_seconds, counts, poll: declared }),
+    note: composeLanNote({ duration_seconds, counts, poll: declared, tape: tapeCounts }),
   });
 }

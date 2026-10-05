@@ -1,4 +1,4 @@
-import { ARENA_PROGRAM, RLAN_MINT } from "../chain/config";
+import { ARENA_PROGRAM, IS_MAINNET, RLAN_MINT } from "../chain/config";
 import { PageHead } from "./atoms";
 
 export const PUBLIC_SOURCE = "https://github.com/twzrd-sol/ansem-radio";
@@ -14,7 +14,7 @@ export function HowItWorks() {
       <p>Backing adds no points and changes nobody's share. Twitch figures are shown for context only. Following is saved in this browser and adds no points.</p>
       <p>A hub account keeps your activity records. Twitch identity and a wallet are optional links. Twitch viewing, chat and Channel Points do not determine season points.</p>
       <p>Radio LAN never asks for your seed phrase or private key. Connecting reads your wallet's public address. Your wallet opens for a transaction only when you tap Sign.</p>
-      <p>The hub currently uses devnet test tokens. The ClawPump launch token lives on mainnet. Mainnet backing and collecting perks will appear when those flows are ready.</p>
+      <p>{IS_MAINNET ? "Backing uses $RLAN, the ClawPump launch token, on Solana mainnet. Collecting perks appears when that flow is ready." : "This build uses devnet test tokens. The ClawPump launch token lives on mainnet."}</p>
     </section>
     <section className="section" aria-label="Public source">
       <h2 className="h2">Built in the open</h2>

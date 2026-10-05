@@ -6,7 +6,7 @@
 import { fetchTwitchBoard } from "../markets/twitch-metrics.js";
 
 // No `title`: other streamers' titles are unmoderated free text and can carry URLs. Nothing speaks or renders them.
-const PUBLIC_FIELDS = Object.freeze(["kind", "login", "display_name", "is_live", "viewer_count", "game_id", "game_name", "started_at", "minutes_live", "rank", "gap_to_leader", "delta_viewers"]);
+const PUBLIC_FIELDS = Object.freeze(["kind", "login", "display_name", "is_live", "viewer_count", "game_id", "game_name", "started_at", "minutes_live", "fetched_at", "rank", "gap_to_leader", "delta_viewers"]);
 
 function publicRow(row) {
   if (row?.kind !== "twitch_live") throw new TypeError("board rows must be twitch_live rows");

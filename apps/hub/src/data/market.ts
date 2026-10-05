@@ -43,6 +43,7 @@ export interface Performance {
   startedAt: string | null;
   rank: number | null;
   deltaViewers: number | null;
+  /** Daily peak audience for the last seven UTC days, oldest first; null where the station has no reading. */
   provenance: string;
 }
 
@@ -61,6 +62,10 @@ export interface Listing {
   demo: boolean;
   blurb: string | null;
   twitch: string | null;
+  /** True once the streamer signed in with Twitch to make the page theirs; absent in older reads. */
+  claimed?: boolean;
+  /** True when the station derived this listing's backing pair from the streamer's own linked wallet. */
+  claimDerived?: boolean;
   /** The registry pair an arena would derive from; null when the listing has no backing configured. */
   keys: { streamer: string; mint: string } | null;
   backingOpen: boolean;

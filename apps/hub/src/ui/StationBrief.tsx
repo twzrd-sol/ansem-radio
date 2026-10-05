@@ -1,7 +1,6 @@
 import { freshRead, type Station } from "../data/station";
 import type { Market } from "../data/market";
 import { fmt } from "../lib/format";
-import { Icon } from "./atoms";
 
 function Creator({ login, market }: { login: string; market: Market | null }) {
   const listing = market?.listings.find((l) => l.twitch === login);
@@ -22,6 +21,6 @@ export function StationBrief({ station, market, now, sample = false }: { station
       {history && history.coverage < 1 && <p className="small">The history has gaps. This brief describes recorded minutes.</p>}
       <p className="small">Data: Twitch{board && <> · Live read <time dateTime={new Date(board.at).toISOString()}>{new Date(board.at).toISOString().slice(11, 16)} UTC</time></>}{history && <> · History through <time dateTime={new Date(history.to).toISOString()}>{new Date(history.to).toISOString().slice(11, 16)} UTC</time></>}</p>
     </>}
-    <div className="lan-guide__links"><a href="/stream?hours=6">Explore the macro view <Icon name="next" size="sm" /></a><a href="#/play">Play this season</a></div>
+    <div className="lan-guide__links"><a href="#/play">Play this season</a></div>
   </div>;
 }

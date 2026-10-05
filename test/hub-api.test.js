@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
-import { request as httpRequest } from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -111,29 +110,6 @@ describe("hub API: passkeys, sessions, the season and the free activities", () =
   after(async () => {
     await live.close?.();
     rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("keeps account reads and writes behind the public station's loopback Host guard", async () => {
-    // Node fetch replaces a supplied Host header; send the actual wire header here.
-    const raw = (method, path, host) => new Promise((resolve, reject) => {
-      const request = httpRequest(`${base}${path}`, { method, headers: { host, origin: ORIGIN } }, (response) => {
-        let body = "";
-        response.on("data", (chunk) => (body += chunk));
-        response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body }));
-      });
-      request.on("error", reject);
-      request.end();
-    });
-    for (const host of ["hub.example", "localhost.evil.example", "127.0.0.1.evil.example", "0.0.0.0"]) {
-      for (const [method, path] of [["GET", "/hub/api/state"], ["POST", "/hub/api/register/options"]]) {
-        const response = await raw(method, path, host);
-        assert.equal(response.status, 403, `${method} ${path} with Host ${host}`);
-        assert.equal(response.headers["cache-control"], "no-store");
-        assert.equal(response.headers["set-cookie"], undefined);
-        assert.equal(response.body, "Forbidden");
-      }
-    }
-    assert.equal((await fetch(`${base}/hub/api/state`)).status, 200);
   });
 
   it("answers 400 on a malformed request target instead of crashing the station", async () => {

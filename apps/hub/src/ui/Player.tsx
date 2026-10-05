@@ -43,7 +43,7 @@ export function Player({ station, channel = TWITCH_CHANNEL }: { station: Station
         <div className="player__poster">
           <LanMark className="player__mark" />
           <p className="label">{channel === TWITCH_CHANNEL ? "Radio LAN" : channel} on Twitch</p>
-          <StationPill station={station} />
+          {channel === TWITCH_CHANNEL && <StationPill station={station} />}
           <div className="player__actions">
             <button className="btn btn--primary player__embed" type="button" onClick={play}>
               <Icon name="play" />

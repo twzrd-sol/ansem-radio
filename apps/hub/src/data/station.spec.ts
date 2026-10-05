@@ -9,7 +9,9 @@ const read = (value: unknown) => readStation(get(value), NOW);
 
 describe("station brief source and freshness", () => {
   it("retains the current macro read independently of Radio LAN being offline", async () => {
-    const station = await read(body());
+    const fetcher = vi.fn(get(body()));
+    const station = await readStation(fetcher, NOW);
+    expect(fetcher).toHaveBeenCalledWith("/hub/macro/state?hours=6", { cache: "no-store", signal: expect.any(AbortSignal) });
     expect(station).toMatchObject({ status: "ready", live: false, observedAt: NOW - 60_000, pulse: { generatedAt: NOW, trackedTotal: 12, board: { at: NOW - 10_000, live: [{ login: "xqc", viewers: 1234 }] }, history: { hours: 6, recordedMinutes: 359, coverage: 1, leader: { login: "xqc", minutesLive: 4 } } } });
   });
   it("does not convert a missing stale flag or a missing/future station timestamp into live status", async () => {

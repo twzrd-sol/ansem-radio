@@ -1,4 +1,4 @@
-import { composeLanNote, countSessionSignals } from "./session-summary.js";
+import { composeLanNote, countSessionSignals, countTapeEvents } from "./session-summary.js";
 
 const PUBLIC_SIGNALS = Object.freeze({
   chat: "Chat activity observed",
@@ -45,6 +45,8 @@ export function createObservationFeed({
   maxObservations = 12,
   now = () => Date.now(),
   sessionStartedAt = null,
+  /** Optional source of whitelisted public tape events for LAN's note (server wires the timeline). */
+  tapeEvents = null,
 } = {}) {
   const limit = positiveLimit(maxObservations);
   const listeners = new Set();
@@ -66,11 +68,20 @@ export function createObservationFeed({
       Math.floor((now() - Date.parse(startedAt)) / 1000),
     );
     const counts = countSessionSignals(sessionSignals);
+    let tape = null;
+    if (tapeEvents) {
+      try {
+        tape = countTapeEvents(tapeEvents());
+      } catch {
+        tape = null; // A tape source failure stays silent; LAN cites only what it can observe.
+      }
+    }
     return Object.freeze({
       started_at: startedAt,
       duration_seconds,
       counts,
-      note: composeLanNote({ duration_seconds, counts, poll: null }),
+      tape,
+      note: composeLanNote({ duration_seconds, counts, poll: null, tape }),
     });
   };
 

@@ -48,4 +48,13 @@ describe("a published season opens at its actual start", () => {
     expect(html).not.toContain(">Open<");
     expect(html).not.toContain(">Join free<");
   });
+
+  it("labels a placeholder-poll season as a sample without inventing players", () => {
+    const html = renderToStaticMarkup(<SeasonCard season={{ ...season, poll: { id: "placeholder-1", question: "Which sound opens the show?", options: ["Boom bap", "Drill"], placeholder: true }, players: 0, board: [] }} now={opensAt} onJoin={noop} />);
+    expect(html).toContain("Sample season.");
+    expect(html).toContain("placeholder and does not count for points.");
+    expect(html).toContain("tag--sample");
+    expect(html).not.toContain("$RLAN");
+    expect(html).not.toContain("mainnet");
+  });
 });

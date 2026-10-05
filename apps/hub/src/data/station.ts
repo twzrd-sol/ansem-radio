@@ -57,7 +57,7 @@ export function stationAt(station: Station, now: number): Station {
 
 export async function readStation(fetcher: typeof fetch = fetch, clock?: number): Promise<Station> {
   try {
-    const res = await fetcher("/macro/state?hours=6", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    const res = await fetcher("/hub/macro/state?hours=6", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return { status: "unknown" };
     const body = object(await res.json());
     const now = clock ?? Date.now();

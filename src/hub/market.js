@@ -15,6 +15,9 @@ import { join } from "node:path";
 import { encodeBase58 } from "../core/base58.js";
 import { BANNED_ARENAS } from "./registry.js";
 import { DEVNET_GENESIS_HASH } from "../core/solana.js";
+
+/** Genesis hashes the index accepts, by the network the station is configured for (RADIOLAN_HUB_NETWORK). */
+export const GENESIS = Object.freeze({ devnet: DEVNET_GENESIS_HASH, mainnet: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" });
 import { ARENA_PROGRAM_ID, ARENA_LEN, POSITION_LEN, arenaAddress, decodeArena, decodePosition, seasonIndex } from "../sinks/arena.js";
 
 export const DEFAULT_INTERVAL_MS = 5 * 60_000;
@@ -111,7 +114,9 @@ export function createArenaIndex({
   cancel = (timer) => clearTimeout(timer),
   log = console,
   program = ARENA_PROGRAM_ID,
+  expectNetwork = "devnet",
 }) {
+  if (!Object.hasOwn(GENESIS, expectNetwork)) throw new TypeError("RADIOLAN_HUB_NETWORK must be devnet or mainnet");
   if (typeof upstream !== "string" || !/^https?:\/\//.test(upstream)) throw new TypeError("RADIOLAN_RPC_URL is required for the arena index");
   if (typeof dir !== "string" || dir === "") throw new TypeError("a snapshot directory is required");
   const marketDir = join(dir, "market");
@@ -151,7 +156,7 @@ export function createArenaIndex({
   }
 
   let latest = null; // { network, observedAt, slot, arenas: Map, positions: [] }
-  let network = null; // devnet genesis checked once per process
+  let network = null; // the configured network's genesis, checked once per process
   let lastError = null;
   let timer = null;
   let failures = 0;
@@ -161,8 +166,8 @@ export function createArenaIndex({
     try {
       if (!network) {
         const genesis = await rpc(upstream, fetchImpl, "getGenesisHash", [], 10_000);
-        if (genesis !== DEVNET_GENESIS_HASH) throw new Error("upstream is not Solana devnet; the index reads devnet only");
-        network = "devnet";
+        if (genesis !== GENESIS[expectNetwork]) throw new Error(`upstream is not Solana ${expectNetwork}; the index reads the configured network only`);
+        network = expectNetwork;
       }
       const slot = await rpc(upstream, fetchImpl, "getSlot", [{ commitment: "confirmed" }], 10_000);
       const { arenas, positions } = await readArenas({ upstream, fetchImpl, program });

@@ -14,6 +14,7 @@ export function buildToday(state: ApiState | null = null): HubSnapshot {
   const s = state.season;
   return {
     ...EMPTY_TODAY,
+    lastSeason: state.lastSeason ? { number: state.lastSeason.number, players: state.lastSeason.players, eligiblePoints: state.lastSeason.eligiblePoints, reward: { kind: "provisional" }, me: state.lastSeason.me, top: state.lastSeason.top } : null,
     fan: me ? { handle: handleOf(me.accountId), since: s ? Number(s.number) : 0 } : null,
     season: s
       ? {

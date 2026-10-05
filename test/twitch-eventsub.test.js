@@ -6,7 +6,7 @@ import { TIMELINE_SUBSCRIPTIONS, fromEventSubNotification, subscriptionCondition
 const KEY = "k".repeat(32);
 const US = "1001";
 
-// Synthetic payloads exercise the supported EventSub fields.
+// Shapes follow the payload fields in the Twitch EventSub subscription-types reference.
 function note(type, version, event, condition = { broadcaster_user_id: US }) {
   return {
     metadata: { message_id: `m-${type}`, message_type: "notification", message_timestamp: "2026-10-01T20:00:00.123456789Z", subscription_type: type, subscription_version: version },

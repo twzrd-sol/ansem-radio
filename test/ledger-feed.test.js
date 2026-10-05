@@ -124,7 +124,7 @@ test("a broken save keeps the last good ledger on air and tells the operator whi
 });
 
 test("a missing file is reported honestly and never invents receipts", async () => {
-  const { feed } = rig({ text: Object.assign(new Error("ENOENT: no such file, open '/nonexistent/ledger.json'"), { code: "ENOENT" }) });
+  const { feed } = rig({ text: Object.assign(new Error("ENOENT: no such file, open '/srv/radiolan/secret/ledger.json'"), { code: "ENOENT" }) });
   const snapshot = await feed.start();
   assert.equal(snapshot.ledger, null);
   assert.equal(snapshot.last_error, "ledger_unreadable");
@@ -195,7 +195,7 @@ test("a tick that lands mid-pass shares it instead of starting a second one", as
 });
 
 test("a throwing verifier or listener never breaks the feed", async () => {
-  const { feed, state } = rig({ outcome: () => { throw new Error("boom /nonexistent"); } });
+  const { feed, state } = rig({ outcome: () => { throw new Error("boom /srv/radiolan/secret"); } });
   feed.subscribe(() => { throw new Error("consumer bug"); });
   const snapshot = await feed.refresh();
   assert.deepEqual(statuses(snapshot), ["unavailable", "unavailable", "unavailable"]);

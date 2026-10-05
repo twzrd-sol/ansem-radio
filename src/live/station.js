@@ -2,7 +2,7 @@
 
 export const STATION_CHANNEL = "radiolanlive";
 export const STATION_URL = "https://www.twitch.tv/radiolanlive";
-export const STATION_TITLE = "THE WZRD OF ZO presents RADIO LAN";
+export const STATION_TITLE = "RADIO LAN";
 
 export function twitchParentHost(host) {
   if (typeof host !== "string" || !host.trim()) {

@@ -13,11 +13,16 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
-import { normalizeConfig } from "../arena/season.js";
 import { createRateLimiter, HttpError, readJson } from "../platform/guard.js";
-import { ACTIONS, actionId, provisionalPoints } from "./points.js";
+import { ACTIONS, actionId, provisionalPoints, rankAccounts } from "./points.js";
+import { createSeasons } from "./rollover.js";
+import { createSeasonFinalizer, readFrozen } from "./finalizer.js";
 import { normalizePolls, pollFor, utcDay } from "./polls.js";
+import { renderBadge } from "./badge.js";
+import { createClaimRoutes, createClaimStore, deriveClaimPair } from "./claims.js";
+import { mintForClaims } from "./registry.js";
 import { createIdentityRoutes } from "./identity.js";
+import { createHubIdentityStore } from "./identity-store.js";
 import { clientKey } from "./relay.js";
 import { base64url, verifyAssertion, verifyRegistration } from "./webauthn.js";
 
@@ -54,10 +59,13 @@ export function parseOrigins(text) {
 const sha256hex = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const parseCookies = (header) => Object.fromEntries(String(header ?? "").split(";").map((p) => p.trim().split("=")).filter(([k, v]) => k && v !== undefined).map(([k, ...v]) => [k, v.join("=")]));
 
-export function createHubApi({ origins: originText, store, season = null, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, identity = {} }) {
+export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, schedule = undefined, cancel = undefined }) {
   const { origins, rpIds } = parseOrigins(originText);
   const { polls: seasonPolls, ...seasonConfig } = season ?? {};
-  const config = season ? normalizeConfig(seasonConfig) : null;
+  // The published season, or (seasonRecurring) the arena's recurring season that contains the current instant:
+  // `config` is re-derived at the top of every request, so a season boundary needs no restart.
+  const seasons = season ? createSeasons(seasonConfig, { recurring: seasonRecurring }) : null;
+  let config = seasons ? seasons.at(now()) : null;
   const polls = normalizePolls(pollsInput ?? seasonPolls ?? null);
   const challenges = new Map();
   const readLimit = createRateLimiter({ limit: limits.read, clock: () => now() * 1000 });
@@ -93,10 +101,7 @@ export function createHubApi({ origins: originText, store, season = null, polls:
   const ranking = () => {
     const credited = seasonRows().filter((s) => s.status === "credited");
     const { scores, today } = provisionalPoints(config.policy, credited, { now: now() });
-    const firstAt = new Map();
-    for (const submission of credited) if (!firstAt.has(submission.accountId) || submission.occurredAt < firstAt.get(submission.accountId)) firstAt.set(submission.accountId, submission.occurredAt);
-    const ranked = [...scores].filter(([, points]) => points > 0n).sort(([a, pa], [b, pb]) => pa === pb ? (firstAt.get(a) - firstAt.get(b)) || a.localeCompare(b) : pa > pb ? -1 : 1);
-    return { scores, today, ranked };
+    return { scores, today, ranked: rankAccounts(config.policy, credited) };
   };
   /** Badges derive from credited activity only and count distinct UTC days across seasons. */
   const badges = (accountId) => {
@@ -180,9 +185,37 @@ export function createHubApi({ origins: originText, store, season = null, polls:
   // The backing board (docs/DECISION_20261002_MULTI_STREAMER_PATH.md Stage 1): the registry joined to the arena
   // index. `market` is { registry, index, board? }; without it the market routes answer 404. Twitch rows are a
   // separate, labelled object next to backing, never merged into it.
+  const claims = createClaimStore({ dir: store.dir });
+  const identityStore = identity.store ?? createHubIdentityStore({ dir: store.dir });
+  // Station-wide default mint, or the featured listing's mint when that setting is unset. Never a hardcoded address.
+  const claimMint = mintForClaims({ defaultMint, listings: registryInput ?? market?.registry ?? [] });
+  const listingsNow = () => {
+    const merged = registryInput ?? market?.registry ?? [];
+    // A claimed listing with no operator-set pair gets {streamer: the claimer's verified linked wallet, mint: the
+    // station default or the featured listing's mint}, so an arena that wallet creates is backable with no operator
+    // edit. An operator-set pair is never overridden, the registry's banned keys are refused, and a pair some other
+    // listing already has is skipped.
+    const taken = new Set(merged.filter((e) => e.streamer).map((e) => `${e.streamer}:${e.mint}`));
+    return merged.map((entry) => {
+      if (entry.streamer) return entry;
+      // A released page keeps its arena association: the listing stays tied to the pair fans may have backed.
+      const retired = claims.has(entry.slug) ? null : claims.retired(entry.slug);
+      if (retired && !taken.has(`${retired.streamer}:${retired.mint}`)) {
+        taken.add(`${retired.streamer}:${retired.mint}`);
+        return { ...entry, streamer: retired.streamer, mint: retired.mint, claimDerived: true };
+      }
+      if (!claims.has(entry.slug)) return entry;
+      const pair = deriveClaimPair({ claim: claims.get(entry.slug), identityOf: (id) => identityStore.get(id), defaultMint: claimMint });
+      if (pair.error || taken.has(`${pair.streamer}:${pair.mint}`)) return entry;
+      taken.add(`${pair.streamer}:${pair.mint}`);
+      // The first time the derived pair's arena shows up on chain, pin it: later wallet changes cannot move the listing.
+      if (!pair.pinned && market?.index?.listingArena?.({ streamer: pair.streamer, mint: pair.mint })) claims.pin(entry.slug, pair);
+      return { ...entry, streamer: pair.streamer, mint: pair.mint, claimDerived: true };
+    });
+  };
   const marketListing = (entry, { withHistory = false } = {}) => {
     const arena = market.index.listingArena(entry);
-    const twitch = market.board && entry.twitch ? market.board(entry.twitch) : null;
+    const twitch = entry.twitch ? (market.board?.(entry.twitch) ?? null) : null;
     return {
       slug: entry.slug,
       name: entry.name,
@@ -190,6 +223,8 @@ export function createHubApi({ origins: originText, store, season = null, polls:
       demo: entry.kind === "demo",
       blurb: entry.blurb,
       twitch: entry.twitch,
+      claimed: claims.has(entry.slug),
+      claimDerived: entry.claimDerived === true,
       /** The registry pair an arena derives from, so the page can offer the streamer-setup step before one exists. */
       keys: entry.streamer ? { streamer: entry.streamer, mint: entry.mint } : null,
       backingOpen: arena !== null && !arena.closed,
@@ -204,11 +239,11 @@ export function createHubApi({ origins: originText, store, season = null, polls:
   };
   const marketRoutes = market
     ? {
-        "GET /hub/api/market": () => marketEnvelope({ listings: market.registry.map((entry) => marketListing(entry)) }),
+        "GET /hub/api/market": () => marketEnvelope({ listings: listingsNow().map((entry) => marketListing(entry)) }),
         "GET /hub/api/market/positions": (request) => {
           const fan = new URL(request.url ?? "/", "http://localhost").searchParams.get("fan") ?? "";
           if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(fan)) throw new HttpError(400, "fan_address_required");
-          const byArena = new Map(market.registry.filter((e) => e.streamer).map((e) => [market.index.listingArena(e)?.address, e.slug]).filter(([a]) => a));
+          const byArena = new Map(listingsNow().filter((e) => e.streamer).map((e) => [market.index.listingArena(e)?.address, e.slug]).filter(([a]) => a));
           return marketEnvelope({ fan, positions: market.index.positionsOf(fan).map((p) => ({ ...p, slug: byArena.get(p.arena) ?? null })) });
         },
       }
@@ -217,19 +252,53 @@ export function createHubApi({ origins: originText, store, season = null, polls:
     if (!market) return null;
     const m = /^\/hub\/api\/market\/([a-z0-9][a-z0-9_-]{1,31})$/.exec(pathname);
     if (!m || m[1] === "positions") return null;
-    const entry = market.registry.find((e) => e.slug === m[1]);
+    const entry = listingsNow().find((e) => e.slug === m[1]);
     return () => {
       if (!entry) throw new HttpError(404, "no_such_listing");
       return marketEnvelope({ listing: marketListing(entry, { withHistory: true }) });
     };
   };
 
+  // A season's recap once its end has passed: frozen scores, labelled provisional (no creator key signs here).
+  const seasonRoute = (pathname) => {
+    const m = /^\/hub\/api\/season\/([1-9][0-9]{0,5})$/.exec(pathname);
+    if (!m) return null;
+    return () => {
+      const frozen = readFrozen(store.dir, m[1]);
+      if (frozen) return { recap: frozen };
+      if (config && config.season === m[1] && now() < config.endsAt) throw new HttpError(409, "season_still_open", `season ${m[1]} ends at ${config.endsAt}`);
+      throw new HttpError(404, "no_such_season");
+    };
+  };
+  /**
+   * The most recent frozen season as the hub's PastSeason: this season's file once it has ended, else the previous
+   * season's. Reward state "provisional": frozen points, not a settlement, no anchor, no funding.
+   */
+  const lastSeason = (accountId) => {
+    if (!config) return null;
+    const frozen = readFrozen(store.dir, config.season) ?? (Number(config.season) > 1 ? readFrozen(store.dir, String(Number(config.season) - 1)) : null);
+    if (!frozen) return null;
+    const mine = accountId ? frozen.scores.find((s) => s.handle === handleOf(accountId)) : null;
+    return {
+      number: Number(frozen.season),
+      players: frozen.players,
+      eligiblePoints: Number(frozen.totalPoints),
+      reward: { kind: "provisional" },
+      me: mine ? { points: Number(mine.points), rank: mine.rank } : null,
+      top: frozen.scores.slice(0, 3).map((s) => [s.handle, Number(s.points)]),
+      endsAt: frozen.endsAt,
+      frozenAt: frozen.frozenAt,
+      label: frozen.label,
+    };
+  };
+
   const routes = {
     ...marketRoutes,
-    ...createIdentityRoutes({ hubStore: store, origins, requireOrigin, requireSession, authLimit, now, ...identity }),
+    ...createIdentityRoutes({ hubStore: store, origins, requireOrigin, requireSession, authLimit, now, ...identity, store: identityStore }),
+    ...createClaimRoutes({ registry: listingsNow, claims, twitchOf: (accountId) => identityStore.get(accountId), requireOrigin, requireSession, authLimit, now, defaultMint: claimMint }),
     "GET /hub/api/state": (request) => {
       const session = sessionOf(request);
-      return { season: seasonState(), me: session ? { accountId: session.accountId, createdAt: store.account(session.accountId)?.createdAt ?? null, ...standing(session.accountId) } : null, generatedAt: now() };
+      return { season: seasonState(), lastSeason: lastSeason(session?.accountId ?? null), me: session ? { accountId: session.accountId, createdAt: store.account(session.accountId)?.createdAt ?? null, ...standing(session.accountId) } : null, generatedAt: now() };
     },
     "GET /hub/api/me": (request) => {
       const session = requireSession(request, { csrf: false });
@@ -361,12 +430,22 @@ export function createHubApi({ origins: originText, store, season = null, polls:
     },
   };
 
-  return async function hubApi(request, response) {
+  const finalizer = seasons ? createSeasonFinalizer({ seasons, store, rank: (credited, c = config) => rankAccounts(c.policy, credited), handleOf, now, log, ...(schedule ? { schedule } : {}), ...(cancel ? { cancel } : {}) }) : null;
+
+  const hubApi = async function hubApi(request, response) {
     const head = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", Vary: "Cookie, Origin" };
     const reply = (status, body, extra = {}) => {
       response.writeHead(status, { ...head, ...extra });
       response.end(JSON.stringify(body));
     };
+    if (seasons) {
+      const current = seasons.at(now());
+      if (current.season !== config.season) {
+        config = current;
+        // The season that just ended is frozen now rather than waiting for its timer, so its recap is served from the first second.
+        try { finalizer?.freeze(); } catch (error) { log.warn?.(`season rollover: freeze failed: ${error?.message ?? error}`); }
+      }
+    }
     const key = clientKey(request);
     if (key === null) return reply(403, { error: "not_through_the_edge" });
     // Same URL-parse guard as the live server: "http://[" is a 400, not a crash.
@@ -376,7 +455,17 @@ export function createHubApi({ origins: originText, store, season = null, polls:
     } catch {
       return reply(400, { error: "bad_request" });
     }
-    const route = routes[`${request.method} ${pathname}`] ?? (request.method === "GET" ? marketListingRoute(pathname) : null);
+    const badge = request.method === "GET" ? /^\/hub\/api\/badge\/([a-z0-9][a-z0-9_-]{1,31})\.svg$/.exec(pathname) : null;
+    if (badge) {
+      if (!readLimit(key)) return reply(429, { error: "slow_down" });
+      const entry = market ? listingsNow().find((e) => e.slug === badge[1]) : null;
+      if (!entry) return reply(404, { error: "no_such_listing" });
+      const view = marketListing(entry);
+      // A public image meant to be embedded anywhere: cacheable for a few minutes, inert, and framed by nothing.
+      response.writeHead(200, { "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "public, max-age=300", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'", "X-Content-Type-Options": "nosniff", "Cross-Origin-Resource-Policy": "cross-origin" });
+      return response.end(renderBadge({ listing: view, performance: view.performance }));
+    }
+    const route = routes[`${request.method} ${pathname}`] ?? (request.method === "GET" ? marketListingRoute(pathname) ?? seasonRoute(pathname) : null);
     if (!route) {
       if (Object.keys(routes).some((r) => r.endsWith(` ${pathname}`))) return reply(405, { error: "method_not_allowed" }, { Allow: request.method === "GET" ? "POST" : "GET" });
       return reply(404, { error: "not_found" });
@@ -392,4 +481,9 @@ export function createHubApi({ origins: originText, store, season = null, polls:
       return reply(500, { error: "hub_api_failed" });
     }
   };
+  // The station starts and stops the finalizer with the server.
+  hubApi.start = () => finalizer?.start();
+  hubApi.stop = () => finalizer?.stop();
+  hubApi.finalizer = finalizer;
+  return hubApi;
 }

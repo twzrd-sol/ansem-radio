@@ -226,7 +226,7 @@ export function createRpc(url, { fetchImpl = fetch } = {}) {
         try {
           status = (await call("getSignatureStatuses", [[signature]])).value[0];
         } catch (error) {
-          // Public RPCs may rate-limit confirmation polling after the transaction is sent.
+          // Public RPCs rate-limit polling (HTTP 429); the transaction is already sent, so wait and poll again.
           if (/HTTP 429/.test(error.message)) {
             await sleep(pollMs);
             continue;

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 
 import type { FailKind, FlowStep, Position, PreviewState } from "../app/preview";
 import { writePreview } from "../app/preview";
-import { ARENA_MINT, ARENA_PROGRAM, TOKEN_DECIMALS } from "../chain/config";
+import { ARENA_MINT, ARENA_PROGRAM, IS_MAINNET, NETWORK_LABEL, RLAN_MINT, TOKEN_DECIMALS } from "../chain/config";
 import { currentSeason, releaseIfRequestedAt, type ArenaSchedule } from "../chain/season";
 import { SAMPLE_MINT, SAMPLE_POSITION, SAMPLE_WALLET } from "../data/sample";
 import type { HubSnapshot } from "../data/types";
@@ -136,13 +136,13 @@ export type FailureKind = FailKind | "wrong-network" | "no-arena" | "no-tokens" 
 export const FAILURES: Record<FailureKind, { title: string; text: string; retry: boolean }> = {
   cancelled: { title: "Cancelled in your wallet", text: "Nothing was sent. Try again whenever you like.", retry: true },
   simulation: { title: "Your wallet never opened", text: "The simulation failed before signing, so nothing was sent.", retry: false },
-  network: { title: "Couldn't reach Solana devnet", text: "Nothing was sent. Check your connection and try again.", retry: true },
+  network: { title: `Couldn't reach ${NETWORK_LABEL}`, text: "Nothing was sent. Check your connection and try again.", retry: true },
   expired: { title: "The transaction expired", text: "It never landed, so nothing changed. It needs a fresh review before you sign again.", retry: true },
-  "wrong-network": { title: "Not Solana devnet", text: "The connection points at another network, so nothing was built or sent.", retry: false },
+  "wrong-network": { title: `Not ${NETWORK_LABEL}`, text: "The connection points at another network, so nothing was built or sent.", retry: false },
   "no-arena": { title: "No arena here", text: "Nothing was sent.", retry: false },
   "no-tokens": { title: "Not enough tokens", text: "Nothing was sent.", retry: true },
   "failed-onchain": { title: "The transaction failed on chain", text: "The network refused it, so your position is unchanged.", retry: true },
-  "not-streamer": { title: "Not the streamer key", text: "Only the official streamer key can create the arena. Nothing was sent.", retry: true },
+  "not-streamer": { title: "Not the streamer wallet", text: "Only this listing's streamer wallet can create the arena. Nothing was sent.", retry: true },
 };
 
 export function FailedStep({ kind, detail, onRetry }: { kind: FailureKind; detail?: string; onRetry?: () => void }) {
@@ -192,18 +192,18 @@ export function ChainFacts({ schedule, mint = ARENA_MINT }: { schedule: ArenaSch
         On chain
       </h2>
       <dl className="facts">
-        <Fact label="Network">Solana devnet</Fact>
+        <Fact label="Network">{NETWORK_LABEL}</Fact>
         <Fact label="Program">
           radiolan-arena <Address id={ARENA_PROGRAM} />
         </Fact>
-        <Fact label="Token">{mint ? <>Token-2022 test mint <Address id={mint} /></> : "A Token-2022 test mint, set when the devnet arena is configured. Mainnet uses RLAN."}</Fact>
+        <Fact label="Token">{mint ? <>{IS_MAINNET && mint === RLAN_MINT ? "$RLAN" : "Token-2022 test mint"} <Address id={mint} /></> : "A Token-2022 test mint, set when the devnet arena is configured. Mainnet uses RLAN."}</Fact>
         <Fact label="Unlock">
           {schedule
             ? `Request withdrawal anytime. A request is available once the on-chain season it was made in ends: ${utc(releaseIfRequestedAt(schedule))} for season ${currentSeason(schedule)}.`
             : "Request withdrawal anytime. A request is available once the on-chain season it was made in ends; the date comes from the arena's own schedule."}
         </Fact>
         <Fact label="If the arena closes">If the arena closes, every position unlocks at once.</Fact>
-        <Fact label="Mainnet">The radiolan-arena program has been live on mainnet since 2 Oct 2026. No arena is open on mainnet yet, so this flow uses devnet.</Fact>
+        {!IS_MAINNET && <Fact label="Mainnet">The radiolan-arena program has been live on mainnet since 2 Oct 2026. This build rehearses on devnet with test tokens.</Fact>}
       </dl>
     </section>
   );
@@ -460,7 +460,7 @@ export function Back({ snapshot, load, preview, now, onRetry, live, slug = "radi
       {load === "loading" ? (
         <Skeleton kinds={["block", "block"]} />
       ) : load === "error" || !snapshot ? (
-        <ErrorBlock text="Your position couldn't be read from Solana devnet. Nothing was sent." onRetry={onRetry} />
+        <ErrorBlock text={`Your position couldn't be read from ${NETWORK_LABEL}. Nothing was sent.`} onRetry={onRetry} />
       ) : (
         <PreviewFlow snapshot={snapshot} preview={preview} now={now} />
       )}

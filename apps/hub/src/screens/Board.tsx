@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { isPlaceholderSeason } from "../data/season";
 import type { HubSnapshot, PastSeason } from "../data/types";
 import { showsMoney } from "../data/types";
 import { fmt, units } from "../lib/format";
@@ -59,7 +60,8 @@ function LastSeason({ last }: { last: PastSeason }) {
 export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapshot | null; load: "loading" | "error" | "ready"; joined: boolean; onRetry: () => void }) {
   const [tab, setTab] = useState<"this" | "last">("this");
   const season = snapshot?.season ?? null;
-  const head = <PageHead eyebrow={season ? `Season ${season.number} · Radio LAN` : "Radio LAN"} title="Board" lede="Ranked by points. Points set your share of a funded season's perks and have no other value." />;
+  const sampleSeason = isPlaceholderSeason(season);
+  const head = <PageHead eyebrow={season ? (sampleSeason ? `Sample season ${season.number} · Radio LAN` : `Season ${season.number} · Radio LAN`) : "Radio LAN"} title="Board" lede="Ranked by points. Points set your share of a funded season's perks and have no other value." />;
   if (load === "loading") return <>{head}<Skeleton kinds={["line", "line", "line", "line", "line"]} /></>;
   if (load === "error" || !snapshot) return <>{head}<ErrorBlock text="The board didn't load. Scores are unchanged." onRetry={onRetry} /></>;
   if (!season) return <>{head}<EmptyBlock icon="board" title="No board yet" text="The first board appears when the first season opens. When that season closes, its board will be signed and anchored on Solana so anyone can check it." /></>;
@@ -78,10 +80,12 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
           <>
             <div className="board-head">
               <span className="label">{fmt(season.players)} players · provisional points so far</span>
-              {snapshot.scenario === "sample" && <SampleTag />}
+              {(snapshot.scenario === "sample" || sampleSeason) && <SampleTag />}
             </div>
             {season.board.length === 0 ? (
-              <EmptyBlock icon="board" title="No points yet" text={joined && season.me ? `Your points so far: ${fmt(season.me.points)}. The provisional board updates as activities are credited.` : "The provisional board updates as activities are credited."} />
+              <EmptyBlock icon="board" title="No points yet" text={sampleSeason ? "Sample season. The board stays empty until a live season is published." : joined && season.me ? `Your points so far: ${fmt(season.me.points)}. The provisional board updates as activities are credited.` : "Nobody has played this season yet. Be the first, or look at a sample season with made-up data."}>
+                {snapshot.scenario !== "sample" && !(joined && season.me) && <a className="btn" href="?preview=sample#/board">See a sample season</a>}
+              </EmptyBlock>
             ) : (
               <ol className="board">
                 {season.board.map(([name, points], i) => (

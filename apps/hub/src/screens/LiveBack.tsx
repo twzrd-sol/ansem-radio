@@ -1,9 +1,9 @@
-// The live backing flow on devnet: real arena and position reads, a real wallet, the flow engine in src/chain/flow.ts.
+// The live backing flow on the build's network: real arena and position reads, a real wallet, the flow engine in src/chain/flow.ts.
 import { address, type Address } from "@solana/kit";
 import type { Wallet } from "@wallet-standard/base";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { ARENA_PROGRAM, RPC_URL, TOKEN_DECIMALS } from "../chain/config";
+import { ARENA_PROGRAM, NETWORK_LABEL, RPC_URL, TOKEN_DECIMALS } from "../chain/config";
 import { prepare, prepareSetup, readChain, resume, sessionPendingStore, signAndSend, type ChainView, type FlowAction, type FlowFailure, type FlowState, type WalletPort } from "../chain/flow";
 import { kitRpc } from "../chain/rpc";
 import { nowSeconds, seasonIndex, withdrawAvailableAt, type ArenaSchedule } from "../chain/season";
@@ -113,7 +113,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
   const amountError = flowAction !== "deposit" ? "" : amount === null ? "Enter an amount like 250 or 12.5, up to 6 decimals." : amount <= 0n ? "Enter more than 0." : balance !== null && amount > balance ? `More than your balance (${rlan(balance)}).` : "";
 
   const build = async (port: WalletPort) => {
-    setState({ step: "working", label: "Building and simulating on devnet" });
+    setState({ step: "working", label: `Building and simulating on ${NETWORK_LABEL}` });
     if (flowAction === "init") setState(await prepareSetup(rpc, { signer: port.address, ...target, now: nowSeconds() }));
     else setState(await prepare(rpc, { action: flowAction, fan: port.address, ...target, amount: flowAction === "deposit" ? (amount ?? 0n) : 0n, now: nowSeconds() }));
   };
@@ -190,7 +190,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
       rows.push({ label: "Action", value: <>Request withdrawal of <span className="num">{rlan(p.amount)}</span></> });
       rows.push({ label: "Available after", value: utc(Number(p.releaseAt) * 1000) });
     } else if (p.action === "init") {
-      rows.push({ label: "You create", value: <>Arena <AddressLink id={p.arena} /><span className="small block">The official streamer's devnet arena. You sign as the streamer; you can close it later, and nothing else.</span></> });
+      rows.push({ label: "You create", value: <>Arena <AddressLink id={p.arena} /><span className="small block">This listing's arena on {NETWORK_LABEL}. You sign as its streamer wallet; you can close it later, and nothing else.</span></> });
       rows.push({ label: "Seasons", value: `${duration(Number(p.schedule?.seasonSeconds ?? 0n))} each, from ${utc(Number(p.schedule?.seasonStart ?? 0n) * 1000)}; on-chain season ${p.onchainSeason} now. Fixed at creation.` });
       rows.push({ label: "Account rent", value: `${sol(p.rentLamports)} for the arena account` });
     } else {
@@ -200,7 +200,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     }
     rows.push({ label: "Program", value: <>radiolan-arena <AddressLink id={ARENA_PROGRAM} /></> });
     if (p.action !== "request") rows.push({ label: "Token", value: <>Mint <AddressLink id={target.mint} /></> });
-    rows.push({ label: "Network", value: "Solana devnet" });
+    rows.push({ label: "Network", value: NETWORK_LABEL });
     if (p.action === "deposit" && p.rentLamports > 0n) rows.push({ label: "Account rent", value: `${sol(p.rentLamports)}, returned when you withdraw everything after release` });
     rows.push({ label: "Network fee", value: `About ${sol(p.feeLamports)}` });
     body = (
@@ -235,7 +235,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     body = (
       <div className="signing" role="status">
         <div className="signing__bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-        <p className="h3">Confirming on Solana devnet</p>
+        <p className="h3">Confirming on {NETWORK_LABEL}</p>
         <p className="small">
           Transaction <AddressLink id={state.signature} kind="tx" />
         </p>
@@ -246,8 +246,8 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     body = (
       <div className="result result--ok" role="status">
         <Icon name="check" size="lg" />
-        <p className="h3">{state.action === "deposit" ? `You're backing ${name}` : state.action === "request" ? "Withdrawal requested" : state.action === "init" ? "Arena created on devnet" : "Withdrawn"}</p>
-        <p className="small">Confirmed on Solana devnet. {read}</p>
+        <p className="h3">{state.action === "deposit" ? `You're backing ${name}` : state.action === "request" ? "Withdrawal requested" : state.action === "init" ? `Arena created on ${NETWORK_LABEL}` : "Withdrawn"}</p>
+        <p className="small">Confirmed on {NETWORK_LABEL}. {read}</p>
         <p className="small">
           Transaction <AddressLink id={state.signature} kind="tx" />
         </p>
@@ -274,7 +274,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
               {w.icon ? <img src={w.icon} alt="" width={24} height={24} /> : <Icon name="wallet" />}
               <span className="wallet-opt__text">
                 <span className="wallet-opt__name">{w.name}</span>
-                <span className="small">Connects for devnet</span>
+                <span className="small">Connects for {NETWORK_LABEL}</span>
               </span>
               <Icon name="next" size="sm" />
             </button>
@@ -350,7 +350,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
       <div>
         <p className="small">
           {flowAction === "init"
-            ? "Creates the official streamer's devnet arena with 7-day seasons that roll over Monday 00:00 UTC. The schedule cannot be changed afterwards. Only the official streamer key can sign this."
+            ? `Creates this listing's arena on ${NETWORK_LABEL} with 7-day seasons that roll over Monday 00:00 UTC. The schedule cannot be changed afterwards. Only the streamer's wallet can sign this.`
             : flowAction === "withdraw"
             ? "Your release date has passed, so withdrawing everything sends your RLAN back to your wallet, closes your position and gives back the account rent."
             : schedule
@@ -372,14 +372,14 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
   }
 
   const release = view?.position && view.arena ? Number(withdrawAvailableAt(view.arena.seasonStart, view.arena.seasonSeconds, view.position.requestedSeason)) * 1000 : null;
-  const title = flowAction === "init" ? "Create the devnet arena" : flowAction === "deposit" ? (position === "none" ? `Back ${name}` : "Add to your position") : flowAction === "request" ? "Request withdrawal" : "Withdraw everything";
+  const title = flowAction === "init" ? "Create the arena" : flowAction === "deposit" ? (position === "none" ? `Back ${name}` : "Add to your position") : flowAction === "request" ? "Request withdrawal" : "Withdraw everything";
   return (
     <>
       <BackHeader schedule={schedule} slug={slug} name={name} />
       {load === "loading" ? (
         <Skeleton kinds={["block", "block"]} />
       ) : load === "error" ? (
-        <ErrorBlock text="The arena couldn't be read from Solana devnet. Nothing was sent." onRetry={() => void refresh(wallet?.address ?? null)} />
+        <ErrorBlock text={`The arena couldn't be read from ${NETWORK_LABEL}. Nothing was sent.`} onRetry={() => void refresh(wallet?.address ?? null)} />
       ) : !view?.arena ? (
         <div className="back">
           <div className="back__main">

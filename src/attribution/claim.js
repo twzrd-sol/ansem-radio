@@ -3,7 +3,7 @@
  * own wallets. Plain UTF-8, so a wallet shows the signer what they are signing
  * (design v3.1, sections 1 and 3). Canonical or rejected: a claim is parsed,
  * re-rendered and must match byte for byte, so a third-party verifier never has
- * to guess which bytes were signed. The canonical format is defined below.
+ * to guess which bytes were signed.
  */
 
 import { decodePublicKey } from "../core/base58.js";

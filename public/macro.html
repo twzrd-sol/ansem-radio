@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'">
-<title>Radio LAN macro view</title>
+<title>Radio LAN · Streamer performance</title>
 <style>
 :root {
   color-scheme: light;
@@ -38,6 +38,7 @@ header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; mar
 h1 { font-size: 18px; margin: 0; font-weight: 600; }
 .hub-nav { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-bottom: 16px; }
 .hub-nav a { color: var(--ink); text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
+.hub-nav a:focus-visible { outline: 2px solid var(--series-1); outline-offset: 3px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; color: var(--ink2); }
 .chip .ico { font-weight: 700; }
 .ico.good { color: var(--good); } .ico.warn { color: var(--warn); } .ico.crit { color: var(--crit); } .ico.off { color: var(--muted); }
@@ -86,20 +87,33 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 #tip .r { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 #tip .r b { font-size: 13px; }
 #tip .key { display: inline-block; width: 10px; height: 2px; background: var(--series-1); margin-right: 6px; vertical-align: middle; }
+.ops-list { display: grid; gap: 10px; padding: 0; list-style: none; }
+.ops-list li { padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.hash { font: 12px/1.5 monospace; overflow-wrap: anywhere; }
+input[type="search"], select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 6px; max-width: 100%; }
+.export-link { color: var(--ink2); }
+svg { max-width: 100%; }
 svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
 </style>
 </head>
 <body>
 <main id="main">
   <header>
-    <h1>Radio LAN macro view</h1>
+    <h1>Radio LAN · Streamer performance</h1>
     <span class="chip" id="status"><span class="ico off" aria-hidden="true">–</span><span id="status-text">Loading</span></span>
     <span class="small" id="updated"></span>
     <span class="spacer"></span>
-    <span class="chip"><span class="ico warn" aria-hidden="true">!</span>Internal. Twitch data, this machine only</span>
+    <span class="chip"><span class="ico off" aria-hidden="true">&#9675;</span>Fan engagement. Data: Twitch</span>
   </header>
 
-  <nav class="hub-nav" aria-label="Radio LAN"><a href="/hub/">Open the hub</a><a href="/hub/#/play">Play this season</a><a href="/hub/#/how">How Radio LAN works</a></nav>
+  <nav class="hub-nav" aria-label="Radio LAN">
+    <a href="/hub/">Open the hub</a>
+    <a href="/hub/#/play">Play this season</a>
+    <a href="/hub/#/how">How Radio LAN works</a>
+  </nav>
+
+  <p class="sub">A macro view of streamer attention: live audiences, viewer-minutes and changes across tracked creators. Data: Twitch.</p>
+
   <div class="filters" role="group" aria-label="Filters">
     <div class="seg" role="radiogroup" aria-label="Time range">
       <label><input type="radio" name="range" value="6">6 h</label>
@@ -109,11 +123,12 @@ svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
     <label class="check"><input type="checkbox" id="table-toggle"> Table view</label>
     <button type="button" id="theme">Theme: auto</button>
     <button type="button" id="download">Download JSON</button>
+    <a id="download-csv" class="export-link" href="/macro/export?hours=24" download>Download CSV</a>
     <span class="notice">Times are UTC. Refreshes every minute.</span>
   </div>
 
   <div id="off" class="banner" hidden>
-    <strong>The timeline is off.</strong> Start the room with <code>RADIO_LAN_TIMELINE=1</code> to record data for this page.
+    <strong>Data collection is off.</strong> No performance history is available yet.
   </div>
   <div id="error" class="banner" hidden></div>
 
@@ -154,6 +169,10 @@ svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
       <section class="card" aria-labelledby="h-now">
         <h2 id="h-now">Live now</h2>
         <p class="sub">From the board, refreshed every minute.</p>
+        <div class="filters">
+          <label>Search <input id="session-search" type="search" placeholder="Streamer" maxlength="60"></label>
+          <label>Sort <select id="session-sort"><option value="viewers">Viewers</option><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="name">Name</option></select></label>
+        </div>
         <div id="t-now"></div>
       </section>
     </div>
@@ -164,12 +183,23 @@ svg text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
       <div class="viz" id="c-heat"></div><div class="tbl" id="t-heat"></div>
     </section>
 
-    <section class="card" aria-labelledby="h-station">
-      <h2 id="h-station">Station channel</h2>
-      <p class="sub" id="station-s"></p>
-      <div id="meters"></div>
-      <p class="notice">Affiliate thresholds come from third-party sources and are unverified. Check the creator dashboard's Path to Affiliate.</p>
+    <div class="grid two">
+      <section class="card" aria-labelledby="h-alerts">
+        <h2 id="h-alerts">Operational alerts</h2>
+        <p class="sub">Gap warnings start at 60 seconds within this window. Shorter gaps remain in coverage totals.</p>
+        <ul id="alerts" class="ops-list"></ul>
+      </section>
+      <section class="card" aria-labelledby="h-anchors">
+        <h2 id="h-anchors">Attribution anchors</h2>
+        <p class="sub">Local example records, independent of the selected Twitch window. No Twitch session is linked to these credits.</p>
+        <div id="anchors"></div>
+      </section>
+    </div>
+    <section class="card" aria-labelledby="h-readiness">
+      <h2 id="h-readiness">Network readiness</h2>
+      <ul id="readiness" class="ops-list"></ul>
     </section>
+
   </div>
 </main>
 <div id="tip" role="status" hidden></div>
@@ -479,30 +509,35 @@ function renderTables(d) {
 
 function renderNow(d) {
   const host = $("t-now");
-  if (!d.live_now.length) { host.replaceChildren(h("div", { class: "empty-note" }, "Nobody tracked is live right now.")); return; }
+  if (d.board_status !== "available") { host.replaceChildren(h("div", { class: "empty-note" }, "Live board unavailable or stale. Current sessions are unknown.")); return; }
+  const search = $("session-search").value.toLowerCase().trim();
+  const rows = d.live_now.filter((r) => `${r.login} ${r.display_name}`.toLowerCase().includes(search));
+  const sort = $("session-sort").value;
+  rows.sort((a, b) => sort === "name" ? a.login.localeCompare(b.login) : sort === "newest" ? (a.minutes_live ?? Infinity) - (b.minutes_live ?? Infinity) : sort === "oldest" ? (b.minutes_live ?? -1) - (a.minutes_live ?? -1) : (b.viewer_count ?? -1) - (a.viewer_count ?? -1));
+  if (!rows.length) { host.replaceChildren(h("div", { class: "empty-note" }, search ? "No sessions match your search." : "Nobody tracked is live right now.")); return; }
   const arrow = (n) => (n === null ? "–" : n > 0 ? "▲ " + fmt(n) : n < 0 ? "▼ " + fmt(-n) : "0");
   const t = h("table");
   t.append(h("thead", {}, h("tr", {}, h("th", { class: "num" }, "#"), h("th", {}, "Streamer"), h("th", { class: "num" }, "Viewers"), h("th", { class: "num" }, "Change"), h("th", {}, "Category"), h("th", { class: "num" }, "Live min"))));
   const body = h("tbody");
-  d.live_now.forEach((r, i) => body.append(h("tr", {},
+  rows.forEach((r, i) => body.append(h("tr", {},
     h("td", { class: "num" }, String(i + 1)), h("td", {}, r.display_name), h("td", { class: "num" }, fmt(r.viewer_count)),
     h("td", { class: "num" }, arrow(r.delta_viewers)), h("td", {}, r.game_name || "–"), h("td", { class: "num" }, fmt(r.minutes_live)))));
   t.append(body);
   host.replaceChildren(t);
 }
 
-function renderStation(d) {
-  const st = d.station, a = st.affiliate;
-  $("station-s").textContent = st.stale ? "No recent samples for the station channel." : st.live ? "Live now." : "Offline. " + fmt(st.followers_total) + " followers.";
-  const host = $("meters");
-  host.replaceChildren();
-  const rows = [["followers", "Followers"], ["broadcast_days", "Broadcast days"], ["broadcast_minutes", "Broadcast minutes"], ["avg_viewers", "Average viewers"]];
-  for (const [key, name] of rows) {
-    const have = a.have[key], need = a.thresholds[key];
-    const frac = have === null ? 0 : Math.min(1, have / need);
-    const status = a.met[key] === true ? "✓ met" : have === null ? "unknown" : fmt(a.remaining[key]) + " to go";
-    host.append(h("div", { class: "meter" }, h("span", {}, name), h("div", { class: "track" }, h("div", { class: "fill", style: `width:${Math.round(frac * 100)}%` })), h("span", { class: "small" }, `${have === null ? "–" : fmt(have)} of ${fmt(need)} · ${status}`)));
-  }
+function renderOperations(d) {
+  $("alerts").replaceChildren(...(d.alerts.length ? d.alerts.map((a) => h("li", {},
+    h("strong", {}, `${a.severity === "warning" ? "! Warning" : "Info"} · `), a.message,
+    h("div", { class: "small" }, stamp(a.created_at)))) : [h("li", {}, "No operational alerts in this window.")]));
+  $("anchors").replaceChildren(...(d.anchors.length ? d.anchors.map((a) => h("div", {},
+    h("p", {}, `Recorded devnet fixture · ${a.tree_size} entries`),
+    h("p", { class: "small" }, `${stamp(a.timestamp)} · slot ${a.published_slot}`),
+    h("div", { class: "hash" }, `Log: ${a.log_id}`),
+    h("div", { class: "hash" }, `Transaction: ${a.transaction}`),
+    h("p", { class: "small" }, "Chain and signatures have not been checked by this dashboard."))) : [h("p", {}, "No valid local anchor record available.")]));
+  $("readiness").replaceChildren(...Object.entries(d.readiness).map(([name, detail]) => h("li", {},
+    h("strong", {}, name[0].toUpperCase() + name.slice(1) + ": "), detail)));
 }
 
 function setStatus(kind, text) {
@@ -516,6 +551,7 @@ function render(d) {
   $("off").hidden = d.enabled !== false;
   $("content").hidden = d.enabled === false;
   if (d.enabled === false) { setStatus("off", "Timeline off"); return; }
+  $("download-csv").href = `/macro/export?hours=${d.hours}`;
   charts.length = 0;
   const t = d.totals;
   $("hero-v").textContent = fmt(t.tracked_viewers_now);
@@ -540,7 +576,7 @@ function render(d) {
   register($("c-heat"), () => drawHeat($("c-heat"), d));
   renderTables(d);
   renderNow(d);
-  renderStation(d);
+  renderOperations(d);
 }
 
 function ago() {
@@ -584,7 +620,13 @@ document.querySelectorAll('input[name="range"]').forEach((input) => {
     load();
   });
 });
-$("table-toggle").addEventListener("change", (e) => document.body.classList.toggle("table-view", e.target.checked));
+function redrawCharts() {
+  if (!document.body.classList.contains("table-view")) charts.forEach((c) => c.draw());
+}
+$("table-toggle").addEventListener("change", (e) => {
+  document.body.classList.toggle("table-view", e.target.checked);
+  if (!e.target.checked) requestAnimationFrame(redrawCharts);
+});
 $("download").addEventListener("click", () => {
   if (!state.data) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" }));
@@ -592,6 +634,8 @@ $("download").addEventListener("click", () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+$("session-search").addEventListener("input", () => { if (state.data?.enabled) renderNow(state.data); });
+$("session-sort").addEventListener("change", () => { if (state.data?.enabled) renderNow(state.data); });
 const themes = ["auto", "light", "dark"];
 let themeIndex = 0;
 $("theme").addEventListener("click", () => {
@@ -607,7 +651,7 @@ if ("ResizeObserver" in window) {
     if (w === lastWidth) return;
     lastWidth = w;
     clearTimeout(timer);
-    timer = setTimeout(() => charts.forEach((c) => c.draw()), 120);
+    timer = setTimeout(redrawCharts, 120);
   }).observe($("main"));
 }
 setInterval(ago, 1000);

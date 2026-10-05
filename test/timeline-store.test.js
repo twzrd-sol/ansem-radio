@@ -70,6 +70,7 @@ test("the store keeps raw events 24 hours, minutes and gaps indefinitely, privat
     assert.equal(statSync(join(dir, "raw", "2026-10-01T20.jsonl")).mode & 0o777, 0o600);
     assert.equal(statSync(dir).mode & 0o777, 0o700);
     assert.equal(JSON.parse(readFileSync(join(dir, "raw", "2026-10-01T20.jsonl"), "utf8")).received_at, "2026-10-01T20:30:00.000Z");
+    assert.equal(store.readRaw({ since: Date.parse("2026-10-01T20:00:00Z") })[0].event.id, "x");
     // 24h after the hour ended, the raw file goes; 1 minute before that, it stays.
     now = Date.parse("2026-10-02T20:59:00Z");
     assert.deepEqual(store.purgeRaw(), []);
@@ -94,6 +95,28 @@ test("culture rollups round-trip through the store and filter by hour", () => {
     assert.deepEqual(store.readCulture({ since: Date.parse("2026-10-01T21:00:00Z") }).map((r) => r.minutes_live), [30]);
     assert.equal(store.readCulture().length, 2);
     assert.equal(statSync(join(dir, "culture")).mode & 0o777, 0o700);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("raw reads enforce 24 hours even when the purge has not run", () => {
+  const dir = mkdtempSync(join(tmpdir(), "radiolan-raw-read-"));
+  try {
+    let now = Date.parse("2026-10-01T20:29:59Z");
+    const store = createTimelineStore({ dir, clock: () => now });
+    store.appendRaw({ event: { id: "expired" } });
+    now += 1000;
+    store.appendRaw({ event: { id: "boundary" } });
+    now += 1000;
+    store.appendRaw({ event: { id: "recent" } });
+    now = Date.parse("2026-10-02T20:30:00Z");
+    assert.deepEqual(store.readRaw().map((r) => r.event.id), ["boundary", "recent"]);
+    assert.deepEqual(store.readRaw({ since: 0 }).map((r) => r.event.id), ["boundary", "recent"]);
+    assert.deepEqual(store.readRaw({ since: Date.parse("2026-10-01T20:30:01Z") }).map((r) => r.event.id), ["recent"]);
+    assert.equal(readdirSync(join(dir, "raw")).length, 1, "reading does not delete retained files");
+    rmSync(join(dir, "raw"), { recursive: true });
+    assert.deepEqual(store.readRaw(), []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

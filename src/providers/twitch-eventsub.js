@@ -1,6 +1,6 @@
 /**
  * EventSub notification -> attention event (one person did something) or channel
- * event (the channel changed), with pure normalization; no I/O.
+ * event (the channel changed). Pure; no I/O.
  *
  * Dropped at this boundary, always: chat and cheer message text, redemption
  * user_input, logins and display names, and any "top predictors" or "top
@@ -12,7 +12,7 @@ import { createAttentionEvent } from "../core/attention-event.js";
 import { createChannelEvent } from "../core/channel-event.js";
 import { hashParticipant } from "./twitch-irc.js";
 
-/** Subscriptions the timeline creates, with versions current on 2026-10-01 (DEV_DOCS_DIGEST.md section 2). */
+/** Subscriptions the timeline creates, with versions current on 2026-10-01. */
 export const TIMELINE_SUBSCRIPTIONS = Object.freeze([
   { type: "stream.online", version: "1" },
   { type: "stream.offline", version: "1" },

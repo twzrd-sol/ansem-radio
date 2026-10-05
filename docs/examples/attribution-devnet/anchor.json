@@ -1,0 +1,16 @@
+{
+  "network": "devnet",
+  "log_id": "radiolan.attribution.v1",
+  "ledger": "FgXbcPbrvUAMd2AeqftZZ4VijKoL4KdYENDLS15JkiGr",
+  "root_account": "YDEQEbvszcPqAYaEuqtaHYmkq4T2tst4E4HcQyaGfy4",
+  "signature": "3aWoPre3dMyu2L1AhReVtjLsBjdJmLWc9tbnVkPZEH5R73FsNmZWG9BofD713ENHyS9s8544MwZez5RYE7iHUnNU",
+  "published_slot": 506188474,
+  "trusted_signer": "9BFoDZpf41wR3wR9edJkFKM1HJPV8nxWH4TCH8ZNJHtJ",
+  "head": {
+    "log_id": "radiolan.attribution.v1",
+    "tree_size": 3,
+    "timestamp_unix": 1790838049,
+    "root": "8e3c3349b7c13ca4c59976a6a2883b9eed1d29f659afe9032c5a0faeb10d0ed4",
+    "signature": "3d068b66d8e3b3b2f3fa2cc03b7b8fe44b3e618f90314f0134c91e28afddc9bf16ee266df77f99942fc0440f591e06cadf57b75e0bfbd8adc1423b628f648c0d"
+  }
+}

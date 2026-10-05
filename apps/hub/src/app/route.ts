@@ -13,13 +13,13 @@ export interface Route {
 }
 
 const ROUTES: Record<RouteKey, Omit<Route, "key" | "arg">> = {
-  "": { title: "The Board", tab: "market", onchain: false },
+  "": { title: "Discover", tab: "market", onchain: false },
   s: { title: "Listing", tab: "market", onchain: false },
   lan: { title: "Radio LAN", tab: "lan", onchain: false },
   play: { title: "Play", tab: "play", onchain: false },
   board: { title: "Points board", tab: "play", onchain: false },
   back: { title: "Back the creator", tab: "market", onchain: true },
-  positions: { title: "My positions", tab: "positions", onchain: false },
+  positions: { title: "My positions", tab: "me", onchain: false },
   me: { title: "Profile", tab: "me", onchain: false },
   claim: { title: "Collect", tab: "me", onchain: false },
   how: { title: "How Radio LAN works", tab: "lan", onchain: false },

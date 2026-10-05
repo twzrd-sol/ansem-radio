@@ -6,14 +6,16 @@ import type { Station } from "../data/station";
 import type { HubSnapshot } from "../data/types";
 import { duration, fmt, units, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Fact, Icon, PageHead, SampleTag, Skeleton, Stat, Tag } from "../ui/atoms";
+import { AddToChannel } from "../ui/AddToChannel";
+import { YourPage } from "../ui/YourPage";
 import { Player } from "../ui/Player";
 import { FollowButton } from "../ui/FollowButton";
 import { HowLink } from "../ui/HowItWorks";
 import { SeasonCard, SeasonNotOpen } from "../ui/SeasonCard";
-import { TOKEN_DECIMALS } from "../chain/config";
+import { NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
 import { ago, ObservedLine } from "./Market";
 
-export function ChannelPanel({ l, station, sample }: { l: ListingData; station: Station; sample?: boolean }) {
+export function ChannelPanel({ l, station, sample, now = Date.now() }: { l: ListingData; station: Station; sample?: boolean; now?: number }) {
   const p = l.performance;
   return (
     <section className="panel" aria-labelledby="h-channel">
@@ -67,14 +69,14 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
         <>
           <p className="small">
             {l.kind === "featured"
-              ? "The official arena has not been created on devnet yet. It appears here the moment the official streamer key creates it."
+              ? `The official arena has not been created on ${NETWORK_LABEL} yet. It appears here the moment the official streamer key creates it.`
               : "Not listed for backing yet. A creator is backable only after they create their own arena with their own key; nothing here is created on anyone's behalf."}
           </p>
           {l.kind === "featured" && l.keys && (
             <div className="actions">
               <a className="btn" href={`#/back/${l.slug}`}>
                 <Icon name="wallet" />
-                Streamer: create the devnet arena
+                Streamer: create the arena
               </a>
             </div>
           )}
@@ -164,7 +166,7 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
     <>
       <PageHead
         before={crumb}
-        eyebrow={featured ? "Featured · founded by THE WZRD OF ZO" : listing.demo ? "Demo listing · fictional" : "Listed creator"}
+        eyebrow={featured ? "Featured" : listing.demo ? "Demo listing · fictional" : "Listed creator"}
         title={listing.name}
         lede={
           <>
@@ -173,12 +175,19 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
           </>
         }
       />
-      {featured && <Player channel={listing.twitch ?? "radiolanlive"} station={station} />}
+      {listing.twitch && <Player channel={listing.twitch} station={station} />}
       <div className="actions"><FollowButton slug={listing.slug} name={listing.name} /><HowLink /></div>
+      {listing.twitch && !listing.demo && !featured && (
+        <p className="small fine" data-testid="listing-joined">
+          {listing.claimed
+            ? "Streamer joined: they signed in with Twitch and made this page theirs."
+            : "The streamer hasn't joined yet. The community opened this page for them. Backing stays in your own support account and never goes to them. Twitch figures are shown for reference only."}
+        </p>
+      )}
       <ObservedLine data={observed} sample={observed.sample} now={now} onRefresh={onRetry} />
       <div className={listing.twitch ? "two" : "two two--one"}>
         <BackingPanel l={listing} now={now} sample={observed.sample} />
-        {listing.twitch && <ChannelPanel l={listing} station={station} sample={observed.sample} />}
+        {listing.twitch && <ChannelPanel l={listing} station={station} sample={observed.sample} now={now} />}
       </div>
       {featured && (
         <section className="section" aria-labelledby="h-free-season">
@@ -192,8 +201,10 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
           <p className="small fine">Points come from activities on this site and never from backing or Twitch. {season && <a href="#/board">See the points board</a>}{season && " · "}<a href="#/play">Play</a></p>
         </section>
       )}
+      {listing.claimed && !listing.demo && <YourPage listing={listing} />}
+      {listing.twitch && !listing.demo && <AddToChannel slug={listing.slug} name={listing.name} />}
       <p className="small fine">
-        {featured && listing.twitch && (
+        {listing.twitch && (
           <a className="ext" href={`https://www.twitch.tv/${listing.twitch}`} target="_blank" rel="noopener noreferrer">
             Watch on Twitch
           </a>

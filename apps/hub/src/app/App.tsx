@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { OFFICIAL_STREAMER } from "../chain/config";
+import { IS_MAINNET, NETWORK, OFFICIAL_STREAMER } from "../chain/config";
+import { BRAND } from "../brand";
 import { seasonIndex, withdrawAvailableAt } from "../chain/season";
 import { explainApiError, type ActivityInput } from "../data/api";
 import { HubProvider, type HubLoad } from "../data/hub";
@@ -33,12 +34,11 @@ import { useRoute, type Tab } from "./route";
 // The live backing flow (Solana Kit, Wallet Standard, Mobile Wallet Adapter) loads only on a backing screen.
 const LiveBack = lazy(() => import("../screens/LiveBack").then((m) => ({ default: m.LiveBack })));
 
-const TABS: Array<[Tab, string, string, IconName]> = [
-  ["market", "#/", "Board", "board"],
-  ["lan", "#/lan", "Radio LAN", "stream"],
+/** The three places a visitor starts from. Profile, positions and collection stay one tap away from the header. */
+export const PRIMARY_NAV: Array<[Tab, string, string, IconName]> = [
+  ["market", "#/", "Discover", "search"],
   ["play", "#/play", "Play", "play"],
-  ["positions", "#/positions", "Positions", "heart"],
-  ["me", "#/me", "Me", "me"],
+  ["lan", "#/lan", "About", "info"],
 ];
 
 function useNow(intervalMs: number) {
@@ -50,13 +50,30 @@ function useNow(intervalMs: number) {
   return now;
 }
 
-/** Plan section 8: a red DEVNET ribbon on every on-chain screen while the hub runs on devnet. */
-export const Ribbon = () => (
-  <div className="ribbon" role="note">
-    <span className="ribbon__word">DEVNET</span>
-    <span className="ribbon__note">Test tokens with no real value. This flow uses Solana devnet.</span>
+/** Shown on every screen of the sample season, so nothing in it can be mistaken for live activity. */
+export const SampleBanner = () => (
+  <div className="network-note network-note--sample" role="note">
+    <span className="network-note__chip">Sample season</span>
+    <span>
+      Names, points and activity here are made up to show how a season works. Nothing is real.{" "}
+      <a href="./#/">Back to the live hub</a>
+    </span>
   </div>
 );
+
+/** Plan section 8: the network stays visible on every on-chain screen, as a calm note rather than a warning banner. */
+export const Ribbon = () =>
+  IS_MAINNET ? (
+    <div className="network-note" role="note">
+      <span className="network-note__chip">Solana mainnet</span>
+      <span>Real $RLAN. Backing is optional; it sits in your own support account and comes back on request after the season ends.</span>
+    </div>
+  ) : (
+    <div className="network-note" role="note">
+      <span className="network-note__chip">Solana devnet</span>
+      <span>Test tokens only. No real value. Check the network and mint before signing.</span>
+    </div>
+  );
 
 /** The snapshot the screens render: fixtures only in ?preview=sample, the real state everywhere else. */
 export function snapshotFor(preview: PreviewState, now: number): HubSnapshot {
@@ -68,7 +85,7 @@ export function snapshotFor(preview: PreviewState, now: number): HubSnapshot {
 /** The board the screens render: fixtures only in ?preview=sample; the station's market everywhere else. */
 export function marketFor(preview: PreviewState, now: number, live: MarketData | null): MarketData | null {
   if (!preview.enabled) return live;
-  return preview.scenario === "sample" ? sampleMarket(now) : { network: "devnet", observedAt: null, slot: null, stale: false, generatedAt: Math.floor(now / 1000), listings: [] };
+  return preview.scenario === "sample" ? sampleMarket(now) : { network: NETWORK, observedAt: null, slot: null, stale: false, generatedAt: Math.floor(now / 1000), listings: [] };
 }
 
 /** The start of the featured arena's next on-chain season (ms), or null while its schedule is unknown. */
@@ -86,6 +103,13 @@ export function backingTarget(listing: ListingData | null, fallbackMint: string 
   if (listing?.keys) return listing.keys;
   if (listing?.kind === "featured" && fallbackMint) return { streamer: OFFICIAL_STREAMER, mint: fallbackMint };
   return null;
+}
+
+/** Whether the "Create the arena" step is offered: the featured listing, or a listing whose pair the station derived from its streamer's own wallet. The step itself still refuses any other connected wallet. */
+export function canSetUp(listing: ListingData | null, slug: string | null): boolean {
+  if (listing?.kind === "featured") return true;
+  if (!listing) return slug === "radiolanlive";
+  return listing.claimDerived === true && Boolean(listing.keys);
 }
 
 export interface AppViewProps {
@@ -247,7 +271,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
       const target = backingTarget(listing, fallbackMint);
       const live = preview.enabled ? undefined : (
         <Suspense fallback={<Skeleton kinds={["title", "block", "block"]} />}>
-          <LiveBack target={target} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} allowSetup={listing?.kind === "featured" || (!listing && slug === "radiolanlive")} ready={market.load !== "loading"} boardError={market.load === "error"} onRetry={retry} />
+          <LiveBack target={target} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} allowSetup={canSetUp(listing, slug)} ready={market.load !== "loading"} boardError={market.load === "error"} onRetry={retry} />
         </Suspense>
       );
       screen = <Back snapshot={shown} load={state} preview={preview} now={now} onRetry={retry} live={live} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} />;
@@ -277,41 +301,39 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
             <LanMark className="brand__mark" />
             <span className="brand__text">
               <span className="brand__name">Radio LAN</span>
-              <span className="brand__by">by THE WZRD OF ZO</span>
+              <span className="brand__by">{BRAND.host}</span>
             </span>
           </a>
           <nav className="top__nav" aria-label="Hub">
-            {TABS.map(([tab, href, label]) => (
+            {PRIMARY_NAV.map(([tab, href, label]) => (
               <a key={tab} href={href} aria-current={route.tab === tab ? "page" : undefined}>
                 {label}
               </a>
             ))}
           </nav>
           <span className="top__spacer" />
-          {!preview.enabled && <div className="header-wallet">{wallet ? <><a href="#/positions" title={wallet}><Icon name="wallet" size="sm" /><span>{short(wallet)}</span></a>{session.wallet && <button className="link-btn" type="button" onClick={() => session.setWallet(null)}>Disconnect</button>}</> : <a href="#/positions"><Icon name="wallet" size="sm" /><span>Wallet</span></a>}</div>}
+          {!preview.enabled && <div className="header-wallet">{wallet ? <><a href="#/me" title={wallet}><Icon name="wallet" size="sm" /><span>{short(wallet)}</span></a>{session.wallet && <button className="link-btn" type="button" onClick={() => session.setWallet(null)}>Disconnect</button>}</> : <a href="#/me"><Icon name="me" size="sm" /><span>Profile</span></a>}</div>}
           {preview.enabled && (
             <button className="preview-chip" type="button" aria-expanded={panelOpen} aria-controls="preview" onClick={() => setPanelOpen(!panelOpen)}>
               Preview
             </button>
           )}
         </header>
+        {preview.enabled && preview.scenario === "sample" && <SampleBanner />}
         {route.onchain && <Ribbon />}
         <main id="view" ref={view} className="view" tabIndex={-1}>
           <LanCompanion market={board} snapshot={shown} now={now} ready={boardLoad === "ready"} station={station} />
           {screen}
         </main>
         <footer className="foot">
-          <span>Radio LAN by THE WZRD OF ZO</span>
+          <span>{BRAND.host}</span>
           <span>Free to play</span>
-          <a href="https://www.twitch.tv/radiolanlive" target="_blank" rel="noopener noreferrer">
-            Watch on Twitch
-          </a>
-          <a href="/stream">Macro view</a>
+          {preview.enabled && preview.scenario === "sample" ? <a href="./#/">Live hub</a> : <a href="?preview=sample#/play">Sample season</a>}
           <HowLink />
           <a href={PUBLIC_SOURCE} target="_blank" rel="noopener noreferrer">MIT source</a>
         </footer>
         <nav className="tabs" aria-label="Hub">
-          {TABS.map(([tab, href, label, icon]) => (
+          {PRIMARY_NAV.map(([tab, href, label, icon]) => (
             <a key={tab} className="tab" href={href} aria-current={route.tab === tab ? "page" : undefined}>
               <Icon name={icon} />
               {label}

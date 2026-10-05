@@ -1,10 +1,11 @@
 // The Board: every listed creator, with backing (on chain, the only owned metric) and Twitch figures (display only)
-// side by side and never merged. Radio LAN, founded by THE WZRD OF ZO, is the featured listing on top.
+// side by side and never merged. The station's own channel is one listing among them.
 import { useState } from "react";
 
-import { TOKEN_DECIMALS } from "../chain/config";
+import { NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
 import { followingListings, sortListings, type Listing, type Market as MarketData } from "../data/market";
 import { useFollowing } from "../data/following";
+import { categoryLanes, collection } from "../data/lanes";
 import type { Station } from "../data/station";
 import { fmt, units, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, LanMark, SampleTag, Skeleton, StationPill, Tag } from "../ui/atoms";
@@ -112,15 +113,16 @@ function Row({ l, rank, sample }: { l: Listing; rank: number | null; sample?: bo
 export function Market({ market, load, onRetry, station, now }: { market: MarketData | null; load: "loading" | "error" | "ready"; onRetry: () => void; station: Station; now: number }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [lane, setLane] = useState<string | null>(null);
   const { slugs: followed } = useFollowing();
 
   const head = (
     <section className="hero hero--tight">
-      <p className="eyebrow">The Board · Solana devnet</p>
+      <p className="eyebrow">The Board · {NETWORK_LABEL}</p>
       <h1 className="h1" tabIndex={-1}>
-        Back the creators you watch
+        Find the streamers you watch
       </h1>
-      <p className="lede">Keep up with your creators. Back them with RLAN when you choose.</p>
+      <p className="lede">Today's biggest channels, by category. Follow the ones you like, and back a creator with RLAN when you choose.</p>
     </section>
   );
   if (load === "loading") return <>{head}<Skeleton kinds={["block", "line", "line", "line"]} /></>;
@@ -128,12 +130,13 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
 
   const featured = market.listings.find((l) => l.kind === "featured") ?? null;
   const q = query.trim().toLowerCase();
-  const narrowed = filter !== "all" || q !== "";
+  const narrowed = filter !== "all" || q !== "" || lane !== null;
   const showFeatured = !narrowed;
   const following = followingListings(market.listings, followed);
   const visible = (filter === "following" ? following : sortListings(market.listings)).filter((l) => {
     if (l.kind === "featured" && showFeatured) return false; // shown once
     if (filter === "live" && !l.performance?.live) return false;
+    if (lane !== null && l.performance?.game !== lane) return false;
     return !q || l.name.toLowerCase().includes(q) || l.slug.includes(q) || (l.twitch ?? "").includes(q);
   });
   const open = visible.filter((l) => l.backingOpen);
@@ -154,7 +157,7 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
               <Tag kind="soon">Featured</Tag>
               <StationPill station={station} />
             </span>
-            <span className="small">Founded by THE WZRD OF ZO. {featured.blurb ?? ""}</span>
+            <span className="small">{featured.blurb ?? ""}</span>
             <span className="feature__meta">{featured.arena ? <BackingCell l={featured} /> : <span className="mkt__none">Arena not created yet</span>}</span>
           </span>
           <Icon name="next" />
@@ -162,6 +165,7 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
         <FollowButton slug={featured.slug} name={featured.name} />
         </div>
       )}
+      <Collect listings={market.listings} followed={followed} />
       <div className="mkt__controls">
         <div className="seg" role="group" aria-label="Show">
           {([["all", "All"], ["live", "Live now"], ["following", `Following (${following.length})`]] as const).map(([key, label]) => (
@@ -176,6 +180,7 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
           <input type="search" value={query} placeholder="Search creators" onChange={(e) => setQuery(e.target.value)} />
         </label>
       </div>
+      <Lanes listings={market.listings} lane={lane} onLane={setLane} />
       {filter === "following" ? (
         visible.length === 0 ? <EmptyBlock icon="star" title="Your watchlist" text="Follow creators to keep them here. Following is saved in this browser and adds no points." /> :
         <ul className="mkt" aria-label="Following">{visible.map((l) => <Row key={l.slug} l={l} rank={null} sample={market.sample} />)}</ul>
@@ -210,5 +215,51 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
       </>}
       <p className="small fine">Following lives in this browser. Backing adds no points. <HowLink /></p>
     </>
+  );
+}
+
+function Lanes({ listings, lane, onLane }: { listings: Listing[]; lane: string | null; onLane: (game: string | null) => void }) {
+  const lanes = categoryLanes(listings);
+  if (lanes.length < 2) return null;
+  return (
+    <div className="lanes" role="group" aria-label="Category">
+      <button type="button" aria-pressed={lane === null} onClick={() => onLane(null)}>
+        All categories
+      </button>
+      {lanes.map((l) => (
+        <button key={l.game} type="button" aria-pressed={lane === l.game} onClick={() => onLane(lane === l.game ? null : l.game)}>
+          {l.game} <span className="num">{l.channels}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Collect({ listings, followed }: { listings: Listing[]; followed: readonly string[] }) {
+  const c = collection(listings, followed);
+  if (c.total < 6) return null;
+  return (
+    <section className="collect" aria-labelledby="h-collect">
+      <div className="collect__head">
+        <h2 className="label" id="h-collect">
+          Collect today's channels
+        </h2>
+        <span className="small">
+          <span className="num">{c.followed}</span> of <span className="num">{c.total}</span> followed
+        </span>
+      </div>
+      <div className="collect__bar" role="progressbar" aria-valuemin={0} aria-valuemax={c.total} aria-valuenow={c.followed} aria-label="Channels followed">
+        <span style={{ width: `${Math.round((c.followed / c.total) * 100)}%` }} />
+      </div>
+      <ul className="collect__badges">
+        {c.badges.map((b) => (
+          <li key={b.key} className={b.earned ? "badge badge--on" : "badge"}>
+            <strong>{b.label}</strong>
+            <span className="small">{b.earned ? "Collected" : b.text}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="small fine">{c.next ?? "Every badge collected."} Badges are just for fun and add no points.</p>
+    </section>
   );
 }

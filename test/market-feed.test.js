@@ -12,7 +12,7 @@ test("public board keeps the Twitch row fields, drops titles and error detail, a
   const pub = toPublicBoard(board());
   assert.equal(pub.kind, "twitch_live");
   assert.equal(pub.rows.length, 2);
-  assert.deepEqual(Object.keys(pub.rows[0]), ["kind", "login", "display_name", "is_live", "viewer_count", "game_id", "game_name", "started_at", "minutes_live", "rank", "gap_to_leader", "delta_viewers"]);
+  assert.deepEqual(Object.keys(pub.rows[0]), ["kind", "login", "display_name", "is_live", "viewer_count", "game_id", "game_name", "started_at", "minutes_live", "fetched_at", "rank", "gap_to_leader", "delta_viewers"]);
   assert.equal(pub.rows[0].viewer_count, 41250);
   assert.deepEqual(pub.errors, ["ninja"]);
   assert.equal(JSON.stringify(pub).includes("http"), false);
@@ -62,7 +62,7 @@ test("public board carries twitch rows with their own field set, and the feed ha
   const raw = buildTwitchBoard([normalizeTwitchStream({ user_login: "xqc", user_name: "xQc", type: "live", viewer_count: 30000, game_name: "Slots", title: "come to https://example.com now", started_at: "2026-09-30T02:00:00Z" }, "xqc", at)], { now: () => Date.parse(at) });
   const pub = toPublicBoard({ ...raw, errors: [{ error: "status_401" }] });
   assert.equal(pub.kind, "twitch_live");
-  assert.deepEqual(Object.keys(pub.rows[0]), ["kind", "login", "display_name", "is_live", "viewer_count", "game_id", "game_name", "started_at", "minutes_live", "rank", "gap_to_leader", "delta_viewers"]);
+  assert.deepEqual(Object.keys(pub.rows[0]), ["kind", "login", "display_name", "is_live", "viewer_count", "game_id", "game_name", "started_at", "minutes_live", "fetched_at", "rank", "gap_to_leader", "delta_viewers"]);
   assert.equal(JSON.stringify(pub).includes("http"), false, "third-party titles never reach the payload");
   assert.deepEqual(pub.errors, ["status_401"]);
   assert.equal(pub.live_count, 1);
