@@ -59,7 +59,13 @@ export function createObservationFeed({
     : new Date(now()).toISOString();
 
   const emit = (type, data) => {
-    for (const listener of listeners) listener(type, data);
+    for (const listener of listeners) {
+      try {
+        listener(type, data);
+      } catch {
+        // One consumer that throws must not stop the others or the feed (as in ledger-feed.js).
+      }
+    }
   };
 
   const lanSnapshot = () => {
