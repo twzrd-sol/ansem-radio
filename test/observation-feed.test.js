@@ -113,3 +113,13 @@ test("health removes socket internals", () => {
   });
   assert.equal(JSON.stringify(health).includes("secret"), false);
 });
+
+test("a listener that throws does not stop the next listener or the feed", () => {
+  const feed = createObservationFeed({ maxObservations: 5 });
+  const seen = [];
+  feed.subscribe(() => { throw new Error("bad consumer"); });
+  feed.subscribe((type, data) => seen.push(data.id));
+  assert.doesNotThrow(() => feed.observe(observation("one")));
+  assert.ok(seen.includes("twitch:one"));
+  assert.equal(feed.snapshot().observations[0].id, "twitch:one");
+});
