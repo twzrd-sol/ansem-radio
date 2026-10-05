@@ -287,7 +287,7 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(board).toMatch(/Backing open · 2 1 Crate Breed Demo .*2 Dusty Rhymes Demo/);
     expect(board).toMatch(/On Twitch, not listed yet · 2 channels, 1 live/);
     expect(boardHtml).toMatch(/<details class="mkt__more">/);
-    expect(board).toMatch(/ninja .*Backing Not listed for backing Twitch Live · 18,240 Fortnite Data: Twitch/);
+    expect(board).toMatch(/ninja .*Backing Not open yet Twitch Live · 18,240 Fortnite Data: Twitch/);
     expect(board).not.toMatch(/Crate Breed Demo [^]*?Twitch No Twitch/);
     expect(boardHtml).not.toContain('class="mkt__rank num" aria-label="Backing rank 3"');
     expect(board).toMatch(/Read from Solana devnet 1 min ago\./);
@@ -417,7 +417,8 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(page).toContain("Back Crate Breed");
     const tracked = sampleListingDetail(NOW, "ninja")!;
     const other = text(<Listing listing={tracked.listing} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
-    expect(other).toMatch(/Not listed for backing yet\. A creator is backable only after they create their own arena with their own key/);
+    expect(other).toMatch(/Backing for ninja is not open yet\. Radio LAN opens arenas itself, listing by listing/);
+    expect(other).not.toMatch(/their own arena|on anyone's behalf/);
     expect(other).toMatch(/Viewers 18,240 \+120 since last read Playing Fortnite/);
     expect(other).toMatch(/Data: Twitch\. Recorded by radiolanlive at \S+\./);
     const lan = sampleListingDetail(NOW, "radiolanlive")!;

@@ -1,5 +1,17 @@
 # Public changelog
 
+## 2026-10-05 — Hub refresh and documentation corrections
+
+- Brought the hub, claims, season rollover, badges and tape up to date with the working tree; the hub now says Radio LAN
+  with no host credit and lists tracked creators as the board.
+- The station pulse reads `/hub/macro/state`. That route is not served by this repository's station or by the hosted edge
+  yet, so the live/offline pill shows unknown until a route is added.
+- Removed the unused slate route and the week-of-peaks chart; category lanes and follow badges remain (`data/lanes.ts`).
+- Documentation now matches the hosted state: the hub is at `radiolan.live/hub` and not in a public launch, no arena is
+  open on Solana mainnet, backing is unavailable, season points run on devnet, the x402 seller is disabled, and the hub
+  shows a few public Twitch figures labelled "Data: Twitch". Removed the forward-looking line about the coin.
+- The program source and its build record are unchanged.
+
 ## 2026-10-03 — MIT fan hub source
 
 - Added the React hub, local passkey account API, optional identity proofs,

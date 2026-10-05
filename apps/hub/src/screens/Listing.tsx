@@ -69,8 +69,8 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
         <>
           <p className="small">
             {l.kind === "featured"
-              ? `The official arena has not been created on ${NETWORK_LABEL} yet. It appears here the moment the official streamer key creates it.`
-              : "Not listed for backing yet. A creator is backable only after they create their own arena with their own key; nothing here is created on anyone's behalf."}
+              ? `Backing for ${l.name} is not open yet. Radio LAN is setting up this arena on ${NETWORK_LABEL}; it appears here as soon as it is open.`
+              : `Backing for ${l.name} is not open yet. Radio LAN opens arenas itself, listing by listing; this one is not open yet.`}
           </p>
           {l.kind === "featured" && l.keys && (
             <div className="actions">

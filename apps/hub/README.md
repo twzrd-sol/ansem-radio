@@ -32,6 +32,7 @@ the review controls. Without `preview`, the hub shows the real state and the liv
 | Build variable | Default | Meaning |
 |---|---|---|
 | `VITE_HUB_RPC_URL` | `/hub/rpc` | The RPC relay (plan section 5). An absolute URL is added to the CSP's `connect-src`. |
+| `VITE_HUB_NETWORK` | `devnet` | `mainnet` builds for Solana mainnet; anything else builds for devnet. The wallet flow refuses a cluster that does not match, by genesis hash. |
 | `VITE_DEVNET_TEST_MINT` | unset | A dev fallback only: the featured listing's devnet test mint when the station's registry does not serve one. The registry (`RADIOLAN_HUB_REGISTRY` or `RADIOLAN_HUB_TEST_MINT` on the station) is the source of truth for every listing's pair. |
 | `VITE_HUB_STATION` | unset | Dev and preview only: the station's loopback URL. `/hub/api` and `/hub/rpc` are proxied to it so the page stays same-origin, which the session cookie and the passkey origin need. Use `http://localhost:<port>` in the browser, never `127.0.0.1`: an IP literal cannot be a passkey RP id. |
 
@@ -52,11 +53,11 @@ the network, the mint, the observation time and slot, and a stale flag, and the 
 | Listing | `#/s/<slug>` | Two panels: Backing (on chain: backed, backers, leaving, season, release rule, a sparkline of the last days) and Channel (Twitch, labelled with its provenance line). The featured listing also carries the stream and the free season card, labelled separate |
 | My positions | `#/positions` | Every arena a pasted or connected wallet backs, with the arena's release rule and a total; a read, never a signature. The pasted public address is kept in this tab's sessionStorage for the tab's life, nothing else |
 | Radio LAN | `#/lan` | The station, its founder, how a free season works |
-| Back the creator | `#/back/<slug>` | The live backing flow for that listing's arena; "Create the devnet arena" appears only on the featured listing, for the official streamer key |
+| Back the creator | `#/back/<slug>` | The backing flow for a listing's arena. It works only when that listing has an open arena. No arena is open on mainnet yet, so every listing shows "not open" |
 
-A listing is backable only after a creator creates their own arena with their own key: nothing is created on anyone's
-behalf, and demo listings are fictional creators on devnet, marked DEMO wherever they show. Twitch figures are never a
-points value, a backing weight or an on-chain parameter. Vocabulary (decision S-4): backing, position, season, points,
+A listing is backable only when it has an open arena. None is open on mainnet yet. Sample listings (`?preview=sample`)
+are fictional and marked SAMPLE wherever they show. Twitch figures are never a points value, a backing weight or an
+on-chain parameter. Vocabulary (decision S-4): backing, position, season, points,
 perks; never price, trade, sell or stock, checked by the specs over every rendered screen.
 
 ## What is in P0 so far
@@ -66,11 +67,12 @@ perks; never price, trade, sell or stock, checked by the specs over every render
   amount appears only once a season's perks are funded and checked on chain.
 - **Twitch:** the official player loads only after a tap and only at 400 px or wider, in a box at least 300 px tall,
   with `parent` set to the exact serving hostname. Narrower screens get "Watch on Twitch". The station's live or
-  offline flag (`/macro/state`) is labelled Data: Twitch and is for display only.
+  offline pill reads `/hub/macro/state`, is labelled Data: Twitch and is for display only. No route serves that path yet, so the
+  pill shows unknown.
 - **Arena builders** (`src/chain/arena.ts`) produce byte-identical instructions to `src/sinks/arena.js`, including
   account order, signer and writable flags, PDAs and bumps, season bounds, and decoders. `arena.spec.ts` compares them.
 - **The backing flow** (`src/chain/flow.ts`): connect, build, simulate, review, sign, send, confirm, one step per tap.
-  - It refuses any cluster but devnet, checked by genesis hash.
+  - It refuses any cluster but the build's own, checked by genesis hash.
   - A failed simulation shows the program's reason and the wallet never opens.
   - If the wallet does not sign, the flow goes back to review.
   - An expired blockhash asks for a fresh review.
@@ -106,38 +108,29 @@ the station publishes one, no past seasons.
 - **Dry run:** a station with the hub API on loopback, this app built with `VITE_HUB_STATION`, and Chromium's virtual
   authenticator walked join → question (+10) → clip (pending) → reload → sign out → sign in → stream card → board.
 
-## Official arena (F-7) and test arenas
+## The official arena
 
-The hub shows one arena: the PDA `["arena", official streamer, mint]`.
+The hub's featured listing pins one arena: the PDA `["arena", official streamer, mint]`.
 
 | | Address |
 |---|---|
-| Official streamer (the operator's Brave wallet) | `A2fN4LCB5se9nDtttqQj6fx5yg3TpZLuphiZVJ4JZLyb` |
+| Official streamer wallet | `A2fN4LCB5se9nDtttqQj6fx5yg3TpZLuphiZVJ4JZLyb` |
 | RLAN mint (mainnet) | `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` |
 | Official mainnet arena (not created yet) | `pwSFGjmwEXBsP7WJfyhV2uYXSwTo2rr1aocqnuU9zGK`, bump 255 |
 
 `config.spec.ts` derives that address and bump from the pinned streamer and mint. It also checks that the app source
-never names any of these:
+never names the program's upgrade-authority key, which is kept out of the streamer role on purpose: it can replace the
+program, while a streamer key cannot move fan tokens. It also checks that no internal test wallet is named.
 
-- the program's upgrade-authority key, kept out of the streamer role on purpose: it can replace the program, while the
-  streamer key cannot move fan tokens;
-- the live internal test arena (F-8, #56) or its streamer;
-- the superseded #55 test arena;
-- the ops test wallet.
-
-P0 backs on devnet. No arena from the official streamer exists on devnet yet, so the backing screen shows "No devnet
-arena yet" until one is created and `VITE_DEVNET_TEST_MINT` is set. **This is an operator decision:** create a devnet
-arena from the official streamer with a test mint, or allow a test-only exception. The pin forbids an exception today.
-
-The read path was checked once against public devnet, before the pin: the live screen read the founder's rehearsal
-arena with one `getAccountInfo` call and showed its exact next release time.
+On mainnet no arena exists yet, so backing shows as not open. On devnet the hub backs only with a test mint, set at build
+time (`VITE_DEVNET_TEST_MINT`) or served by the station's registry.
 
 ## Security
 
 - **CSP** (production build only, since the dev server injects inline scripts): `default-src 'none'`, scripts and
   styles from `self`, fonts from `self`, and `connect-src` limited to `self`, the relay and `ws://localhost:*` (Mobile
   Wallet Adapter's local socket). Frames are allowed only from `https://player.twitch.tv`.
-- **Network:** devnet only, by genesis hash, and the cluster, program, mint and arena are pinned by address.
+- **Network:** the build's own cluster (`VITE_HUB_NETWORK`: devnet by default, `mainnet` for the hosted build), checked by genesis hash; the cluster, program, mint and arena are pinned by address.
 - **No keys:** no key, seed or `.env` is in the package. The pending-signature store holds a public signature only.
 - **Not covered:** v0 transactions are signed by wallets that support `solana:signTransaction`. Wallets that only
   offer sign-and-send are filtered out.

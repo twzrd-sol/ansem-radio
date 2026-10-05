@@ -53,7 +53,7 @@ export function LiveBack({ target, slug, name, allowSetup, ready = true, boardEr
     return (
       <>
         <BackHeader schedule={null} slug={slug} name={name} />
-        <EmptyBlock icon="lock" title="No arena configured" text={`No arena is configured for ${name} yet. A creator becomes backable only after they create their own arena with their own key; nothing is created on anyone's behalf.`} />
+        <EmptyBlock icon="lock" title="Backing is not open yet" text={`Radio LAN has not opened an arena for ${name} yet. It appears here when it is open.`} />
       </>
     );
   }
@@ -392,7 +392,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
               <Stepper labels={labels} at={Math.max(0, at)} />
               {body}
             </section>
-            <p className="small">No arena exists yet for {name}. Fans see this until the streamer key creates it; no other arena is shown here.</p>
+            <p className="small">No arena is open for {name} yet. Radio LAN opens arenas itself; nothing else is shown here until it does.</p>
           </div>
           <aside className="back__side">
             <ChainFacts schedule={null} mint={target.mint} />

@@ -51,7 +51,7 @@ export function ObservedLine({ data, sample, now, onRefresh }: { data: { network
 }
 
 function BackingCell({ l }: { l: Listing }) {
-  if (!l.arena) return <span className="mkt__none">{l.kind === "featured" ? "Arena not created yet" : "Not listed for backing"}</span>;
+  if (!l.arena) return <span className="mkt__none">{l.kind === "featured" ? "Arena not open yet" : "Not open yet"}</span>;
   const f = flow(l.arena.netFlow);
   return (
     <>
@@ -158,7 +158,7 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
               <StationPill station={station} />
             </span>
             <span className="small">{featured.blurb ?? ""}</span>
-            <span className="feature__meta">{featured.arena ? <BackingCell l={featured} /> : <span className="mkt__none">Arena not created yet</span>}</span>
+            <span className="feature__meta">{featured.arena ? <BackingCell l={featured} /> : <span className="mkt__none">Arena not open yet</span>}</span>
           </span>
           <Icon name="next" />
         </a>
