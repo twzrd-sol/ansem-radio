@@ -74,7 +74,7 @@ export function deriveClaimPair({ claim, identityOf, defaultMint }) {
 }
 
 /** `registry`: the listings; `twitchOf(accountId)`: the account's verified Twitch link or null. */
-export function createClaimRoutes({ registry, claims, twitchOf, requireOrigin, requireSession, authLimit, now, defaultMint = null }) {
+export function createClaimRoutes({ registry, claims, twitchOf, resolveTwitchUser, requireOrigin, requireSession, authLimit, now, defaultMint = null }) {
   const writeSession = (request, key) => {
     requireOrigin(request);
     const session = requireSession(request, { csrf: true });
@@ -98,7 +98,11 @@ export function createClaimRoutes({ registry, claims, twitchOf, requireOrigin, r
       if (!entry.twitch) throw new HttpError(409, "listing_has_no_channel");
       const link = twitchOf(session.accountId)?.twitch ?? null;
       if (!link) throw new HttpError(409, "twitch_link_required");
-      if (link.displayName.toLowerCase() !== entry.twitch.toLowerCase()) throw new HttpError(403, "not_your_channel");
+      if (typeof link.subject !== "string" || !/^[0-9]{1,32}$/.test(link.subject) || typeof resolveTwitchUser !== "function") throw new HttpError(503, "twitch_account_unavailable");
+      let twitchUser;
+      try { twitchUser = await resolveTwitchUser(link.subject); } catch { throw new HttpError(503, "twitch_account_unavailable"); }
+      if (!twitchUser || twitchUser.id !== link.subject || typeof twitchUser.login !== "string" || !/^[a-z0-9_]{1,25}$/i.test(twitchUser.login)) throw new HttpError(503, "twitch_account_unavailable");
+      if (twitchUser.login.toLowerCase() !== entry.twitch.toLowerCase()) throw new HttpError(403, "not_your_channel");
       const have = claims.get(slug);
       if (have && have.subject !== link.subject) throw new HttpError(409, "already_claimed");
       if (!have) claims.set(slug, { subject: link.subject, accountId: session.accountId, login: entry.twitch, claimedAt: now() });

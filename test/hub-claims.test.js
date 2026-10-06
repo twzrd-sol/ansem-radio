@@ -27,7 +27,7 @@ const LISTINGS = registry([
   { slug: "nochan", name: "No channel", kind: "demo", twitch: null, streamer: null, mint: null },
 ]);
 
-async function harness(t) {
+async function harness(t, { resolveTwitchUser = async (id) => ({ id, login: ({ "1001": "alpha_live", "2002": "someone_else", "3003": "alpha_live" })[id] }) } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "hub-claims-"));
   const store = createHubStore({ dir });
   const sessions = ["a", "b", "c"].map((letter) => {
@@ -35,7 +35,7 @@ async function harness(t) {
     store.createAccount({ id: accountId, credentials: [], joined: {}, createdAt: NOW });
     return store.createSession({ id: randomBytes(32).toString("base64url"), accountId, csrf: randomBytes(32).toString("base64url"), expiresAt: NOW + 1000 });
   });
-  const api = createHubApi({ origins: ORIGIN, store, now: () => NOW, registry: LISTINGS, identity: { twitch: { clientId: "public-client", redirectUri: `${ORIGIN}/hub/twitch` }, fetchImpl: keysFetch }, limits: { read: 200, write: 200, auth: 200 } });
+  const api = createHubApi({ origins: ORIGIN, store, now: () => NOW, registry: LISTINGS, resolveTwitchUser, identity: { twitch: { clientId: "public-client", redirectUri: `${ORIGIN}/hub/twitch` }, fetchImpl: keysFetch }, limits: { read: 200, write: 200, auth: 200 } });
   const server = createServer(api);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => { await new Promise((resolve) => server.close(resolve)); rmSync(dir, { recursive: true, force: true }); });
@@ -57,7 +57,7 @@ describe("streamer claims", () => {
   it("lets the verified owner of a channel claim its listing, and exposes only the mark", async (t) => {
     const h = await harness(t);
     assert.equal((await h.call("/claims", { body: { slug: "alpha" } })).status, 409, "needs a Twitch link first");
-    assert.equal((await h.link(h.sessions[0], "1001", "Alpha_Live")).status, 200);
+    assert.equal((await h.link(h.sessions[0], "1001", "Streamer Display Name")).status, 200);
     const claimed = await h.call("/claims", { body: { slug: "alpha" } });
     assert.deepEqual(claimed.json, { slug: "alpha", claimed: true, claimedAt: NOW });
     assert.equal((await h.call("/claims", { body: { slug: "alpha" } })).status, 200, "idempotent for the same Twitch user");
@@ -67,6 +67,14 @@ describe("streamer claims", () => {
     assert.ok(!listed.json.claimed[0].subject && JSON.stringify(listed.json).indexOf("1001") === -1, "no Twitch id in the public read");
     assert.ok(disk.includes("1001") && !disk.includes("idToken"));
     assert.equal(createClaimStore({ dir: h.dir }).has("alpha"), true, "survives restart");
+  });
+  it("fails closed when Helix cannot confirm the OIDC subject and login", async (t) => {
+    const h = await harness(t, { resolveTwitchUser: async () => ({ id: "9999", login: "alpha_live" }) });
+    await h.link(h.sessions[0], "1001", "alpha_live");
+    const mismatch = await h.call("/claims", { body: { slug: "alpha" } });
+    assert.equal(mismatch.status, 503, "a response for a different Twitch id is not authoritative");
+    assert.equal(mismatch.json.error ?? mismatch.json.code, "twitch_account_unavailable");
+    assert.equal(createClaimStore({ dir: h.dir }).has("alpha"), false);
   });
   it("refuses another person's channel, a channel-less listing, an unknown slug and a second claimer", async (t) => {
     const h = await harness(t);

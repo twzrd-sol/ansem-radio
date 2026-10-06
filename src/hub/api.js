@@ -59,7 +59,7 @@ export function parseOrigins(text) {
 const sha256hex = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const parseCookies = (header) => Object.fromEntries(String(header ?? "").split(";").map((p) => p.trim().split("=")).filter(([k, v]) => k && v !== undefined).map(([k, ...v]) => [k, v.join("=")]));
 
-export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, schedule = undefined, cancel = undefined }) {
+export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, resolveTwitchUser = null, schedule = undefined, cancel = undefined }) {
   const { origins, rpIds } = parseOrigins(originText);
   const { polls: seasonPolls, ...seasonConfig } = season ?? {};
   // The published season, or (seasonRecurring) the arena's recurring season that contains the current instant:
@@ -295,7 +295,7 @@ export function createHubApi({ origins: originText, store, season = null, season
   const routes = {
     ...marketRoutes,
     ...createIdentityRoutes({ hubStore: store, origins, requireOrigin, requireSession, authLimit, now, ...identity, store: identityStore }),
-    ...createClaimRoutes({ registry: listingsNow, claims, twitchOf: (accountId) => identityStore.get(accountId), requireOrigin, requireSession, authLimit, now, defaultMint: claimMint }),
+    ...createClaimRoutes({ registry: listingsNow, claims, twitchOf: (accountId) => identityStore.get(accountId), resolveTwitchUser, requireOrigin, requireSession, authLimit, now, defaultMint: claimMint }),
     "GET /hub/api/state": (request) => {
       const session = sessionOf(request);
       return { season: seasonState(), lastSeason: lastSeason(session?.accountId ?? null), me: session ? { accountId: session.accountId, createdAt: store.account(session.accountId)?.createdAt ?? null, ...standing(session.accountId) } : null, generatedAt: now() };
