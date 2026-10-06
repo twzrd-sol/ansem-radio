@@ -329,7 +329,8 @@ export function createRpcRelay({
       warnedShared = now();
       log.warn?.("hub rpc relay: no CF-Connecting-IP on a loopback request; using one shared rate-limit bucket");
     }
-    if (!beginFlight(key)) return reply(429, rpcError(id, -32005, "too many in-flight reads"), { "Retry-After": "1" });
+    const holdRead = kind === "read";
+    if (holdRead && !beginFlight(key)) return reply(429, rpcError(id, -32005, "too many in-flight reads"), { "Retry-After": "1" });
     let timer;
     try {
       if (!take(key, kind)) return reply(429, rpcError(id, -32005, "rate limited"), { "Retry-After": String(Math.ceil(windowMs / 1000)) });
@@ -355,7 +356,7 @@ export function createRpcRelay({
       reply(502, rpcError(id, -32000, tooBig ? "upstream response too large" : "upstream unavailable"));
     } finally {
       clearTimeout(timer);
-      endFlight(key);
+      if (holdRead) endFlight(key);
     }
   };
 }
