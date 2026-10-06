@@ -4,7 +4,7 @@ import test from "node:test";
 import { createServer, request as httpRequest } from "node:http";
 
 import { decodeBase58 } from "../src/core/base58.js";
-import { clientKey, createRpcRelay, MAX_BODY_BYTES, RELAY_METHODS, RELAY_PROGRAMS, transactionPrograms } from "../src/hub/relay.js";
+import { clientKey, createRpcRelay, MAX_BODY_BYTES, MAX_UPSTREAM_BYTES, RELAY_METHODS, RELAY_PROGRAMS, transactionPrograms } from "../src/hub/relay.js";
 import { createLiveServer } from "../src/live/server.js";
 
 // The upstream URL carries a provider key: it must never appear in a response or a log line.
@@ -144,6 +144,87 @@ test("upstream failures answer 502 with no trace of the upstream URL", async (t)
     assert.equal(JSON.parse(res.text).error.code, -32000);
     for (const text of [res.text, ...log.lines]) assert.equal(/SECRET-PROVIDER-KEY|rpc\.example\.test/.test(text), false, text);
   }
+});
+
+function noSecret(text, lines = []) {
+  assert.equal(text.includes("SECRET-PROVIDER-KEY"), false);
+  assert.equal(text.includes("rpc.example.test"), false);
+  assert.equal(lines.some((line) => line.includes("SECRET-PROVIDER-KEY") || line.includes("rpc.example.test")), false);
+}
+
+test("returns a small upstream JSON body and refuses a Content-Length over 256 KiB", async (t) => {
+  const small = '{"jsonrpc":"2.0","id":1,"result":{"genesis":"ok"}}';
+  const up = fakeUpstream({ body: small });
+  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: up.fetchImpl, log: logs() }), t);
+  const ok = await post(port, call("getGenesisHash"), { headers: { "cf-connecting-ip": "203.0.113.40" } });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.text, small);
+  noSecret(ok.text);
+
+  const big = "A".repeat(MAX_UPSTREAM_BYTES + 64);
+  const log = logs();
+  const declared = fakeUpstream();
+  declared.fetchImpl = async () => new Response(big, {
+    status: 200,
+    headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(big)) },
+  });
+  const over = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: declared.fetchImpl, log }), t);
+  const refused = await post(over, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64" }]), { headers: { "cf-connecting-ip": "203.0.113.41" } });
+  assert.equal(refused.status, 502);
+  assert.match(refused.text, /response too large/);
+  assert.equal(refused.text.includes("A".repeat(64)), false);
+  assert.equal(MAX_UPSTREAM_BYTES, 256 * 1024);
+  assert.ok(Buffer.byteLength(big) > 256 * 1024);
+  noSecret(refused.text, log.lines);
+});
+
+test("stops reading a stream once it passes 256 KiB and does not keep the rest", async (t) => {
+  let streamed = 0;
+  const planned = MAX_UPSTREAM_BYTES + 512 * 1024;
+  const log = logs();
+  const fetchImpl = async (url, init) => {
+    JSON.parse(init.body);
+    return new Response(new ReadableStream({
+      pull(controller) {
+        if (init.signal?.aborted || streamed >= planned) {
+          controller.close();
+          return;
+        }
+        const chunk = new Uint8Array(64 * 1024);
+        streamed += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl, log }), t);
+  const res = await post(port, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64" }]), { headers: { "cf-connecting-ip": "203.0.113.42" } });
+  assert.equal(res.status, 502);
+  assert.match(res.text, /response too large/);
+  assert.ok(streamed > 256 * 1024, "the stream did cross the cap");
+  assert.ok(streamed < planned, `stopped reading near the cap, not after ${streamed}`);
+  noSecret(res.text, log.lines);
+});
+
+test("refuses a fifth in-flight read for one client while four are still held", async (t) => {
+  let started = 0;
+  const release = [];
+  const fetchImpl = async (url, init) => {
+    JSON.parse(init.body);
+    started += 1;
+    await new Promise((resolve) => release.push(resolve));
+    return new Response('{"jsonrpc":"2.0","id":1,"result":1}', { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl, limits: { read: 100, send: 10 } }), t);
+  const headers = { "cf-connecting-ip": "203.0.113.43" };
+  const held = Array.from({ length: 4 }, () => post(port, call("getBlockHeight"), { headers }));
+  while (started < 4) await new Promise((resolve) => setTimeout(resolve, 5));
+  const overflow = await post(port, call("getBlockHeight"), { headers });
+  assert.equal(overflow.status, 429);
+  assert.equal(started, 4);
+  noSecret(overflow.text);
+  release.forEach((resolve) => resolve());
+  const done = await Promise.all(held);
+  assert.deepEqual(done.map((item) => item.status), [200, 200, 200, 200]);
 });
 
 test("needs an http(s) upstream and allows exactly the methods the hub uses", () => {

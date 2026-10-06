@@ -5,8 +5,10 @@
  *
  * - An explicit method allowlist; anything else is refused before the upstream is called.
  * - Params pass through unchanged, including getSignatureStatuses' searchTransactionHistory.
- * - The upstream response passes through as text. It is never parsed and re-serialized, because RPC values can be
- *   u64 integers beyond JavaScript's safe range.
+ * - The upstream response is copied through with a 256 KiB cap. It is never parsed and re-serialized, because RPC
+ *   values can be u64 integers beyond JavaScript's safe range. The cap is checked on Content-Length and again
+ *   while the body is read; crossing it cancels the body instead of buffering it with res.text().
+ * - In-flight upstream fetches are capped at 4 per client and 32 for the process, separate from the call window.
  * - The station binds loopback behind the edge (Cloudflare -> cloudflared -> Caddy -> station), so a request whose
  *   socket peer is not loopback is refused. Caddy does not trust incoming X-Forwarded-For and sets it to
  *   cloudflared's address, so the client key is CF-Connecting-IP, which Cloudflare overwrites at ingress. Without
@@ -37,6 +39,15 @@ export const RELAY_METHODS = Object.freeze({
 
 /** A v0 transaction is at most 1,232 bytes (about 1.7 KB base64); 64 KB leaves room for any allowed call. */
 export const MAX_BODY_BYTES = 64 * 1024;
+
+/** Hub accounts fit under this. A multi-megabyte getAccountInfo body is cancelled, not buffered. */
+export const MAX_UPSTREAM_BYTES = 256 * 1024;
+
+/** A caller-supplied dataSlice may not ask for more than this. */
+export const MAX_DATA_SLICE = 256;
+
+/** In-flight upstream fetches, separate from the per-minute call window. */
+export const DEFAULT_INFLIGHT = Object.freeze({ perKey: 4, global: 32 });
 
 /** The program every relayed transaction must call at least once. */
 export const ARENA_PROGRAM = "5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf";
@@ -116,6 +127,55 @@ function ipv6Prefix64(text) {
 
 const rpcError = (id, code, message) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
 
+/** Refuse account reads that can ask the provider for a multi-megabyte body. Returns an error string or null. */
+export function accountReadProblem(method, params) {
+  if (method === "getAccountInfo") {
+    const slice = params?.[1]?.dataSlice;
+    if (slice === undefined) return null;
+    const length = slice?.length;
+    if (!Number.isInteger(length) || length < 1 || length > MAX_DATA_SLICE) return "dataSlice is too large";
+    return null;
+  }
+  if (method === "getTokenAccountsByOwner") {
+    const filter = params?.[1];
+    const mint = filter?.mint;
+    if (typeof mint !== "string" || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint) || filter.programId !== undefined) {
+      return "token reads must name one mint";
+    }
+    return null;
+  }
+  return null;
+}
+
+/** Read at most `limit` bytes. A declared or streamed overrun cancels the body. */
+export async function readCapped(response, limit) {
+  const declared = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(declared) && declared > limit) {
+    await response.body?.cancel?.();
+    throw new Error("upstream response too large");
+  }
+  const reader = response.body?.getReader?.();
+  if (!reader) throw new Error("upstream response too large");
+  const chunks = [];
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > limit) {
+        await reader.cancel();
+        throw new Error("upstream response too large");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } catch (error) {
+    try { await reader.cancel(); } catch { /* already cancelled */ }
+    throw error;
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 /** Reads at most `limit` bytes. Past it, the rest is discarded so the 413 can still be sent before closing. */
 function readBody(request, limit) {
   return new Promise((resolve, reject) => {
@@ -163,13 +223,32 @@ export function createRpcRelay({
   requiredProgram = ARENA_PROGRAM,
   windowMs = 60_000,
   timeoutMs = 10_000,
+  maxUpstreamBytes = MAX_UPSTREAM_BYTES,
+  inflightLimits = DEFAULT_INFLIGHT,
   log = console,
 } = {}) {
   if (typeof upstream !== "string" || !/^https?:\/\/[^\s]+$/.test(upstream)) throw new Error("the RPC relay needs an http(s) upstream URL (RADIOLAN_RPC_URL)");
   const buckets = new Map();
   const allowedPrograms = new Set(programs);
+  const inflightByKey = new Map();
+  let inflightGlobal = 0;
   let globalWindow = { start: -Infinity, read: 0, send: 0, warned: false };
   let warnedShared = 0;
+
+  function beginFlight(key) {
+    const held = inflightByKey.get(key) ?? 0;
+    if (held >= inflightLimits.perKey || inflightGlobal >= inflightLimits.global) return false;
+    inflightByKey.set(key, held + 1);
+    inflightGlobal += 1;
+    return true;
+  }
+
+  function endFlight(key) {
+    inflightGlobal -= 1;
+    const held = (inflightByKey.get(key) ?? 1) - 1;
+    if (held <= 0) inflightByKey.delete(key);
+    else inflightByKey.set(key, held);
+  }
 
   function takeGlobal(kind) {
     const t = now();
@@ -244,33 +323,39 @@ export function createRpcRelay({
       const problem = checkTransaction(call.params);
       if (problem) return reply(403, rpcError(id, -32602, problem));
     }
+    const accountProblem = accountReadProblem(call.method, call.params);
+    if (accountProblem) return reply(403, rpcError(id, -32602, accountProblem));
     if (key === "shared" && now() - warnedShared >= windowMs) {
       warnedShared = now();
       log.warn?.("hub rpc relay: no CF-Connecting-IP on a loopback request; using one shared rate-limit bucket");
     }
-    if (!take(key, kind)) return reply(429, rpcError(id, -32005, "rate limited"), { "Retry-After": String(Math.ceil(windowMs / 1000)) });
-    if (!takeGlobal(kind)) return reply(503, rpcError(id, -32005, "busy, try again shortly"), { "Retry-After": String(Math.ceil(windowMs / 1000)) });
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    if (!beginFlight(key)) return reply(429, rpcError(id, -32005, "too many in-flight reads"), { "Retry-After": "1" });
+    let timer;
     try {
+      if (!take(key, kind)) return reply(429, rpcError(id, -32005, "rate limited"), { "Retry-After": String(Math.ceil(windowMs / 1000)) });
+      if (!takeGlobal(kind)) return reply(503, rpcError(id, -32005, "busy, try again shortly"), { "Retry-After": String(Math.ceil(windowMs / 1000)) });
+
+      const controller = new AbortController();
+      timer = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetchImpl(upstream, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id, method: call.method, params: call.params ?? [] }),
         signal: controller.signal,
       });
-      const text = await res.text();
+      const text = await readCapped(res, maxUpstreamBytes);
       if (!res.ok || !/^application\/json\b/i.test(res.headers.get("content-type") ?? "")) {
         log.warn?.(`hub rpc relay: upstream answered ${res.status} for ${call.method}`);
         return reply(502, rpcError(id, -32000, "upstream error"));
       }
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
-    } catch {
-      log.warn?.(`hub rpc relay: upstream unreachable for ${call.method}`);
-      reply(502, rpcError(id, -32000, "upstream unavailable"));
+    } catch (error) {
+      const tooBig = error?.message === "upstream response too large";
+      log.warn?.(`hub rpc relay: upstream ${tooBig ? "response too large" : "unreachable"} for ${call.method}`);
+      reply(502, rpcError(id, -32000, tooBig ? "upstream response too large" : "upstream unavailable"));
     } finally {
       clearTimeout(timer);
+      endFlight(key);
     }
   };
 }
