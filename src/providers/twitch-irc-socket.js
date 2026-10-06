@@ -157,6 +157,10 @@ export function createTwitchIrcSocket({
       stopFor("twitch_auth_failed");
       return;
     }
+    if (!authenticated && line.startsWith(":tmi.twitch.tv NOTICE * :")) {
+      stopFor("twitch_login_notice");
+      return;
+    }
     if (line.startsWith(":tmi.twitch.tv CAP * ACK ")) {
       if (line.includes("twitch.tv/tags")) capabilityAck.add("tags");
       if (line.includes("twitch.tv/commands")) capabilityAck.add("commands");
