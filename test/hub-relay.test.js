@@ -227,6 +227,35 @@ test("refuses a fifth in-flight read for one client while four are still held", 
   assert.deepEqual(done.map((item) => item.status), [200, 200, 200, 200]);
 });
 
+test("a hung read does not consume the in-flight slot a send needs", async (t) => {
+  let reads = 0;
+  const release = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    if (body.method !== "sendTransaction") {
+      reads += 1;
+      await new Promise((resolve) => release.push(resolve));
+    }
+    return new Response('{"jsonrpc":"2.0","id":1,"result":1}', { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const port = await serve(createRpcRelay({
+    upstream: UPSTREAM,
+    fetchImpl,
+    inflightLimits: { perKey: 1, global: 1 },
+    limits: { read: 100, send: 10 },
+  }), t);
+  t.after(() => { release.forEach((resolve) => resolve()); });
+  const headers = { "cf-connecting-ip": "203.0.113.24" };
+  const hung = post(port, call("getGenesisHash"), { headers });
+  const deadline = Date.now() + 2_000;
+  while (reads < 1 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(reads, 1, "the hung read reached upstream");
+  const sent = await post(port, send([ARENA]), { headers });
+  assert.equal(sent.status, 200, "sends keep their own budget while a read is in flight");
+  release.forEach((resolve) => resolve());
+  assert.equal((await hung).status, 200);
+});
+
 test("needs an http(s) upstream and allows exactly the methods the hub uses", () => {
   for (const bad of [undefined, "", "ftp://x", "not a url"]) assert.throws(() => createRpcRelay({ upstream: bad }), /RADIOLAN_RPC_URL/);
   assert.deepEqual(Object.keys(RELAY_METHODS).sort(), ["getAccountInfo", "getBlockHeight", "getGenesisHash", "getLatestBlockhash", "getMinimumBalanceForRentExemption", "getSignatureStatuses", "getTokenAccountsByOwner", "sendTransaction", "simulateTransaction"]);
@@ -311,33 +340,4 @@ test("IPv6 clients are keyed by their /64, IPv4 by address", () => {
   assert.equal(key("::ffff:203.0.113.4"), "ip6:0:0:0:0::/64");
   assert.notEqual(key("203.0.113.4"), key("203.0.113.5"));
   assert.equal(key("2001:db8::zz"), "shared");
-});
-
-test("a hung read does not consume the in-flight slot a send needs", async (t) => {
-  let reads = 0;
-  const release = [];
-  const fetchImpl = async (url, init) => {
-    const body = JSON.parse(init.body);
-    if (body.method !== "sendTransaction") {
-      reads += 1;
-      await new Promise((resolve) => release.push(resolve));
-    }
-    return new Response('{"jsonrpc":"2.0","id":1,"result":1}', { status: 200, headers: { "content-type": "application/json" } });
-  };
-  const port = await serve(createRpcRelay({
-    upstream: UPSTREAM,
-    fetchImpl,
-    inflightLimits: { perKey: 1, global: 1 },
-    limits: { read: 100, send: 10 },
-  }), t);
-  t.after(() => { release.forEach((resolve) => resolve()); });
-  const headers = { "cf-connecting-ip": "203.0.113.24" };
-  const hung = post(port, call("getGenesisHash"), { headers });
-  const deadline = Date.now() + 2_000;
-  while (reads < 1 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
-  assert.equal(reads, 1, "the hung read reached upstream");
-  const sent = await post(port, send([ARENA]), { headers });
-  assert.equal(sent.status, 200, "sends keep their own budget while a read is in flight");
-  release.forEach((resolve) => resolve());
-  assert.equal((await hung).status, 200);
 });
