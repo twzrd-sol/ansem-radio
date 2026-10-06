@@ -158,6 +158,47 @@ test("stops on authentication failure and rejects IRC command injection", () => 
   assert.throws(() => client.setChannels(["radiolanlive\r\nJOIN #other"]), /Twitch login/);
 });
 
+test("stops on an unfamiliar server NOTICE before login without reconnecting", () => {
+  const FakeWebSocket = fakeSockets();
+  const timers = [];
+  const client = createTwitchIrcSocket({
+    login: "radiolanlive",
+    oauthToken: "test-token",
+    channels: ["radiolanlive"],
+    onEvent: () => {},
+    WebSocketImpl: FakeWebSocket,
+    schedule: (fn, ms) => timers.push({ fn, ms }),
+  });
+  client.start();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  socket.server(":tmi.twitch.tv NOTICE * :Unexpected login response\r\n");
+  assert.equal(client.state().enabled, false);
+  assert.equal(client.state().last_error, "twitch_login_notice");
+  assert.equal(timers.length, 0);
+});
+
+test("an unrelated server NOTICE after login does not stop the session", () => {
+  const FakeWebSocket = fakeSockets();
+  const timers = [];
+  const client = createTwitchIrcSocket({
+    login: "radiolanlive",
+    oauthToken: "test-token",
+    channels: ["radiolanlive"],
+    onEvent: () => {},
+    WebSocketImpl: FakeWebSocket,
+    schedule: (fn, ms) => timers.push({ fn, ms }),
+  });
+  client.start();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  socket.server(ready);
+  socket.server(":tmi.twitch.tv NOTICE * :An unrelated notice\r\n");
+  assert.equal(client.state().enabled, true);
+  assert.equal(client.state().irc_connected, true);
+  assert.equal(timers.length, 0);
+});
+
 test("a chat message that contains control text cannot stop the session", () => {
   const FakeWebSocket = fakeSockets();
   const timers = [];

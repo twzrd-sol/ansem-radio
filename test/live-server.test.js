@@ -361,6 +361,31 @@ test("a malformed request target is a 400, not a crashed process", async (t) => 
   assert.equal((await fetch(`http://127.0.0.1:${port}/public/live.html`)).status, 200);
 });
 
+test("an unexpected handler error answers a generic 500 and the room keeps serving", async (t) => {
+  const logs = [];
+  const live = createLiveServer({
+    oauthToken: "",
+    createIrcSession: () => ({ start() {}, stop() {} }),
+    sponsorApi: async () => {
+      throw new Error("x402 internals: SECRET-DETAIL");
+    },
+    log: { debug: (line) => logs.push(line), info: () => {}, warn: () => {}, error: () => {} },
+  });
+  t.after(() => live.close());
+  const { port } = await live.listen({ port: 0 });
+  const raw = await new Promise((resolve) => {
+    const s = net.connect(port, "127.0.0.1", () => s.write("GET /hub/api/x402/offer HTTP/1.1\r\nHost: radiolan.live\r\nConnection: close\r\n\r\n"));
+    let out = ""; s.on("data", (d) => (out += d)); s.setTimeout(1500, () => s.destroy());
+    s.on("close", () => resolve(out));
+  });
+  assert.equal(raw.split("\r\n")[0], "HTTP/1.1 500 Internal Server Error");
+  assert.ok(raw.includes('{"error":"request_failed"}'), "a generic error body, not handler internals");
+  assert.equal(raw.includes("SECRET-DETAIL"), false, "no internals in the response");
+  assert.equal(logs.some((line) => line.includes("SECRET-DETAIL")), false, "the log carries no detail either");
+  const after = await fetch(`http://127.0.0.1:${port}/public/live.html`);
+  assert.equal(after.status, 200, "one thrown handler must not take the room down");
+});
+
 test("every page module script static import resolves to a served route", async (t) => {
   const live = createLiveServer({ oauthToken: "", participantKey: "k".repeat(32), createIrcSession: () => ({ start() {}, stop() {} }) });
   t.after(() => live.close());
