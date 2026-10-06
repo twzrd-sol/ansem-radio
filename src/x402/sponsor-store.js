@@ -29,30 +29,30 @@ export function createSponsorStore({ path } = {}) {
   let state = EMPTY();
   if (existsSync(path)) state = validateState(JSON.parse(readFileSync(path, "utf8")));
 
-  const flush = () => {
+  // Writes the next state to disk first and only then adopts it, so a failed write leaves memory and disk agreeing.
+  const flush = (next) => {
     const temp = `${path}.tmp.${process.pid}`;
     // Write, fsync, then rename: a crash leaves either the old file or the whole new one, never a truncated log.
     const fd = openSync(temp, "w", 0o600);
     try {
-      writeFileSync(fd, JSON.stringify(state));
+      writeFileSync(fd, JSON.stringify(next));
       fsyncSync(fd);
     } finally {
       closeSync(fd);
     }
     renameSync(temp, path);
+    state = next;
   };
   const insert = (table, row) => {
     if (Object.keys(state[table]).length >= 10_000) throw new Error("x402 store capacity reached");
     if (state[table][row.id]) throw new Error("x402 record already exists");
-    state[table][row.id] = structuredClone(row);
-    flush();
+    flush({ ...state, [table]: { ...state[table], [row.id]: structuredClone(row) } });
     return structuredClone(row);
   };
   const replace = (table, id, patch) => {
     const row = state[table][id];
     if (!row) return null;
-    state[table][id] = { ...row, ...structuredClone(patch) };
-    flush();
+    flush({ ...state, [table]: { ...state[table], [id]: { ...row, ...structuredClone(patch) } } });
     return structuredClone(state[table][id]);
   };
 

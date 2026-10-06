@@ -64,14 +64,14 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
     },
     deleteSession: (id) => {
       if (state.sessions[id]) {
-        delete state.sessions[id];
-        flush();
+        const sessions = { ...state.sessions };
+        delete sessions[id];
+        flush({ ...state, sessions });
       }
     },
     expireSessions: (now) => {
-      let changed = false;
-      for (const [id, s] of Object.entries(state.sessions)) if (s.expiresAt <= now) { delete state.sessions[id]; changed = true; }
-      if (changed) flush();
+      const sessions = Object.fromEntries(Object.entries(state.sessions).filter(([, s]) => s.expiresAt > now));
+      if (Object.keys(sessions).length !== Object.keys(state.sessions).length) flush({ ...state, sessions });
     },
     submissions: () => submissions.slice(),
     addSubmission: (row) => {
