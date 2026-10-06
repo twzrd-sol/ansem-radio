@@ -19,6 +19,7 @@ import type { Station } from "./data/station";
 import { buildToday } from "./data/today";
 import type { HubSnapshot } from "./data/types";
 import { Back } from "./screens/Back";
+import { LiveBack } from "./screens/LiveBack";
 import { Board } from "./screens/Board";
 import { Claim } from "./screens/Claim";
 import { Lan } from "./screens/Lan";
@@ -275,6 +276,23 @@ describe("on-chain screens", () => {
     const back = text(<Back snapshot={today} load="ready" preview={preview({ scenario: "today" })} now={NOW} onRetry={noop} />);
     expect(back).toMatch(/No arena is open yet, so there is no date to show/);
     expect(back).not.toMatch(/Available after [A-Z][a-z]{2} \d/);
+  });
+
+  it("keeps an unread schedule unknown while loading or after a read error", () => {
+    const loading = text(<Back snapshot={today} load="loading" preview={preview({ scenario: "today" })} now={NOW} onRetry={noop} />);
+    const failed = text(<Back snapshot={null} load="error" preview={preview({ scenario: "today" })} now={NOW} onRetry={noop} />);
+    const liveLoading = text(<LiveBack target={null} slug="radiolanlive" name="Radio LAN" allowSetup={false} ready={false} />);
+    const boardError = text(<LiveBack target={null} slug="radiolanlive" name="Radio LAN" allowSetup={false} ready boardError />);
+    for (const page of [loading, failed, liveLoading, boardError]) {
+      expect(page).toContain("The withdrawal date appears after this listing's on-chain schedule is read.");
+      expect(page).not.toContain("No arena is open yet");
+    }
+    expect(boardError).toContain("this listing's arena is unknown");
+  });
+
+  it("retains the on-chain closed-arena simulation error 6304 copy", () => {
+    const back = text(<Back snapshot={sample} load="ready" preview={preview({ flow: "failed", fail: "simulation" })} now={NOW} onRetry={noop} />);
+    expect(back).toContain("The arena is closed to new backing (error 6304).");
   });
 
   it("release dates follow the arena program's schedule, as src/sinks/arena.js computes it", () => {

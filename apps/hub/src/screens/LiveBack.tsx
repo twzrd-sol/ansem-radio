@@ -47,8 +47,8 @@ export interface LiveBackProps {
 
 export function LiveBack({ target, slug, name, allowSetup, ready = true, boardError = false, onRetry }: LiveBackProps) {
   const pinnedTarget = useMemo(() => target ? { streamer: address(target.streamer), mint: address(target.mint) } : null, [target?.streamer, target?.mint]);
-  if (!ready) return <><BackHeader schedule={null} slug={slug} name={name} /><Skeleton kinds={["block", "block"]} /></>;
-  if (boardError) return <><BackHeader schedule={null} slug={slug} name={name} /><ErrorBlock text="The board didn't load, so this listing's arena is unknown. Nothing was sent." onRetry={onRetry} /></>;
+  if (!ready) return <><BackHeader schedule={undefined} slug={slug} name={name} /><Skeleton kinds={["block", "block"]} /></>;
+  if (boardError) return <><BackHeader schedule={undefined} slug={slug} name={name} /><ErrorBlock text="The board didn't load, so this listing's arena is unknown. Nothing was sent." onRetry={onRetry} /></>;
   if (!target) {
     return (
       <>
@@ -103,7 +103,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     };
   }, [refresh, rpc, store, target, wallet?.address]);
 
-  const schedule: ArenaSchedule | null = view?.arena ? { seasonStart: view.arena.seasonStart, seasonSeconds: view.arena.seasonSeconds } : null;
+  const schedule: ArenaSchedule | null | undefined = load !== "ready" ? undefined : view?.arena ? { seasonStart: view.arena.seasonStart, seasonSeconds: view.arena.seasonSeconds } : null;
   const position = positionOf(view, now);
   // No arena yet: the only on-chain step is the official streamer creating it (FOUNDER_HUB_CHECK.md Part B).
   const setup = load === "ready" && !view?.arena && allowSetup;

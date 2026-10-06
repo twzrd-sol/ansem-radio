@@ -18,12 +18,13 @@ export const FEE_LAMPORTS = 5000n;
 const rlan = (baseUnits: bigint) => `${units(baseUnits, TOKEN_DECIMALS)} RLAN`;
 const sol = (lamports: bigint) => `${units(lamports, 9)} SOL`;
 
-export function releaseLine(schedule: ArenaSchedule | null): string {
+export function releaseLine(schedule: ArenaSchedule | null | undefined): string {
+  if (schedule === undefined) return "The withdrawal date appears after this listing's on-chain schedule is read.";
   if (!schedule) return "It becomes available when the on-chain season you asked in ends. No arena is open yet, so there is no date to show.";
   return `Available after ${utc(releaseIfRequestedAt(schedule))}, for a request made during on-chain season ${currentSeason(schedule)}.`;
 }
 
-export function BackHeader({ schedule, slug = "radiolanlive", name = "Radio LAN" }: { schedule: ArenaSchedule | null; slug?: string; name?: string }) {
+export function BackHeader({ schedule, slug = "radiolanlive", name = "Radio LAN" }: { schedule: ArenaSchedule | null | undefined; slug?: string; name?: string }) {
   return (
     <header className="page-head">
       <a className="crumb" href={`#/s/${slug}`}>
@@ -185,7 +186,7 @@ export function BackingFacts() {
   );
 }
 
-export function ChainFacts({ schedule, mint = ARENA_MINT }: { schedule: ArenaSchedule | null; mint?: string | null }) {
+export function ChainFacts({ schedule, mint = ARENA_MINT }: { schedule: ArenaSchedule | null | undefined; mint?: string | null }) {
   return (
     <section className="panel" aria-labelledby="h-chain">
       <h2 className="label" id="h-chain" style={{ marginBottom: 12 }}>
@@ -453,7 +454,9 @@ export function Back({ snapshot, load, preview, now, onRetry, live, slug = "radi
   name?: string;
 }) {
   if (!preview.enabled && live) return <>{live}</>;
-  const schedule = snapshot?.arena ?? null;
+  // Only a successful read can confirm that no arena is open. During loading or
+  // after a failed read, the schedule is unknown rather than empty.
+  const schedule = load === "ready" && snapshot ? snapshot.arena : undefined;
   return (
     <>
       <BackHeader schedule={schedule} slug={slug} name={name} />
