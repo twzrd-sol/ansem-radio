@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { HttpError, readJson } from "../platform/guard.js";
-import { BANNED_STREAMERS, OFFICIAL_STREAMER } from "./registry.js";
+import { BANNED_STREAMERS, OFFICIAL_STREAMER, reservedSlug } from "./registry.js";
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 
@@ -22,24 +22,26 @@ export function createClaimStore({ dir }) {
     renameSync(`${path}.tmp`, path);
     state = { v: 1, claims, retired };
   };
+  const own = (bag, slug) => (Object.hasOwn(bag, slug) ? bag[slug] : null);
   return {
-    get: (slug) => (state.claims[slug] ? structuredClone(state.claims[slug]) : null),
-    has: (slug) => Boolean(state.claims[slug]),
+    get: (slug) => { const row = own(state.claims, slug); return row ? structuredClone(row) : null; },
+    has: (slug) => Object.hasOwn(state.claims, slug),
     slugs: () => Object.keys(state.claims).sort(),
     set(slug, record) {
+      if (reservedSlug(slug)) throw new TypeError("reserved slug");
       write({ ...state.claims, [slug]: record });
     },
     // Pin the backing pair on a claim once an arena for it exists (or is about to): from then on the listing keeps this
     // pair whatever the account's linked wallet does, so fans' positions never lose their listing.
     pin(slug, pair) {
-      const have = state.claims[slug];
+      const have = own(state.claims, slug);
       if (!have || have.pair) return false;
       write({ ...state.claims, [slug]: { ...have, pair: { streamer: pair.streamer, mint: pair.mint, pinnedAt: Math.floor(Date.now() / 1000) } } });
       return true;
     },
     // The pair of a released page. Releasing drops the "claimed" mark and the right to set up, but never the link
     // between a listing and the arena fans may have backed: that association outlives the claim.
-    retired: (slug) => (state.retired[slug] ? structuredClone(state.retired[slug]) : null),
+    retired: (slug) => { const row = own(state.retired, slug); return row ? structuredClone(row) : null; },
     retire(slug, pair) {
       const { [slug]: _gone, ...rest } = state.claims;
       write(rest, { ...state.retired, [slug]: { streamer: pair.streamer, mint: pair.mint, retiredAt: Math.floor(Date.now() / 1000) } });

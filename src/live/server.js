@@ -359,7 +359,13 @@ export function createLiveServer({
       return;
     }
     if (hubApi && pathname.startsWith("/hub/api/")) {
-      await hubApi(request, response);
+      try {
+        await hubApi(request, response);
+      } catch (error) {
+        log.warn?.(`hub api: ${pathname} failed: ${error?.message ?? error}`);
+        if (!response.headersSent) response.writeHead(500, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: "hub_api_failed" }));
+        else response.end();
+      }
       return;
     }
     if (request.method !== "GET") {
