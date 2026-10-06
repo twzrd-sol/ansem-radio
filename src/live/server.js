@@ -322,16 +322,10 @@ export function createLiveServer({
     ledger: ledgerFeed ? ledgerFeed.snapshot() : null,
   });
 
-  const server = createServer(async (request, response) => {
-    // A raw request-target like "http://[" passes Node's HTTP parser but throws
-    // in WHATWG URL parsing; a throw here must be a 400, not a process death.
-    let requestUrl;
-    try {
-      requestUrl = new URL(request.url ?? "/", "http://localhost");
-    } catch {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" }).end("Bad request");
-      return;
-    }
+  // One request = one handler turn. The routing body lives in its own async function so the
+  // createServer callback can guarantee, with a single catch, that an unexpected throw answers
+  // generically and never leaks a rejected promise (which would take the room down).
+  const serveRequest = async (request, response, requestUrl) => {
     const pathname = requestUrl.pathname;
     if (pathname.startsWith(X402_API_PREFIX)) {
       const host = String(request.headers.host ?? "").trim().toLowerCase();
@@ -426,6 +420,30 @@ export function createLiveServer({
       }).end(await readFile(file[0]));
     } catch {
       response.writeHead(500).end("Unable to load live room");
+    }
+  };
+  const server = createServer(async (request, response) => {
+    // A raw request-target like "http://[" passes Node's HTTP parser but throws
+    // in WHATWG URL parsing; a throw here must be a 400, not a process death.
+    // Every later failure funnels through the same generic answer below, so one
+    // unexpected handler error can never reject the callback's promise and stop the room.
+    let requestUrl;
+    try {
+      requestUrl = new URL(request.url ?? "/", "http://localhost");
+    } catch {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" }).end("Bad request");
+      return;
+    }
+    try {
+      await serveRequest(request, response, requestUrl);
+    } catch (error) {
+      // Generic, quiet, and safe: no route internals, no values, no paths. Detail at debug level only.
+      log.debug?.(`request ${request.method} ${requestUrl.pathname} failed: ${error?.name ?? "Error"}`);
+      if (!response.headersSent) {
+        response.writeHead(500, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: "request_failed" }));
+      } else {
+        response.end();
+      }
     }
   });
 

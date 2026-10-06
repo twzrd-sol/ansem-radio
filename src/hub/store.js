@@ -3,7 +3,7 @@
  * append-only JSONL of activity submissions. Zero dependencies, loopback station only. The directory is created
  * mode 0o700. Nothing here holds a fan's key: credentials are public keys, sessions are random ids.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, truncateSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -24,8 +24,42 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
     state = parsed;
   }
   const submissions = [];
+  let tailNeedsDelimiter = false;
   if (existsSync(submissionsPath)) {
-    for (const line of readFileSync(submissionsPath, "utf8").split("\n")) if (line.trim()) submissions.push(JSON.parse(line));
+    const text = readFileSync(submissionsPath, "utf8");
+    const elements = text.split("\n");
+    // "a\nb\n" splits to ["a", "b", ""] while an unterminated "a\nb" splits to ["a", "b"], so only when
+    // the file lacks its final delimiter can the last element be an incomplete write. A fragment that
+    // still parses as a JSON object loads as a record and the next append closes the line; anything
+    // malformed there is discarded and truncated now so a later append cannot weld onto it. Interior
+    // lines always parse, so corruption anywhere else still throws with the file line number.
+    const fragment = elements.at(-1) !== "" ? elements.pop() : null;
+    for (let i = 0; i < elements.length; i++) {
+      const line = elements[i];
+      if (!line.trim()) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(line);
+      } catch (cause) {
+        throw new SyntaxError(`invalid submission record: ${submissionsPath}:${i + 1}`, { cause });
+      }
+      submissions.push(parsed);
+    }
+    if (fragment !== null) {
+      let tail;
+      try {
+        tail = JSON.parse(fragment);
+      } catch {
+        tail = undefined;
+      }
+      if (tail !== null && typeof tail === "object" && !Array.isArray(tail)) {
+        submissions.push(tail);
+        tailNeedsDelimiter = true;
+      } else {
+        const validPrefix = text.slice(0, text.length - fragment.length);
+        truncateSync(submissionsPath, Buffer.byteLength(validPrefix, "utf8"));
+      }
+    }
   }
   // Writes the next state to disk first and only then adopts it, so a failed write leaves memory and disk agreeing.
   const flush = (next = state) => {
@@ -75,7 +109,12 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
     },
     submissions: () => submissions.slice(),
     addSubmission: (row) => {
-      appendFileSync(submissionsPath, `${JSON.stringify(row)}\n`, { mode: 0o600 });
+      appendFileSync(
+        submissionsPath,
+        `${tailNeedsDelimiter ? "\n" : ""}${JSON.stringify(row)}\n`,
+        { mode: 0o600 },
+      );
+      tailNeedsDelimiter = false;
       submissions.push(row);
       return row;
     },
