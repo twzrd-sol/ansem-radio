@@ -20,7 +20,7 @@ import { createSeasonFinalizer, readFrozen } from "./finalizer.js";
 import { normalizePolls, pollFor, utcDay } from "./polls.js";
 import { renderBadge } from "./badge.js";
 import { createClaimRoutes, createClaimStore, deriveClaimPair } from "./claims.js";
-import { mintForClaims } from "./registry.js";
+import { mintForClaims, reservedSlug } from "./registry.js";
 import { createIdentityRoutes } from "./identity.js";
 import { createHubIdentityStore } from "./identity-store.js";
 import { clientKey } from "./relay.js";
@@ -190,7 +190,7 @@ export function createHubApi({ origins: originText, store, season = null, season
   // Station-wide default mint, or the featured listing's mint when that setting is unset. Never a hardcoded address.
   const claimMint = mintForClaims({ defaultMint, listings: registryInput ?? market?.registry ?? [] });
   const listingsNow = () => {
-    const merged = registryInput ?? market?.registry ?? [];
+    const merged = (registryInput ?? market?.registry ?? []).filter((entry) => entry?.slug && !reservedSlug(entry.slug));
     // A claimed listing with no operator-set pair gets {streamer: the claimer's verified linked wallet, mint: the
     // station default or the featured listing's mint}, so an arena that wallet creates is backable with no operator
     // edit. An operator-set pair is never overridden, the registry's banned keys are refused, and a pair some other

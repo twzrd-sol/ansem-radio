@@ -27,6 +27,10 @@ export const BANNED_STREAMERS = Object.freeze([
 export const BANNED_ARENAS = Object.freeze(["GwYjjFYcc4DV8hLE6bCAQiM3rjstGWNZ6p3icjR7ZnxU", "9tUxpgaNp2PWdczS2v1AmDKTjtGvaTLCLzu4TLNCp2KU"]);
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{1,31}$/;
+
+/** Object.prototype names. A plain-object claim map must never resolve these as inherited properties. */
+const RESERVED_SLUGS = new Set(["constructor", "prototype", "__proto__", "tostring", "valueof", "hasownproperty", "tolocalestring", "isprototypeof", "propertyisenumerable"]);
+export const reservedSlug = (slug) => RESERVED_SLUGS.has(String(slug ?? "").toLowerCase());
 const LOGIN = /^[a-z0-9_]{3,25}$/;
 
 function text(value, field, max = 60) {
@@ -45,7 +49,7 @@ function key(value, field) {
 export function listing(input) {
   if (!input || typeof input !== "object") throw new TypeError("registry: a listing must be an object");
   const slug = text(input.slug, "slug", 32);
-  if (!SLUG.test(slug)) throw new TypeError(`registry: bad slug ${JSON.stringify(slug)}`);
+  if (!SLUG.test(slug) || reservedSlug(slug)) throw new TypeError(`registry: bad slug ${JSON.stringify(slug)}`);
   const name = text(input.name, "name");
   const kind = input.kind;
   if (!KINDS.includes(kind)) throw new TypeError(`registry: kind must be one of ${KINDS.join(", ")}`);
