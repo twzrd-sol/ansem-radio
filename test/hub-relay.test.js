@@ -63,11 +63,12 @@ const logs = () => {
 test("relays an allowed read and returns the upstream body byte for byte (u64 values intact)", async (t) => {
   const up = fakeUpstream();
   const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: up.fetchImpl }), t);
-  const res = await post(port, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64" }]), { headers: { "cf-connecting-ip": "203.0.113.7" } });
+  const sliced = call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]);
+  const res = await post(port, sliced, { headers: { "cf-connecting-ip": "203.0.113.7" } });
   assert.equal(res.status, 200);
   assert.equal(res.text, '{"jsonrpc":"2.0","id":1,"result":{"value":18446744073709551615}}');
   assert.equal(res.headers["cache-control"], "no-store");
-  assert.deepEqual(up.calls[0].body, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64" }]));
+  assert.deepEqual(up.calls[0].body, sliced);
   assert.equal(up.calls[0].url, UPSTREAM);
 });
 
@@ -169,7 +170,7 @@ test("returns a small upstream JSON body and refuses a Content-Length over 256 K
     headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(big)) },
   });
   const over = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: declared.fetchImpl, log }), t);
-  const refused = await post(over, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64" }]), { headers: { "cf-connecting-ip": "203.0.113.41" } });
+  const refused = await post(over, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), { headers: { "cf-connecting-ip": "203.0.113.41" } });
   assert.equal(refused.status, 502);
   assert.match(refused.text, /response too large/);
   assert.equal(refused.text.includes("A".repeat(64)), false);
@@ -197,7 +198,7 @@ test("stops reading a stream once it passes 256 KiB and does not keep the rest",
     }), { status: 200, headers: { "content-type": "application/json" } });
   };
   const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl, log }), t);
-  const res = await post(port, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64" }]), { headers: { "cf-connecting-ip": "203.0.113.42" } });
+  const res = await post(port, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), { headers: { "cf-connecting-ip": "203.0.113.42" } });
   assert.equal(res.status, 502);
   assert.match(res.text, /response too large/);
   assert.ok(streamed > 256 * 1024, "the stream did cross the cap");
@@ -311,4 +312,32 @@ test("IPv6 clients are keyed by their /64, IPv4 by address", () => {
   assert.equal(key("::ffff:203.0.113.4"), "ip6:0:0:0:0::/64");
   assert.notEqual(key("203.0.113.4"), key("203.0.113.5"));
   assert.equal(key("2001:db8::zz"), "shared");
+});
+
+test("refuses getAccountInfo without a bounded dataSlice, and a token read that does not name one mint", async (t) => {
+  const up = fakeUpstream();
+  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: up.fetchImpl }), t);
+  const at = { headers: { "cf-connecting-ip": "203.0.113.22" } };
+  const pubkey = "11111111111111111111111111111111";
+  for (const [label, params] of [
+    ["no config", [pubkey]],
+    ["encoding only", [pubkey, { encoding: "base64" }]],
+    ["string encoding", [pubkey, "base64"]],
+    ["empty dataSlice", [pubkey, { encoding: "base64", dataSlice: {} }]],
+    ["zero length", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 0 } }]],
+    ["negative offset", [pubkey, { encoding: "base64", dataSlice: { offset: -1, length: 165 } }]],
+    ["oversized length", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 10_000 } }]],
+  ]) {
+    const res = await post(port, call("getAccountInfo", params), at);
+    assert.equal(res.status, 403, label);
+    assert.equal(JSON.parse(res.text).error.code, -32602, label);
+  }
+  const sliced = await post(port, call("getAccountInfo", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), at);
+  assert.equal(sliced.status, 200);
+  const open = await post(port, call("getTokenAccountsByOwner", [pubkey, { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }, { encoding: "base64" }]), at);
+  assert.equal(open.status, 403);
+  const mint = "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy";
+  const bounded = await post(port, call("getTokenAccountsByOwner", [pubkey, { mint }, { encoding: "base64" }]), at);
+  assert.equal(bounded.status, 200);
+  assert.equal(up.calls.length, 2, "only the sliced account read and the mint-scoped token read reach upstream");
 });

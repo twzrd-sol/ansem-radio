@@ -43,7 +43,7 @@ export const MAX_BODY_BYTES = 64 * 1024;
 /** Hub accounts fit under this. A multi-megabyte getAccountInfo body is cancelled, not buffered. */
 export const MAX_UPSTREAM_BYTES = 256 * 1024;
 
-/** A caller-supplied dataSlice may not ask for more than this. */
+/** A caller-supplied dataSlice is required on getAccountInfo and may not ask for more than this. */
 export const MAX_DATA_SLICE = 256;
 
 /** In-flight upstream fetches, separate from the per-minute call window. */
@@ -130,9 +130,14 @@ const rpcError = (id, code, message) => ({ jsonrpc: "2.0", id: id ?? null, error
 /** Refuse account reads that can ask the provider for a multi-megabyte body. Returns an error string or null. */
 export function accountReadProblem(method, params) {
   if (method === "getAccountInfo") {
-    const slice = params?.[1]?.dataSlice;
-    if (slice === undefined) return null;
-    const length = slice?.length;
+    const config = params?.[1];
+    const slice = config && typeof config === "object" && !Array.isArray(config) ? config.dataSlice : undefined;
+    if (slice === undefined || slice === null || typeof slice !== "object" || Array.isArray(slice)) {
+      return "account reads must include a dataSlice";
+    }
+    const offset = slice.offset ?? 0;
+    const length = slice.length;
+    if (!Number.isInteger(offset) || offset < 0) return "dataSlice is invalid";
     if (!Number.isInteger(length) || length < 1 || length > MAX_DATA_SLICE) return "dataSlice is too large";
     return null;
   }
