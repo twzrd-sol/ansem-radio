@@ -139,7 +139,27 @@ export function createLiveServer({
       marketRegistry = market.registry;
     }
     const polls = hubPolls ?? (hubPollsPath ? loadPolls(hubPollsPath) : null);
-    hubApi = createHubApi({ origins: hubOrigins, store, season, seasonRecurring: hubSeasonRecurring, polls, secure: hubSecure, log, market, defaultMint: defaultMintFor(hubNetwork), schedule: hubSchedule, cancel: hubCancel, ...(hubClock ? { now: hubClock } : {}) });
+    hubApi = createHubApi({
+      origins: hubOrigins, store, season, seasonRecurring: hubSeasonRecurring, polls, secure: hubSecure, log, market,
+      defaultMint: defaultMintFor(hubNetwork), schedule: hubSchedule, cancel: hubCancel,
+      resolveTwitchUser: async (id) => {
+        if (!clientId || !currentAccessToken) throw new Error("Twitch account lookup unavailable");
+        const url = new URL("https://api.twitch.tv/helix/users");
+        url.searchParams.set("id", id);
+        const response = await fetch(url, {
+          redirect: "error",
+          signal: AbortSignal.timeout(5000),
+          headers: { Authorization: `Bearer ${String(currentAccessToken).replace(/^oauth:/i, "")}`, "Client-Id": clientId, accept: "application/json" },
+        });
+        if (!response.ok) throw new Error("Twitch account lookup failed");
+        const text = await response.text();
+        if (text.length > 32_768) throw new Error("Twitch account response too large");
+        const data = JSON.parse(text).data;
+        if (!Array.isArray(data) || data.length !== 1) throw new Error("Twitch account response malformed");
+        return data[0];
+      },
+      ...(hubClock ? { now: hubClock } : {}),
+    });
   }
   const feed = createObservationFeed({ maxObservations, tapeEvents: () => publicTapeEvents(recordedTape()) });
   const clients = new Set();

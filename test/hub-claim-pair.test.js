@@ -48,7 +48,7 @@ async function harness(t, { observedAt = "2026-10-04T00:00:00Z", stale = false, 
   });
   const identityStore = createHubIdentityStore({ dir });
   const market = { registry: listings({ fixed, featuredMint, featured }), board, index: { listingArena: (pair) => arena(pair), status: () => ({ network: "devnet", observedAt, slot: null, stale }), positionsOf: () => [], history: () => [] } };
-  const api = createHubApi({ origins: ORIGIN, store, now: () => NOW, market, defaultMint, identity: { store: identityStore, twitch: { clientId: "public-client", redirectUri: `${ORIGIN}/hub/twitch` }, fetchImpl: keysFetch }, limits: { read: 500, write: 500, auth: 500 } });
+  const api = createHubApi({ origins: ORIGIN, store, now: () => NOW, market, defaultMint, resolveTwitchUser: async (id) => ({ id, login: "alpha_live" }), identity: { store: identityStore, twitch: { clientId: "public-client", redirectUri: `${ORIGIN}/hub/twitch` }, fetchImpl: keysFetch }, limits: { read: 500, write: 500, auth: 500 } });
   const server = createServer(api);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => { await new Promise((resolve) => server.close(resolve)); rmSync(dir, { recursive: true, force: true }); });
