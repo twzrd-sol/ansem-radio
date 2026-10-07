@@ -1,65 +1,141 @@
 # Radio LAN
 
-Radio LAN is an MIT-licensed, open-source fan hub and attribution experiment for streamer culture. Points are free and are not paid out. Creators and collaborators can sign attribution credits, and that record is anchored to Solana devnet.
+Fans earn from real attention. `$RLAN` holders back stations to boost rewards.
 
-## What is here
-
-- **Fan hub** ([`apps/hub`](apps/hub/README.md), `src/hub`): a LAN station guide, browser Follow, free points, optional verified identity and a backing screen. The hosted hub is at `radiolan.live/hub` and is not in a public launch. Backing is not open: no arena exists on Solana mainnet yet, so nobody can back a creator today. Season points run on devnet. The local account API and tests are included; season collecting is not implemented.
-- **Attribution log** (`src/core`, `src/ledger`, `src/sinks`): a credit is co-signed by a creator and a collaborator, salted, and committed into an RFC 9162 Merkle log. Signed heads are anchored on the `evidence-ledger` program on Solana devnet (`BzBAYJxUtJp6mUkJPjEYjd8vdb2FUGnAfB5X9LqrQ72W`), and anyone can verify an entry's inclusion with `npm run attribution`.
-- **Twitch timeline and macro view** (`src/timeline`, `src/providers`, `public/macro.html`): channel events, minute aggregates and a local, read-only view of streamer attention built from public numbers. The timeline and the chart serve loopback only and stay on the machine that collected them.
-- **The room** (`src/live`, `src/agents`, `public/live.html`): a live board and a small chorus of clearly labeled AI agents. Every agent line starts with the persona name and "(AI agent)".
-- **x402 sponsor API** (`src/x402`): an optional, default-off Solana USDC checkout for a reviewed, clearly disclosed 60-second sponsor read on `radiolan.live`. The operator must configure its dedicated wallet, terms, review token, CDP credentials and finalized-mainnet RPC before the seller can return a payment challenge. See the [pilot and route contract](docs/X402_SPONSORED_SEGMENT_PILOT.md).
-- **Simulator** (`src/sim`): an offline model of an in-stream economy, kept separate from anything that runs live.
-
-For the source map, verification walkthrough and release updates, see
-[DEVELOPMENT.md](DEVELOPMENT.md) and [CHANGELOG.md](CHANGELOG.md).
-
-## Run
-
-```sh
-npm ci --ignore-scripts # install pinned x402 server dependencies
-npm test            # node --test
-npm run live        # the room on 127.0.0.1:8787
-npm run timeline -- summary --days 7
-npm run sim -- --farm 5
-npm run attribution -- --help
-```
-
-Node 22 or newer. x402 server dependencies are pinned in `package-lock.json`;
-the handler remains unloaded unless its runtime flag is enabled and its
-configuration is complete.
-
-The station entrypoint always binds to `127.0.0.1`; `HOST` is ignored.
-The public executable does not persist rotated Twitch credentials across restarts; embedding applications can supply a runtime persistence callback.
-
-## Boundaries
-
-Live product surfaces do not assign per-viewer status or points from watching or chatting. The timeline, the chart and their history stay on the collecting machine. The hub does show a few current public figures per channel (live, viewers, category, rank, change since the last read), taken from Twitch's public API and labelled "Data: Twitch"; they are for display, and no points, backing weight or on-chain value is computed from them. Twitch's own terms apply to that data. Radio LAN is not affiliated with or endorsed by Twitch. Credentials are supplied at runtime and never stored in this repository.
-
-The x402 route does not sell Twitch metrics, chat access or activity outcomes.
-Public community data stays free. During rollout, any optional x402 service
-charge must be strictly below 0.01 USDC; the server enforces that limit.
-RLAN's market value is independent and may be zero. x402 uses USDC and does
-not determine rewards or promise RLAN value.
-Sponsor copy must be reviewed before payment and the paid segment disclosed.
-The seller is disabled until the operator supplies and configures all payment,
-moderation, fulfillment and cancellation terms. Source availability does not
-mean the station has deployed or enabled the seller. It is disabled on the hosted site.
+This repository is an MIT-licensed **source mirror** of the hub at [radiolan.live/hub](https://radiolan.live/hub/). The live site is built from a private tree. Public `main` at `2bdf1f5a` mirrors an earlier private commit, so **this checkout can lag the hosted hub**. Features already on the live site that are not in this tree yet include `$ICELAN` task accrual and mainnet arena reads.
 
 ## Status
 
-Built in public during the AnsemHack, October 2026. The attribution log and the season points are on Solana devnet. The arena program is deployed on Solana mainnet, but no arena is open on it, so there is nothing to back yet; see the source and build record below.
+Checked 7 October 2026. **Live** means it is on the hosted hub or on Solana mainnet today. **In progress** means planned or only partly shipped. **Not live** means it is not a current product.
 
-Launched 1 October 2026, 23:58 EST (04:58 UTC on 2 October; launch transaction `48Xm6feb…FiG8J7`): `$RLAN`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` (pump.fun, Token-2022, mint and freeze authority revoked). Playing, following and points never require holding RLAN, and nothing here pays, rewards or promises anything for holding it. Points are free and are not tied to RLAN. When backing opens, it will only hold a fan's own RLAN in a support account that returns it to that fan; it will not change points or rankings. Nothing in this repository is investment advice.
+| Item | Status | What is true |
+| --- | --- | --- |
+| Hosted hub | Live | [radiolan.live/hub](https://radiolan.live/hub/) |
+| Passkey, Twitch, and wallet on one account | Live | See [Accounts](#accounts) |
+| `$RLAN` mint | Live | Token-2022 on mainnet; mint and freeze authorities revoked; buy on ClawPump |
+| Arena program | Live | Mainnet program below |
+| `radiolanlive` support arena | Live | Open market + arena; ~85,527.6 `$RLAN` deposited |
+| Position boosts the next site credit | Live | A linked wallet with an active position doubles that user's next site credit, within caps |
+| `$ICELAN` earning | Live | Off-chain marks from real activity; this mirror does not yet include the hosted accrual code |
+| `$ICELAN` claims / wallet payouts | Not live | Claims open at season end after a rewards vault is created and funded. Nothing is paid to wallets yet |
+| Season points | Live | Current season is on Solana **devnet**, free, unfunded, and separate from tokens |
+| Source mirror | In progress | Public `main` can trail the private live tree |
+| Program upgrade control | In progress | A **single key** still holds upgrade authority. A Squads multisig migration is planned |
+| x402 payments | Not live | Optional seller source exists in this tree and stays off unless configured. It is not a live payment product |
+| Holder yield / revenue share | Not live | Not offered |
+| Signed creator credits / payouts | Not live | Not a live product. Local attribution tooling in this tree is not a payout |
 
-## Arena program
+## Accounts
 
-The optional Radio LAN arena program is available for inspection and build reproduction.
+One hub account can use all three:
 
-- Mainnet program: `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`
-- Deployed ELF: SHA-256 `7ad624b983a7dfae6e3fdd5d77283b480b69e990b5374ac1b0c48f465ef0e893` (45,696 bytes), upgraded 2026-10-05; the first deploy (2026-10-02) was `22a613fe…`
-- Reproduce the build with Solana CLI 2.3.0: see [`programs/radiolan-arena/BUILD.md`](programs/radiolan-arena/BUILD.md).
+- **Passkey** sign-in
+- **Twitch** login (OIDC)
+- **Solana wallet** linking by **one signed message** (no transaction)
 
-No arena is open on this program yet, so it holds no fan tokens. The 2026-10-05 version adds one instruction (tag 5) that lets a single operator key open a market for the `$RLAN` mint only; no market has been opened, and nobody can close one once it is. A daily check compares the deployed bytes to the build record above and fails if they differ.
+The wallet picker supports **Phantom**, **Solflare**, **Backpack**, and other [Wallet Standard](https://github.com/wallet-standard/wallet-standard) wallets.
 
-We state the current control plainly: one Radio LAN operator key can upgrade the program today. It is not controlled by a multisig. The deployed version returns tokens only to the fan who deposited them, but an upgrade could replace it with different behavior. Please account for that operator-managed status when deciding whether to use it.
+## $RLAN
+
+| | |
+| --- | --- |
+| Mint | `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` |
+| Program | Token-2022 (`TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`) |
+| Decimals | 6 |
+| Mint authority | Revoked |
+| Freeze authority | Revoked |
+| Buy | [ClawPump](https://clawpump.tech/tokens/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) |
+
+Season points and hub play do not require holding `$RLAN`. Points are not `$RLAN`.
+
+## Support arena
+
+Mainnet program: `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`.
+
+The first support arena is **radiolanlive** (open-market PDA `["open", "radiolanlive"]`; the arena is `["arena", market, mint]`):
+
+| | Address |
+| --- | --- |
+| Market | `2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn` |
+| Arena | `5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq` |
+
+On 7 October 2026 the arena `total` field was **85,527.609857** `$RLAN` (85,527,609,857 base units ÷ 10^6). A linked wallet with an **active** position doubles that user's **next** site credit, within caps.
+
+Each fan's tokens sit in that fan's own program-owned support account and return only to that fan. Nobody can close this opened market.
+
+**Upgrade authority:** a single operator key can still replace the program. It is not a multisig today. A Squads migration is planned. An upgrade could change the program's behavior.
+
+This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBsP7WJfyhV2uYXSwTo2rr1aocqnuU9zGK`) and does **not** yet include the hosted mainnet arena reads. Reproduce the deployed ELF with [`programs/radiolan-arena/BUILD.md`](programs/radiolan-arena/BUILD.md).
+
+## $ICELAN
+
+`$ICELAN` is earned from real activity and is **tracked off-chain** on the hosted hub. This mirror does not yet include that accrual path. There is **no mint address** in this repository.
+
+| Action | Credit |
+| --- | --- |
+| Link Twitch | 100, once |
+| Link wallet | 100, once |
+| Chat in `#radiolanlive` | 10 each, max 10 per day |
+
+Claims open at season end once a rewards vault is created and funded. **Nothing is paid to wallets yet.**
+
+## Season points
+
+The current season runs on **Solana devnet** with **no prize budget**. Points are free and are not tokens. They are separate from `$RLAN` and `$ICELAN`.
+
+Twitch stream marks never go into settlement. Chat text is not stored.
+
+Collecting a funded season is not implemented.
+
+## Verify it yourself
+
+| What | Explorer | Solscan |
+| --- | --- | --- |
+| `$RLAN` mint | [explorer.solana.com](https://explorer.solana.com/address/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) | [solscan.io](https://solscan.io/token/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) |
+| Arena program | [explorer.solana.com](https://explorer.solana.com/address/5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf) | [solscan.io](https://solscan.io/account/5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf) |
+| `radiolanlive` arena | [explorer.solana.com](https://explorer.solana.com/address/5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq) | [solscan.io](https://solscan.io/account/5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq) |
+| `radiolanlive` market | [explorer.solana.com](https://explorer.solana.com/address/2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn) | [solscan.io](https://solscan.io/account/2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn) |
+
+On the mint, confirm Token-2022, 6 decimals, and empty mint/freeze authorities. On the program, confirm it is upgradeable and that upgrade authority is still a single key. On the arena, confirm owner `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy`, streamer = the market address, and `total` ÷ 10^6 for deposited `$RLAN`. On the market, confirm owner is the same program and the slug is `radiolanlive`.
+
+This checkout can derive those PDAs:
+
+```sh
+node --input-type=module <<'JS'
+import { openMarketAddress, arenaAddress } from './src/sinks/arena.js';
+import { encodeBase58 } from './src/core/base58.js';
+const mint = 'CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy';
+const market = openMarketAddress('radiolanlive');
+console.log('market', encodeBase58(market.address));
+console.log('arena', encodeBase58(arenaAddress(market.address, mint).address));
+JS
+```
+
+## Run
+
+Node 22 or newer. The root package pins optional x402 libraries in `package-lock.json`; they stay unloaded unless that path is enabled and fully configured.
+
+```sh
+npm ci --ignore-scripts   # install lockfile dependencies
+npm test                  # node --test
+npm run live              # the room on 127.0.0.1:8787
+npm run timeline -- summary --days 7
+npm run sim -- --farm 5
+npm run attribution -- --help
+npm run arena:season -- --help
+```
+
+The hub frontend is a separate package:
+
+```sh
+cd apps/hub
+npm ci                    # .npmrc: no install scripts, exact versions
+npm test                  # vitest
+npm run typecheck
+npm run build             # dist/
+npm run preview           # 127.0.0.1 under /hub/
+```
+
+See [`apps/hub/README.md`](apps/hub/README.md) for hub build variables. The station entrypoint always binds to `127.0.0.1`; `HOST` is ignored. The public executable does not persist rotated Twitch credentials across restarts.
+
+Source map and local checks: [DEVELOPMENT.md](DEVELOPMENT.md). Dated snapshots: [CHANGELOG.md](CHANGELOG.md). License: [MIT](LICENSE).

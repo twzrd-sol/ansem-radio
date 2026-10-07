@@ -1,14 +1,20 @@
 # Developing Radio LAN
 
-This guide describes the code in this public repository. It is a curated release;
-features not present here are not available through this checkout.
+This guide describes the code in this public repository. The hosted hub at
+[radiolan.live/hub](https://radiolan.live/hub/) is built from a private tree.
+This checkout is a source mirror and can lag that site (public `main` at
+`2bdf1f5a` mirrors an earlier private commit). Live-site facts that are true
+today are in the [root README](README.md). Features not present here are not
+available through this checkout.
 
 ## Start locally
 
-Use Node.js 22 or newer. The core Node service has no runtime dependencies. The
-optional fan frontend has its own pinned package; see [the hub README](apps/hub/README.md).
+Use Node.js 22 or newer. The root lockfile pins optional x402 libraries; they
+are unused unless that path is enabled. The hub frontend is a separate pinned
+package; see [the hub README](apps/hub/README.md).
 
 ```sh
+npm ci --ignore-scripts
 npm test
 npm run live
 npm run sim -- --farm 5
@@ -26,14 +32,13 @@ Keep credentials and captured data outside the repository.
 | Event contract | `src/core/` | Normalized observations and cryptographic primitives |
 | Provider adapters | `src/providers/` | Twitch payload normalization and connections |
 | Local timeline | `src/timeline/` | Storage, minute aggregates and macro snapshots |
-| Fan hub | `apps/hub/`, `src/hub/` | Local passkeys, daily polls, provisional points board and a backing screen (no arena is open on mainnet yet) |
+| Fan hub | `apps/hub/`, `src/hub/` | Passkey accounts, Twitch OIDC, wallet link by signed message, daily polls, provisional points, hub frontend. This tree does not yet include hosted `$ICELAN` accrual or mainnet arena reads. |
 | Room and chorus | `src/live/`, `src/agents/`, `public/` | Local UI and disclosed agent messages |
-| Attribution | `src/attribution/` | Canonical signed claims, commitments, Merkle trees and receipts |
+| Attribution | `src/attribution/` | Local/devnet signed-claim tooling. Not a live payout product. |
 | Evidence sink | `src/sinks/` | Devnet anchoring client and receipt verification CLI |
 | Receipt panel | `src/ledger/` | Read-only transfer receipts |
 | Simulator | `src/sim/` | Offline scenarios, separate from live activity |
-| Arena program | `programs/radiolan-arena/`, `src/sinks/arena.js` | Program source and instruction builders for optional support positions. |
-| Fan hub | `apps/hub/`, `src/hub/` | Local passkey accounts, native activities, optional verified links and the hub frontend |
+| Arena program | `programs/radiolan-arena/`, `src/sinks/arena.js` | Program source and instruction builders. A `radiolanlive` market/arena is live on mainnet; see the root README. |
 | Native season plans | `src/arena/` | Deterministic signed-event scoring and unsigned allocation plans; no transfer or claim instruction |
 
 ## Verify a receipt offline
