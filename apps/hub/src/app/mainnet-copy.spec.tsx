@@ -9,7 +9,7 @@ const mainnet = async () => {
   expect(config.IS_MAINNET).toBe(true);
   return { app, how, season, brand };
 };
-const text = (node: React.ReactElement) => renderToStaticMarkup(node).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+const text = (node: React.ReactElement) => renderToStaticMarkup(node).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
 
 describe("mainnet build copy while no arena is open", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -29,13 +29,24 @@ describe("mainnet build copy while no arena is open", () => {
     expect(guide).toMatch(/No mainnet arena is open on this hub\. Backing is not available yet/);
     expect(guide).not.toMatch(/Back them with RLAN|Backing uses|You can commit RLAN/);
     expect(brand.BRAND.tagline).not.toMatch(/back the ones|believe in/i);
-    expect(text(<season.SeasonNotOpen />)).toMatch(/Backing Not open No mainnet arena is open/);
-    expect(text(<season.SeasonNotOpen backingOpen />)).toMatch(/Backing Open/);
+    expect(text(<season.SeasonNotOpen />)).toContain("Support isn't open yet. Playing is free.");
+    expect(text(<season.SeasonNotOpen backingOpen />)).toMatch(/Support Open/);
   });
 
   it("no arena setup is offered on a mainnet build", async () => {
     const { app } = await mainnet();
     expect(app.canSetUp({ kind: "featured" } as never, "radiolanlive")).toBe(false);
     expect(app.canSetUp(null, "radiolanlive")).toBe(false);
+  });
+  it("a joined streamer's page offers no arena creation on a mainnet build", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_HUB_NETWORK", "mainnet");
+    const { YourPageView } = await import("../ui/YourPage");
+    const listing = { slug: "ninja", name: "ninja", kind: "tracked", demo: false, blurb: "", twitch: "ninja", claimed: true, claimDerived: true, keys: { streamer: "S", mint: "M" }, backingOpen: false, arena: null, performance: null } as never;
+    for (const claim of [{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }, { slug: "ninja", wallet: "W", ready: true }] as never[]) {
+      const page = text(<YourPageView claim={claim} listing={listing} />);
+      expect(page).toMatch(/No mainnet arena is open on this board\. Arena creation is not available here/);
+      expect(page).not.toMatch(/Create the arena|Create your arena|Two steps open it for backing/);
+    }
   });
 });

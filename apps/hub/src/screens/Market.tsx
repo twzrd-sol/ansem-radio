@@ -2,19 +2,41 @@
 // side by side and never merged. The station's own channel is one listing among them.
 import { useState } from "react";
 
-import { NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
+import { NETWORK_LABEL, RLAN_MINT, TOKEN_DECIMALS } from "../chain/config";
 import { followingListings, sortListings, type Listing, type Market as MarketData } from "../data/market";
 import { useFollowing } from "../data/following";
-import { categoryLanes, collection } from "../data/lanes";
+import { categoryLanes, collection } from "../data/slate";
 import type { Station } from "../data/station";
 import { fmt, units, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, LanMark, SampleTag, Skeleton, StationPill, Tag } from "../ui/atoms";
 import { FollowButton } from "../ui/FollowButton";
 import { HowLink } from "../ui/HowItWorks";
+import { RevenueStory } from "../ui/RevenueStory";
+import { CreatorAffinity } from "../ui/CreatorAffinity";
 
 type Filter = "all" | "live" | "following";
 
 export const rlan = (baseUnits: string) => `${units(BigInt(baseUnits), TOKEN_DECIMALS)} RLAN`;
+
+type LockerRead = Pick<MarketData, "observedAt" | "stale">;
+export type LockerStatus = "open" | "closed" | "stale" | "unavailable";
+
+/** Use the observed market index as the source of locker state; samples remain visibly marked fixtures. */
+export function lockerStatus(listing: Listing, read: LockerRead | null): LockerStatus {
+  if (!read?.observedAt || !Number.isFinite(Date.parse(read.observedAt))) return "unavailable";
+  if (read.stale) return "stale";
+
+  const arena = listing.arena;
+  if (!arena) return listing.backingOpen ? "unavailable" : "closed";
+  if (!listing.keys || arena.streamer !== listing.keys.streamer || arena.mint !== listing.keys.mint) return "unavailable";
+  if (listing.backingOpen !== !arena.closed) return "unavailable";
+  return listing.backingOpen ? "open" : "closed";
+}
+
+export function lockerIsOpen(listing: Listing, read: LockerRead | null): boolean {
+  return lockerStatus(listing, read) === "open";
+}
+
 const flow = (netFlow: string | null) => {
   if (netFlow === null) return null;
   const n = BigInt(netFlow);
@@ -50,8 +72,12 @@ export function ObservedLine({ data, sample, now, onRefresh }: { data: { network
   );
 }
 
-function BackingCell({ l }: { l: Listing }) {
-  if (!l.arena) return <span className="mkt__none">{l.kind === "featured" ? "Arena not open yet" : "Not open yet"}</span>;
+function BackingCell({ l, read }: { l: Listing; read: LockerRead }) {
+  const status = lockerStatus(l, read);
+  if (status === "stale") return <span className="mkt__none">Locker status unavailable · last read is stale</span>;
+  if (status === "unavailable") return <span className="mkt__none">Locker status unavailable · no current read</span>;
+  if (status === "closed") return <span className="mkt__none">Closed · no listed market is open</span>;
+  if (!l.arena) return <span className="mkt__none">No verified backing read</span>;
   const f = flow(l.arena.netFlow);
   return (
     <>
@@ -81,21 +107,22 @@ function PerformanceCell({ l }: { l: Listing }) {
   );
 }
 
-function Row({ l, rank, sample }: { l: Listing; rank: number | null; sample?: boolean }) {
+function Row({ l, rank, market }: { l: Listing; rank: number | null; market: MarketData }) {
+  const sample = market.sample;
   return (
-    <li className={l.backingOpen ? "mkt__row mkt__row--open" : "mkt__row"}>
+    <li className={lockerIsOpen(l, market) ? "mkt__row mkt__row--open" : "mkt__row"}>
       {/* A number only over the backable group: it ranks backing, never Twitch viewers. */}
       {rank === null ? <span className="mkt__rank" aria-hidden="true" /> : <span className="mkt__rank num" aria-label={`Backing rank ${rank}`}>{rank}</span>}
       <a className="mkt__main" href={`#/s/${l.slug}`}>
         <span className="mkt__name">
           {l.name}
-          {l.demo && <Tag kind="sample">Demo</Tag>}
+          {l.demo && <Tag kind="sample">Fictional creator</Tag>}
           {sample && <SampleTag />}
         </span>
         <span className={l.twitch ? "mkt__cells" : "mkt__cells mkt__cells--one"}>
           <span className="mkt__cell mkt__cell--backing">
-            <span className="label">Backing</span>
-            <BackingCell l={l} />
+            <span className="label">Locker</span>
+            <BackingCell l={l} read={market} />
           </span>
           {l.twitch && (
             <span className="mkt__cell">
@@ -118,15 +145,15 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
 
   const head = (
     <section className="hero hero--tight">
-      <p className="eyebrow">The Board · {NETWORK_LABEL}</p>
+      <p className="eyebrow">Discover</p>
       <h1 className="h1" tabIndex={-1}>
-        Find the streamers you watch
+        One room. Your creators. Your record.
       </h1>
-      <p className="lede">Today's biggest channels, by category. Follow the ones you like, and back a creator with RLAN when you choose.</p>
+      <p className="lede">Follow creators, compare public Twitch reads, and find your season crew. Your free play record stays separate from wallet lockers.</p>
     </section>
   );
   if (load === "loading") return <>{head}<Skeleton kinds={["block", "line", "line", "line"]} /></>;
-  if (load === "error" || !market) return <>{head}<ErrorBlock text="The board didn't load. Nothing on chain changed." onRetry={onRetry} /></>;
+  if (load === "error" || !market) return <>{head}<ErrorBlock text="The board didn't load. No scores changed. Nothing was sent." onRetry={onRetry} /></>;
 
   const featured = market.listings.find((l) => l.kind === "featured") ?? null;
   const q = query.trim().toLowerCase();
@@ -139,33 +166,46 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
     if (lane !== null && l.performance?.game !== lane) return false;
     return !q || l.name.toLowerCase().includes(q) || l.slug.includes(q) || (l.twitch ?? "").includes(q);
   });
-  const open = visible.filter((l) => l.backingOpen);
-  const twitchOnly = visible.filter((l) => !l.backingOpen);
+  const open = visible.filter((l) => lockerIsOpen(l, market));
+  const twitchOnly = visible.filter((l) => !lockerIsOpen(l, market));
   const liveCount = twitchOnly.filter((l) => l.performance?.live).length;
+
+  const featuredCard = featured && showFeatured ? (
+    <div className="featured-wrap">
+      <a className="feature" href={`#/s/${featured.slug}`} aria-label={`${featured.name}, the featured listing`}>
+        <LanMark className="feature__mark" />
+        <span className="feature__body">
+          <span className="feature__row">
+            <span className="feature__name">{featured.name}</span>
+            <Tag kind="soon">Featured</Tag>{market.sample && <SampleTag />}
+            <StationPill station={station} />
+          </span>
+          <span className="small">{featured.blurb ?? ""}</span>
+          <span className="feature__meta"><BackingCell l={featured} read={market} /></span>
+        </span>
+        <Icon name="next" />
+      </a>
+      <FollowButton slug={featured.slug} name={featured.name} />
+    </div>
+  ) : null;
 
   return (
     <>
       {head}
       <ObservedLine data={market} sample={market.sample} now={now} onRefresh={onRetry} />
-      {featured && showFeatured && (
-        <div className="featured-wrap">
-        <a className="feature" href={`#/s/${featured.slug}`} aria-label={`${featured.name}, the featured listing`}>
-          <LanMark className="feature__mark" />
-          <span className="feature__body">
-            <span className="feature__row">
-              <span className="feature__name">{featured.name}</span>
-              <Tag kind="soon">Featured</Tag>
-              <StationPill station={station} />
-            </span>
-            <span className="small">{featured.blurb ?? ""}</span>
-            <span className="feature__meta">{featured.arena ? <BackingCell l={featured} /> : <span className="mkt__none">Arena not open yet</span>}</span>
-          </span>
-          <Icon name="next" />
-        </a>
-        <FollowButton slug={featured.slug} name={featured.name} />
-        </div>
-      )}
+      {featuredCard}
+      <section className="room-paths" aria-label="Your Radio LAN universe">
+        <a href="#/play"><Icon name="play" /><strong>Play the season</strong><span>Free site activities and real points</span></a>
+        <a href="#/board"><Icon name="board" /><strong>Find your standing</strong><span>The room's points board</span></a>
+        <a href="#/circle"><Icon name="me" /><strong>Meet superfans</strong><span>Other fans of the same creators</span></a>
+        <a href="#/communities"><Icon name="me" /><strong>Communities</strong><span>Discord and X membership, when credentials exist</span></a>
+        <a href="#/me"><Icon name="star" /><strong>Collect your marks</strong><span>Badges and season history</span></a>
+        <a href="#/positions"><Icon name="wallet" /><strong>Your locker</strong><span>Own positions; backing adds no points</span></a>
+      </section>
+      <p className="small locker-note">A backing locker is your own position and comes back 1:1. It stays closed until a listed market is open. <a href={`https://explorer.solana.com/address/${RLAN_MINT}`} target="_blank" rel="noopener noreferrer">RLAN mainnet mint</a> · <a href="https://clawpump.tech" target="_blank" rel="noopener noreferrer">ClawPump</a></p>
+      {market.sample && <p className="small"><SampleTag /> Fictional creators and backing for preview. No live locker is opened here.</p>}
       <Collect listings={market.listings} followed={followed} />
+      <CreatorAffinity listings={market.listings} followed={followed} sample={Boolean(market.sample)} />
       <div className="mkt__controls">
         <div className="seg" role="group" aria-label="Show">
           {([["all", "All"], ["live", "Live now"], ["following", `Following (${following.length})`]] as const).map(([key, label]) => (
@@ -183,22 +223,30 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
       <Lanes listings={market.listings} lane={lane} onLane={setLane} />
       {filter === "following" ? (
         visible.length === 0 ? <EmptyBlock icon="star" title="Your watchlist" text="Follow creators to keep them here. Following is saved in this browser and adds no points." /> :
-        <ul className="mkt" aria-label="Following">{visible.map((l) => <Row key={l.slug} l={l} rank={null} sample={market.sample} />)}</ul>
-      ) : <><section aria-labelledby="h-open">
+        <ul className="mkt" aria-label="Following">{visible.map((l) => <Row key={l.slug} l={l} rank={null} market={market} />)}</ul>
+      ) : <>{open.length > 0 && <section aria-labelledby="h-open">
         <h2 className="label mkt__group" id="h-open">
-          Backing open · {open.length}
+          Open lockers · {open.length}
         </h2>
-        {open.length === 0 ? (
-          <p className="small mkt__empty">{narrowed ? "No backable creator matches." : "No creator has an arena open for backing yet. Creators list themselves by creating one."}</p>
-        ) : (
-          <ol className="mkt" aria-labelledby="h-open">
-            {open.map((l, i) => (
-              <Row key={l.slug} l={l} rank={i + 1} sample={market.sample} />
+        <ol className="mkt" aria-labelledby="h-open">
+          {open.map((l, i) => (
+            <Row key={l.slug} l={l} rank={i + 1} market={market} />
+          ))}
+        </ol>
+      </section>}
+      {twitchOnly.length > 0 && (open.length === 0 ? (
+        <section aria-labelledby="h-channels">
+          <h2 className="label mkt__group" id="h-channels">
+            Channels · {twitchOnly.length} {twitchOnly.length === 1 ? "channel" : "channels"}
+            {liveCount > 0 && `, ${liveCount} live`}
+          </h2>
+          <ul className="mkt" aria-labelledby="h-channels">
+            {twitchOnly.map((l) => (
+              <Row key={l.slug} l={l} rank={null} market={market} />
             ))}
-          </ol>
-        )}
-      </section>
-      {twitchOnly.length > 0 && (
+          </ul>
+        </section>
+      ) : (
         <details className="mkt__more" open={narrowed || undefined}>
           <summary>
             On Twitch, not listed yet · {twitchOnly.length} {twitchOnly.length === 1 ? "channel" : "channels"}
@@ -206,13 +254,15 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
           </summary>
           <ul className="mkt">
             {twitchOnly.map((l) => (
-              <Row key={l.slug} l={l} rank={null} sample={market.sample} />
+              <Row key={l.slug} l={l} rank={null} market={market} />
             ))}
           </ul>
         </details>
-      )}
-      {open.length === 0 && twitchOnly.length === 0 && narrowed && <EmptyBlock icon="board" title="Nothing matches" text="Try another filter or search." />}
+      ))}
+      {open.length === 0 && twitchOnly.length === 0 && (narrowed ? <EmptyBlock icon="board" title="Nothing matches" text="Try another filter or search." /> : <p className="small mkt__empty">No channels match the current read yet.</p>)}
+
       </>}
+      <RevenueStory />
       <p className="small fine">Following lives in this browser. Backing adds no points. <HowLink /></p>
     </>
   );

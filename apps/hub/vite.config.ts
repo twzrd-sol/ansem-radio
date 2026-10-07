@@ -16,7 +16,7 @@ export function contentSecurityPolicy(relayUrl: string | undefined): Plugin {
     "img-src 'self' data:",
     "font-src 'self'",
     `connect-src 'self'${relayOrigin ? ` ${relayOrigin}` : ""} ws://localhost:*`,
-    "frame-src https://player.twitch.tv",
+    "frame-src https://player.twitch.tv https://www.twitch.tv",
     "base-uri 'none'",
     "form-action 'none'",
     "object-src 'none'",

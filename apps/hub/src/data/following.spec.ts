@@ -30,6 +30,16 @@ describe("per-browser following", () => {
     expect(store.snapshot()).toEqual([]);
   });
 
+  it("imports only valid unique slugs into this browser's watchlist", () => {
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+    const store = createFollowStore(storage);
+    store.toggle("already-followed");
+    expect(store.importSlugs(["already-followed", "new-creator", "new-creator", "../bad"])).toBe(1);
+    expect(store.snapshot()).toEqual(["already-followed", "new-creator"]);
+    expect(JSON.parse(values.get(FOLLOW_KEY)!)).toEqual({ version: 1, slugs: ["already-followed", "new-creator"] });
+  });
+
   it("puts live followed channels before more-backed offline creators", () => {
     const listings = sampleMarket(Date.UTC(2026, 9, 3)).listings;
     const offline = { ...listings[0]!, slug: "offline", backingOpen: true, performance: null };

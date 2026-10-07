@@ -7,6 +7,7 @@ import { createHubApi, explainApiError, HubApiError } from "../data/api";
 import type { MyClaim } from "../data/identity-api";
 import type { Listing } from "../data/market";
 import { Icon } from "./atoms";
+import { IS_MAINNET } from "../chain/config";
 
 const REASONS: Record<string, string> = {
   wallet_link_required: "Link a wallet first. The arena is created under it.",
@@ -22,15 +23,15 @@ export function YourPageView({ claim, listing, onRelease, busy = false, notice =
   const linked = Boolean(claim.wallet);
   const open = listing.backingOpen;
   const mismatch = Boolean(claim.pinned) && claim.wallet !== null && claim.wallet !== claim.pinned!.streamer;
-  const canCreate = claim.ready && listing.claimDerived === true && !listing.arena;
+  const canCreate = !IS_MAINNET && claim.ready && listing.claimDerived === true && !listing.arena;
   return (
     <section className="panel" aria-labelledby="h-yourpage">
       <div className="panel__head">
         <h2 className="h3" id="h-yourpage">Your page</h2>
         <span className="label">Streamer</span>
       </div>
-      <p className="small">You joined this page with Twitch. Two steps open it for backing, and backing never changes anyone's points.</p>
-      <ol className="yourpage__steps">
+      <p className="small">You joined this page with Twitch. Backing never changes anyone's points.</p>
+      {IS_MAINNET ? <p className="small">No mainnet arena is open on this board. Arena creation is not available here.</p> : <ol className="yourpage__steps">
         <li className={linked ? "step step--done" : "step"}>
           <strong>1. Link your wallet</strong>
           <span className="small">{linked ? "Linked. The arena is created under this wallet." : "Use the wallet you will keep for this page."}</span>
@@ -38,10 +39,10 @@ export function YourPageView({ claim, listing, onRelease, busy = false, notice =
         </li>
         <li className={open ? "step step--done" : "step"}>
           <strong>2. Create your arena</strong>
-          <span className="small">{open ? "Your arena is open. Fans can back this page." : mismatch ? `This page is tied to wallet ${short(claim.pinned!.streamer)}, not the wallet you have linked now. Connect ${short(claim.pinned!.streamer)} to create the arena.` : canCreate ? `One signature from ${claim.pinned ? short(claim.pinned.streamer) : "the linked wallet"}. Nothing else is sent.` : claim.reason ? REASONS[claim.reason] ?? "Not ready yet." : "Not ready yet."}</span>
+          <span className="small">{open ? "Your arena is open. Fans can back this page." : mismatch ? `This page is tied to wallet ${short(claim.pinned!.streamer)}, not the wallet you have linked now. Connect ${short(claim.pinned!.streamer)} to create the arena.` : canCreate ? `One signature from ${claim.pinned ? short(claim.pinned.streamer) : "the linked wallet"}. Nothing else is sent. One signature, for this step only.` : claim.reason ? REASONS[claim.reason] ?? "Not ready yet." : "Not ready yet."}</span>
           {canCreate && <a className="btn btn--primary" href={`#/back/${listing.slug}`}><Icon name="heart" size="sm" />Create your arena</a>}
         </li>
-      </ol>
+      </ol>}
       {claim.pinned && (
         <p className="small fine">
           This page is tied to wallet {short(claim.pinned.streamer)}. Releasing the page does not move it: the listing stays tied to this wallet's arena, so anyone who backed it can always withdraw.

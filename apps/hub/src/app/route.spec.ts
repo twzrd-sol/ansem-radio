@@ -11,6 +11,9 @@ describe("hub destinations", () => {
     expect(parseHash("#/play")).toMatchObject({ title: "Play", tab: "play" });
     expect(parseHash("#/lan")).toMatchObject({ title: "Radio LAN", tab: "lan" });
     for (const hash of ["#/me", "#/positions", "#/claim"]) expect(parseHash(hash).tab, hash).toBe("me");
+    expect(parseHash("#/circle")).toMatchObject({ title: "Superfans", tab: "play" });
+    expect(parseHash("#/circle/crate-breed")).toMatchObject({ key: "circle", arg: "crate-breed", title: "Superfans" });
+    expect(parseHash("#/communities")).toMatchObject({ title: "Communities", tab: "play", onchain: false });
     expect(parseHash("#/s/ninja").tab).toBe("market");
   });
   it("sends an unknown route to Discover", () => {

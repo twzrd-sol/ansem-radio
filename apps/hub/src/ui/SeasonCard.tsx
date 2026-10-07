@@ -1,4 +1,3 @@
-import { IS_MAINNET } from "../chain/config";
 import type { CurrentSeason, RewardState } from "../data/types";
 import { seasonPhase } from "../data/season";
 import { showsMoney } from "../data/types";
@@ -23,7 +22,7 @@ export const rewardLabel: Record<RewardState["kind"], string> = {
   claimable: "Final points, ready to collect",
 };
 
-export function SeasonCard({ season, now, onJoin, backingOpen = false }: { season: CurrentSeason; now: number; onJoin: () => void; backingOpen?: boolean }) {
+export function SeasonCard({ season, now, onJoin, backingOpen = false, sample = false }: { season: CurrentSeason; now: number; onJoin: () => void; backingOpen?: boolean; sample?: boolean }) {
   const phase = seasonPhase(season, now);
   const open = phase === "open";
   const max = seasonMax(season);
@@ -34,14 +33,14 @@ export function SeasonCard({ season, now, onJoin, backingOpen = false }: { seaso
         <h2 className="h3" id="h-season">
           Season {season.number}
         </h2>
-        <SampleTag />
+        {sample ? <SampleTag /> : season.number === 2 ? <span className="label">Solana devnet</span> : null}
         <span className={open ? "phase phase--open" : "phase phase--closed"}>{open ? "Open" : phase === "upcoming" ? "Upcoming" : "Closed"}</span>
         <span className="season__clock">
           <Icon name="clock" size="sm" />
           {open ? `Points freeze in ${left(season.freezesAt - now)}` : phase === "upcoming" ? `Starts in ${left(season.opensAt - now)}` : "Points are frozen"}
         </span>
       </div>
-      {season.poll?.placeholder && <p className="small">Sample season. Today's poll is a placeholder and does not count for points.</p>}
+      {season.poll?.placeholder && <p className="small">Today's poll is a placeholder and does not count for points. Other site activities remain available.</p>}
       {phase === "upcoming" ? <SeasonOpening season={season} now={now} /> : me ? (
         <div className="crt">
           <div className="crt__row">
@@ -106,7 +105,7 @@ export function SeasonNotOpen({ backingOpen = false }: { backingOpen?: boolean }
       <div className="stats">
         <Stat label="Perks" value="Not funded" note="An unfunded season has no perks" word />
         <Stat label="Players" value="0" note="This season" />
-        <Stat label="Backing" value={IS_MAINNET ? (backingOpen ? "Open" : "Not open") : "Devnet test"} note={IS_MAINNET ? (backingOpen ? "Your own support account, on mainnet" : "No mainnet arena is open") : "Program on mainnet; this build rehearses on devnet"} word />
+        {backingOpen ? <Stat label="Support" value="Open" note="Your own support account" word /> : <p className="small" style={{ marginTop: 8 }}>Support isn't open yet. Playing is free.</p>}
       </div>
     </section>
   );

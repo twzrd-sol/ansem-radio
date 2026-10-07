@@ -1,0 +1,28 @@
+@layer components {
+  .revenue-story { margin: 24px 0; padding: 20px; border: 1px solid var(--color-line-2); border-radius: 18px; background: linear-gradient(135deg, rgba(255, 178, 63, 0.07), rgba(19, 17, 14, 0.92) 44%); }
+  .revenue-story__heading { display: grid; gap: 7px; max-width: 680px; margin-bottom: 16px; }
+  .revenue-story__heading .h2 { font-size: clamp(28px, 6vw, 40px); }
+  .revenue-story__grid { display: grid; gap: 10px; }
+  .revenue-card { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 9px; padding: 16px; border: 1px solid var(--color-line); border-radius: 13px; background: rgba(11, 10, 8, 0.62); }
+  .revenue-card__figure { color: var(--color-lime); font: 800 42px/0.95 var(--font-display); letter-spacing: 0.02em; }
+  .revenue-card__figure span { font-size: 25px; }
+  .revenue-card__figure--word { font-size: 31px; }
+  .revenue-card h3 { max-width: 25ch; }
+  .revenue-card__state { display: inline-flex; align-items: center; min-height: 25px; margin-top: auto; padding: 4px 8px; border: 1px solid rgba(201, 242, 61, 0.25); border-radius: 7px; color: var(--color-lime); font: 600 10px/1.2 var(--font-body); letter-spacing: 0.09em; text-transform: uppercase; }
+  .revenue-card--closed .revenue-card__figure, .revenue-card--closed .revenue-card__state { color: var(--color-cream-2); }
+  .revenue-card--closed .revenue-card__state { border-color: var(--color-line-2); }
+  .revenue-card__link { margin-top: auto; color: var(--color-amber); font-size: 13px; font-weight: 600; text-underline-offset: 3px; }
+  .challenge-brief { display: grid; gap: 12px; margin: -4px 0 18px; padding: 16px; border: 1px solid rgba(201, 242, 61, 0.22); border-radius: 14px; background: radial-gradient(ellipse at top right, rgba(201, 242, 61, 0.08), rgba(19, 17, 14, 0.7) 66%); }
+  .challenge-brief__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .challenge-brief__steps { display: grid; gap: 8px; }
+  .challenge-step { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 9px; }
+  .challenge-step__num { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid rgba(201, 242, 61, 0.35); border-radius: 50%; color: var(--color-lime); font: 700 12px/1 var(--font-mono); }
+  .challenge-step p + p { margin-top: 2px; }
+  @media (min-width: 760px) {
+    .revenue-story { padding: 24px; }
+    .revenue-story__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .revenue-card { min-height: 260px; padding: 18px; }
+    .challenge-brief { grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.5fr); align-items: center; padding: 20px; }
+    .challenge-brief__steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+}
