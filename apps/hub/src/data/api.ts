@@ -1,7 +1,8 @@
 // The hub API client (plan sections 3 and 12): same-origin /hub/api, the session in an HttpOnly cookie the page
 // never reads, the CSRF token in memory, and passkeys through navigator.credentials. No key of a fan is ever
 // held here; a passkey lives in the fan's authenticator.
-import type { Action } from "./types";
+import type { Action, HistoryRow } from "./types";
+import { communityApi } from "./community-api";
 import { identityApi } from "./identity-api";
 
 export const API_BASE = "/hub/api";
@@ -24,6 +25,7 @@ export interface ApiSeason {
   credited: number;
   poll?: { id: string; question: string; options: string[]; placeholder: boolean } | null;
   board?: Array<[string, string]>;
+  boardDetails?: Array<{ handle: string; badges: Array<{ id: BadgeId; earnedAt: number }>; streakDays: number }>;
 }
 export type BadgeId = "first_play" | "three_days";
 export interface ApiSubmission {
@@ -41,6 +43,10 @@ export interface ApiMe {
   today: string;
   rank?: number | null;
   badges?: Array<{ id: BadgeId; earnedAt: number }>;
+  streakDays?: number;
+  activityDays?: number;
+  playedToday?: boolean;
+  firstSeason?: number | null;
   pending: number;
   submissions: ApiSubmission[];
 }
@@ -60,6 +66,7 @@ export interface ApiState {
   season: ApiSeason | null;
   lastSeason?: ApiLastSeason | null;
   me: ApiMe | null;
+  history?: HistoryRow[];
   generatedAt: number;
 }
 export type ActivityInput = { action: "question" | "accepted_work"; text: string } | { action: "poll_response"; pollId: string; choice: number };
@@ -84,6 +91,8 @@ export function explainApiError(error: unknown): string {
     case "slow_down": return "Too fast. Try again in a minute.";
     case "credential_already_registered": return "This passkey already has an account. Sign in instead.";
     case "unknown_credential": return "No account for that passkey here. Create one instead.";
+    case "community_credentials_required": return "This community connection needs credentials. Nothing changed.";
+    case "oauth_not_wired": return "OAuth membership checks are not wired on this hub yet.";
     default: return `The hub refused it (${error.code}).`;
   }
 }
@@ -118,7 +127,6 @@ export function createHubApi({ fetchImpl = (input: string, init?: RequestInit) =
       if (response.status === 401) csrf = "";
       throw new HubApiError(response.status, String(json.error ?? "request_failed"), typeof json.detail === "string" ? json.detail : undefined);
     }
-    // A 2xx body that is not JSON is a broken response, not a success.
     if (!parsed.ok) throw new HubApiError(response.status, "bad_response");
     if (typeof json.csrf === "string") csrf = json.csrf;
     return json as T;
@@ -164,7 +172,7 @@ export function createHubApi({ fetchImpl = (input: string, init?: RequestInit) =
   const join = () => call<ApiMe>("POST", "/join", {});
   const submit = (input: ActivityInput) => call<ApiMe & { submission: ApiSubmission }>("POST", "/activities", input);
 
-  return { state, me, register, login, logout, join, submit, ...identityApi(call), get hasSession() { return csrf !== ""; } };
+  return { state, me, register, login, logout, join, submit, ...identityApi(call), ...communityApi(call), get hasSession() { return csrf !== ""; } };
 }
 
 export type HubApi = ReturnType<typeof createHubApi>;

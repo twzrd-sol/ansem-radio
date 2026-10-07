@@ -2,11 +2,11 @@ import { useState, type ReactNode } from "react";
 
 import type { FailKind, FlowStep, Position, PreviewState } from "../app/preview";
 import { writePreview } from "../app/preview";
-import { ARENA_MINT, ARENA_PROGRAM, IS_MAINNET, NETWORK_LABEL, RLAN_MINT, TOKEN_DECIMALS } from "../chain/config";
+import { ARENA_MINT, ARENA_PROGRAM, IS_MAINNET, NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
 import { currentSeason, releaseIfRequestedAt, type ArenaSchedule } from "../chain/season";
 import { SAMPLE_MINT, SAMPLE_POSITION, SAMPLE_WALLET } from "../data/sample";
 import type { HubSnapshot } from "../data/types";
-import { left, parseAmount, units, utc } from "../lib/format";
+import { feltCost, left, parseAmount, units, utc } from "../lib/format";
 import { Address, ErrorBlock, Fact, Icon, Item, Skeleton, Tag } from "../ui/atoms";
 
 export type FlowAction = "deposit" | "request" | "withdraw";
@@ -197,7 +197,7 @@ export function ChainFacts({ schedule, mint = ARENA_MINT }: { schedule: ArenaSch
         <Fact label="Program">
           radiolan-arena <Address id={ARENA_PROGRAM} />
         </Fact>
-        <Fact label="Token">{mint ? <>{IS_MAINNET && mint === RLAN_MINT ? "$RLAN" : "Token-2022 test mint"} <Address id={mint} /></> : "A Token-2022 test mint, set when the devnet arena is configured. Mainnet uses RLAN."}</Fact>
+        <Fact label="Token address">{mint ? <Address id={mint} /> : "The address appears when the arena is configured."}{!IS_MAINNET && <span className="small block">This rehearsal is on Solana devnet. Mainnet uses RLAN.</span>}</Fact>
         <Fact label="Unlock">
           {schedule
             ? `Request withdrawal anytime. A request is available once the on-chain season it was made in ends: ${utc(releaseIfRequestedAt(schedule))} for season ${currentSeason(schedule)}.`
@@ -301,7 +301,7 @@ function PreviewFlow({ snapshot, preview, now }: { snapshot: HubSnapshot; previe
       <div>
         <p className="small">
           {flowAction === "withdraw"
-            ? "Your release date has passed, so withdrawing everything sends your RLAN back to your wallet, closes your position and gives back the account rent."
+            ? "Your release date has passed, so withdrawing everything sends your RLAN back to your wallet, closes your position, and sends your account deposit back."
             : `Available after ${release ? utc(release) : "the end of this on-chain season"}. Your RLAN stays in your support account until then, and adding more before then cancels the request.`}
         </p>
         <div className="actions">
@@ -351,13 +351,13 @@ function PreviewFlow({ snapshot, preview, now }: { snapshot: HubSnapshot; previe
     } else {
       rows.push({ label: "You receive", value: <span className="num sim__big">{rlan(SAMPLE_POSITION)}</span> });
       rows.push({ label: "To", value: <>Your wallet <Address id={SAMPLE_WALLET.address} sample /></> });
-      rows.push({ label: "Rent back", value: sol(FIRST_DEPOSIT_RENT_LAMPORTS) });
+      rows.push({ label: "You get this back when you withdraw", value: sol(FIRST_DEPOSIT_RENT_LAMPORTS) });
     }
     rows.push({ label: "Program", value: <>radiolan-arena <Address id={ARENA_PROGRAM} /></> });
-    if (flowAction !== "request") rows.push({ label: "Token", value: ARENA_MINT ? <>Test mint <Address id={ARENA_MINT} /></> : <>Test mint <Address id={SAMPLE_MINT} sample /></> });
+    if (flowAction !== "request") rows.push({ label: "Token address", value: ARENA_MINT ? <Address id={ARENA_MINT} /> : <Address id={SAMPLE_MINT} sample /> });
     rows.push({ label: "Network", value: "Solana devnet" });
-    if (flowAction === "deposit" && position === "none") rows.push({ label: "Account rent", value: `${sol(FIRST_DEPOSIT_RENT_LAMPORTS)}, returned when you withdraw everything after release` });
-    rows.push({ label: "Network fee", value: `About ${sol(FEE_LAMPORTS)}` });
+    if (flowAction === "deposit" && position === "none") rows.push({ label: "Account deposit (returned when you withdraw)", value: `${sol(FIRST_DEPOSIT_RENT_LAMPORTS)}, returned when you withdraw everything after release` });
+    rows.push({ label: "Network fee", value: <>{feltCost(FEE_LAMPORTS)}<span className="small block">{sol(FEE_LAMPORTS)}</span></> });
     body = (
       <div>
         <ReviewPanel rows={rows} preview note={flowAction === "deposit" && position === "requested" ? "This deposit cancels your withdrawal request." : undefined} />
@@ -370,6 +370,7 @@ function PreviewFlow({ snapshot, preview, now }: { snapshot: HubSnapshot; previe
             {flowAction === "deposit" ? "Edit amount" : "Change"}
           </button>
         </div>
+        <p className="small" style={{ marginTop: 12 }}>Nothing is sent until you approve. One signature, for this step only.</p>
       </div>
     );
   } else if (step === "signing") {

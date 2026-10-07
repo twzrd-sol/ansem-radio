@@ -30,10 +30,10 @@ describe("today's snapshot from the API", () => {
   it("maps the season, the policy verbatim and the fan's standing, with no invented poll or board", () => {
     const snap = buildToday(state);
     expect(snap.scenario).toBe("today");
-    expect(snap.fan).toEqual({ handle: "fan-ab12cd34", since: 2 });
+    expect(snap.fan).toMatchObject({ handle: "fan-ab12cd34", since: 0, badges: [] });
     expect(snap.season).toMatchObject({ number: 2, opensAt: 1_791_158_400_000, freezesAt: 1_791_763_200_000, players: 3, backers: 0, reward: { kind: "provisional" }, poll: null, prompt: null, board: [] });
     expect(snap.season?.policy).toEqual(state.season?.policy);
-    expect(snap.season?.me).toEqual({ points: 15, rank: null, streakDays: 0, today: 10, submissions: [{ action: "question", status: "credited" }, { action: "accepted_work", status: "pending" }], badges: [] });
+    expect(snap.season?.me).toMatchObject({ points: 15, rank: null, streakDays: 0, today: 10, submissions: [{ action: "question", status: "credited", occurredAt: 1000 }, { action: "accepted_work", status: "pending", occurredAt: 2000 }], badges: [] });
     expect(snap.lastSeason).toBeNull();
     expect(snap.history).toEqual([]);
     expect(snap.arena).toBeNull();

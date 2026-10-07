@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 export type Tab = "market" | "lan" | "play" | "positions" | "me";
-export type RouteKey = "" | "s" | "lan" | "play" | "board" | "back" | "positions" | "me" | "claim" | "how";
+export type RouteKey = "" | "s" | "lan" | "play" | "board" | "circle" | "communities" | "back" | "positions" | "me" | "claim" | "how";
 
 export interface Route {
   key: RouteKey;
@@ -18,6 +18,8 @@ const ROUTES: Record<RouteKey, Omit<Route, "key" | "arg">> = {
   lan: { title: "Radio LAN", tab: "lan", onchain: false },
   play: { title: "Play", tab: "play", onchain: false },
   board: { title: "Points board", tab: "play", onchain: false },
+  circle: { title: "Superfans", tab: "play", onchain: false },
+  communities: { title: "Communities", tab: "play", onchain: false },
   back: { title: "Back the creator", tab: "market", onchain: true },
   positions: { title: "My positions", tab: "me", onchain: false },
   me: { title: "Profile", tab: "me", onchain: false },

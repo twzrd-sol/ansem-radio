@@ -23,6 +23,9 @@ import { createClaimRoutes, createClaimStore, deriveClaimPair } from "./claims.j
 import { mintForClaims, reservedSlug } from "./registry.js";
 import { createIdentityRoutes } from "./identity.js";
 import { createHubIdentityStore } from "./identity-store.js";
+import { communityConfig } from "./community.js";
+import { createCommunityStore } from "./community-store.js";
+import { createCommunityRoutes } from "./community-routes.js";
 import { clientKey } from "./relay.js";
 import { base64url, verifyAssertion, verifyRegistration } from "./webauthn.js";
 
@@ -59,7 +62,7 @@ export function parseOrigins(text) {
 const sha256hex = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const parseCookies = (header) => Object.fromEntries(String(header ?? "").split(";").map((p) => p.trim().split("=")).filter(([k, v]) => k && v !== undefined).map(([k, ...v]) => [k, v.join("=")]));
 
-export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, resolveTwitchUser = null, schedule = undefined, cancel = undefined }) {
+export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, community = undefined, resolveTwitchUser = null, schedule = undefined, cancel = undefined }) {
   const { origins, rpIds } = parseOrigins(originText);
   const { polls: seasonPolls, ...seasonConfig } = season ?? {};
   // The published season, or (seasonRecurring) the arena's recurring season that contains the current instant:
@@ -187,6 +190,8 @@ export function createHubApi({ origins: originText, store, season = null, season
   // separate, labelled object next to backing, never merged into it.
   const claims = createClaimStore({ dir: store.dir });
   const identityStore = identity.store ?? createHubIdentityStore({ dir: store.dir });
+  const communityStore = (community && community.store) || createCommunityStore({ dir: store.dir });
+  const communitySettings = community?.config ?? communityConfig();
   // Station-wide default mint, or the featured listing's mint when that setting is unset. Never a hardcoded address.
   const claimMint = mintForClaims({ defaultMint, listings: registryInput ?? market?.registry ?? [] });
   const listingsNow = () => {
@@ -295,6 +300,10 @@ export function createHubApi({ origins: originText, store, season = null, season
   const routes = {
     ...marketRoutes,
     ...createIdentityRoutes({ hubStore: store, origins, requireOrigin, requireSession, authLimit, now, ...identity, store: identityStore }),
+    ...createCommunityRoutes({
+      origins, requireOrigin, requireSession, sessionOf, authLimit, now,
+      community: communitySettings, store: communityStore, season: () => config, standingOf: standing,
+    }),
     ...createClaimRoutes({ registry: listingsNow, claims, twitchOf: (accountId) => identityStore.get(accountId), resolveTwitchUser, requireOrigin, requireSession, authLimit, now, defaultMint: claimMint }),
     "GET /hub/api/state": (request) => {
       const session = sessionOf(request);

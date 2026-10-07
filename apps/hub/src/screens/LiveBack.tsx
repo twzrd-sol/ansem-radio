@@ -3,12 +3,12 @@ import { address, type Address } from "@solana/kit";
 import type { Wallet } from "@wallet-standard/base";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { ARENA_PROGRAM, NETWORK_LABEL, RPC_URL, TOKEN_DECIMALS } from "../chain/config";
+import { ARENA_PROGRAM, IS_MAINNET, NETWORK_LABEL, RPC_URL, TOKEN_DECIMALS } from "../chain/config";
 import { prepare, prepareSetup, readChain, resume, sessionPendingStore, signAndSend, type ChainView, type FlowAction, type FlowFailure, type FlowState, type WalletPort } from "../chain/flow";
 import { kitRpc } from "../chain/rpc";
 import { nowSeconds, seasonIndex, withdrawAvailableAt, type ArenaSchedule } from "../chain/season";
 import { connectWallet, NO_WALLET_APP_EVENT, registerMobileWallet, useWallets, walletHelp } from "../chain/wallet";
-import { duration, parseAmount, units, utc } from "../lib/format";
+import { duration, feltCost, parseAmount, units, utc } from "../lib/format";
 import { Address as AddressLink, EmptyBlock, ErrorBlock, Icon, Skeleton } from "../ui/atoms";
 import type { Position } from "../app/preview";
 import { useWalletSession } from "../data/wallet-session";
@@ -53,7 +53,7 @@ export function LiveBack({ target, slug, name, allowSetup, ready = true, boardEr
     return (
       <>
         <BackHeader schedule={null} slug={slug} name={name} />
-        <EmptyBlock icon="lock" title="Backing is not open yet" text={`Radio LAN has not opened an arena for ${name} yet. It appears here when it is open.`} />
+        <EmptyBlock icon="lock" title="Backing is not open" text={`Backing is not open for ${name}.`} />
       </>
     );
   }
@@ -192,26 +192,39 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     } else if (p.action === "init") {
       rows.push({ label: "You create", value: <>Arena <AddressLink id={p.arena} /><span className="small block">This listing's arena on {NETWORK_LABEL}. You sign as its streamer wallet; you can close it later, and nothing else.</span></> });
       rows.push({ label: "Seasons", value: `${duration(Number(p.schedule?.seasonSeconds ?? 0n))} each, from ${utc(Number(p.schedule?.seasonStart ?? 0n) * 1000)}; on-chain season ${p.onchainSeason} now. Fixed at creation.` });
-      rows.push({ label: "Account rent", value: `${sol(p.rentLamports)} for the arena account` });
+      rows.push({ label: "Account deposit (returned when you withdraw)", value: `${sol(p.rentLamports)} for the arena account. You get this back if the arena closes.` });
     } else {
       rows.push({ label: "You receive", value: <span className="num sim__big">{rlan(p.amount)}</span> });
       rows.push({ label: "To", value: <>Your token account <AddressLink id={p.destination ?? ""} /></> });
-      rows.push({ label: "Rent back", value: sol(p.rentLamports) });
+      rows.push({ label: "You get this back when you withdraw", value: sol(p.rentLamports) });
     }
     rows.push({ label: "Program", value: <>radiolan-arena <AddressLink id={ARENA_PROGRAM} /></> });
-    if (p.action !== "request") rows.push({ label: "Token", value: <>Mint <AddressLink id={target.mint} /></> });
+    if (p.action !== "request") rows.push({ label: "Token address", value: <AddressLink id={target.mint} /> });
     rows.push({ label: "Network", value: NETWORK_LABEL });
-    if (p.action === "deposit" && p.rentLamports > 0n) rows.push({ label: "Account rent", value: `${sol(p.rentLamports)}, returned when you withdraw everything after release` });
-    rows.push({ label: "Network fee", value: `About ${sol(p.feeLamports)}` });
+    if (p.action === "deposit" && p.rentLamports > 0n) rows.push({ label: "Account deposit (returned when you withdraw)", value: `${sol(p.rentLamports)}. You get this back when you withdraw everything after release.` });
+    rows.push({ label: "Network fee", value: <>{feltCost(p.feeLamports)}<span className="small block">{sol(p.feeLamports)}</span></> });
     body = (
       <div>
+        {p.action === "deposit" && (
+          <p className="lede" style={{ marginBottom: 10 }}>
+            {`You're setting aside ${rlan(p.amount)} for ${name}. You can ask for it back.`}
+          </p>
+        )}
         {state.notice === "not-signed" && (
           <p className="note note--warn" style={{ marginBottom: 12 }}>
             <Icon name="info" />
             Your wallet didn't sign. Nothing was sent.
           </p>
         )}
-        <ReviewPanel rows={rows} preview={false} note={p.cancelsRequest ? "This deposit cancels your withdrawal request." : undefined} />
+        {p.action === "deposit" ? (
+          <details className="details">
+            <summary className="small">Chain details</summary>
+            <ReviewPanel rows={rows} preview={false} note={p.cancelsRequest ? "This deposit cancels your withdrawal request." : undefined} />
+          </details>
+        ) : (
+          <ReviewPanel rows={rows} preview={false} note={p.cancelsRequest ? "This deposit cancels your withdrawal request." : undefined} />
+        )}
+        <p className="small" style={{ marginTop: 12 }}>Nothing is sent until you approve. One signature, for this step only.</p>
         <div className="actions">
           <button className="btn btn--primary" type="button" onClick={onSign}>
             <Icon name="wallet" />
@@ -352,7 +365,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
           {flowAction === "init"
             ? `Creates this listing's arena on ${NETWORK_LABEL} with 7-day seasons that roll over Monday 00:00 UTC. The schedule cannot be changed afterwards. Only the streamer's wallet can sign this.`
             : flowAction === "withdraw"
-            ? "Your release date has passed, so withdrawing everything sends your RLAN back to your wallet, closes your position and gives back the account rent."
+            ? "Your release date has passed, so withdrawing everything sends your RLAN back to your wallet, closes your position, and sends your account deposit back."
             : schedule
               ? `Available after ${utc(Number(withdrawAvailableAt(schedule.seasonStart, schedule.seasonSeconds, seasonIndex(schedule.seasonStart, schedule.seasonSeconds, now))) * 1000)}. Your RLAN stays in your support account until then, and adding more before then cancels the request.`
               : ""}
@@ -380,6 +393,16 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
         <Skeleton kinds={["block", "block"]} />
       ) : load === "error" ? (
         <ErrorBlock text={`The arena couldn't be read from ${NETWORK_LABEL}. Nothing was sent.`} onRetry={() => void refresh(wallet?.address ?? null)} />
+      ) : !view?.arena && !allowSetup ? (
+        <div className="back">
+          <div className="back__main">
+            <EmptyBlock icon="lock" title="Backing is not open" text={IS_MAINNET ? "No mainnet arena is open for this listing, so there is no position to open." : `No arena is open for ${name}.`} />
+          </div>
+          <aside className="back__side">
+            <ChainFacts schedule={null} mint={target.mint} />
+            <SeedNote />
+          </aside>
+        </div>
       ) : !view?.arena ? (
         <div className="back">
           <div className="back__main">
@@ -392,7 +415,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
               <Stepper labels={labels} at={Math.max(0, at)} />
               {body}
             </section>
-            <p className="small">No arena is open for {name} yet. Radio LAN opens arenas itself; nothing else is shown here until it does.</p>
+            <p className="small">No arena exists yet for {name}. Fans see this until the streamer key creates it; no other arena is shown here.</p>
           </div>
           <aside className="back__side">
             <ChainFacts schedule={null} mint={target.mint} />

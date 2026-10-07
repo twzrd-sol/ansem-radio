@@ -72,7 +72,7 @@ function SignedIdentityLinks({ api, accountId, wallet }: Props & { accountId: st
     {identity && !identity.wallet && !wallet?.signMessage && <p className="small"><a href="#/positions">My positions</a> lets you connect a wallet. Message signing is needed to link it.</p>}
     {review && review.address === wallet?.address && <section className="identity-review" aria-label="Review wallet link">
       <h3 className="h3">Review wallet link</h3>
-      <p className="small">Sign this message to link your wallet. No transaction is sent.</p>
+      <p className="small">Sign this message to link your wallet. No transaction is sent. One signature, for this step only.</p>
       <pre>{review.message}</pre>
       <div className="actions"><button className="btn btn--primary" type="button" disabled={busy} onClick={() => void run(signWallet)}>Sign link</button><button className="btn btn--ghost" type="button" disabled={busy} onClick={() => setReview(null)}>Cancel</button></div>
     </section>}
