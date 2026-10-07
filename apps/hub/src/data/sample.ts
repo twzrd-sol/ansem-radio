@@ -43,7 +43,13 @@ export function buildSample(now: number = Date.now()): HubSnapshot {
       poll: { id: "thu-theme", question: "Theme for next Thursday's session?", options: ["Regional boom bap", "Producer cypher", "Deep-cut dig"] },
       prompt: "Name a producer the station should book for a live beat session, and say why.",
       board: [["crate_breed", 455], ["dusty_rhymes", 440], ["third_ear", 425], ["qwonbeat", 410], ["lyric_hazel", 380], ["bx_kydd", 365], ["soul_searching", 350], ["beatsbyzoe", 330], ["oldhead_lew", 315], ["listen_local", 300]],
-      me: { points: 230, rank: 18, streakDays: 3, today: 30, submissions: [{ action: "poll_response", status: "credited" }, { action: "question", status: "credited" }] },
+      boardDetails: [
+        { handle: "crate_breed", badges: ["first_play", "three_days"], streakDays: 4 },
+        { handle: "dusty_rhymes", badges: ["first_play"], streakDays: 2 },
+        { handle: "lyric_hazel", badges: ["first_play"], streakDays: 1 },
+        { handle: "qwonbeat", badges: ["first_play", "three_days"], streakDays: 3 },
+      ],
+      me: { points: 230, rank: 18, streakDays: 3, today: 30, activityDays: 3, playedToday: true, badges: ["first_play", "three_days"], submissions: [{ action: "poll_response", status: "credited", pollId: "thu-theme" }, { action: "question", status: "credited" }] },
     },
     lastSeason: {
       number: SEASON - 1,
@@ -57,7 +63,7 @@ export function buildSample(now: number = Date.now()): HubSnapshot {
       { slug: "jayro-verse", name: "Jayro Verse", style: "Underground boom bap", opens: "Thu 20:00 UTC" },
       { slug: "milake", name: "Milake", style: "Raw lyricist, live band", opens: "Fri 18:00 UTC" },
     ],
-    fan: { handle: "crate_digger_07", since: 10 },
+    fan: { handle: "crate_digger_07", since: 10, badges: ["first_play", "three_days"], activityDays: 3, playedToday: true, streakDays: 3 },
     history: [
       { season: 11, points: 312, rank: 21, players: 188, eligiblePoints: 9840, reward: { kind: "funded", root: ROOT, anchorTx: ANCHOR_TX, pool: { asset: "SOL", baseUnits: 800_000_000n, decimals: 9 } } },
       { season: 10, points: 145, rank: 64, players: 120, eligiblePoints: 6210, reward: { kind: "anchored", root: ROOT, anchorTx: ANCHOR_TX } },

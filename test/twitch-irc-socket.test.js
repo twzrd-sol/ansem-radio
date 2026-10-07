@@ -151,6 +151,10 @@ test("stops on authentication failure and rejects IRC command injection", () => 
   client.start();
   const socket = FakeWebSocket.instances[0];
   socket.open();
+  socket.server(":viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #radiolanlive :NOTICE * :Login authentication failed\r\n");
+  socket.server(":viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #radiolanlive :CAP * NAK twitch.tv/tags\r\n");
+  assert.equal(client.state().enabled, true);
+  assert.equal(client.state().last_error, null);
   socket.server(":tmi.twitch.tv NOTICE * :Login authentication failed\r\n");
   assert.equal(client.state().enabled, false);
   assert.equal(client.state().last_error, "twitch_auth_failed");

@@ -2,6 +2,7 @@
 // never merge. The featured listing also carries the stream and the free season card, kept visibly separate.
 import { seasonIndex, withdrawAvailableAt } from "../chain/season";
 import { sparkline, type Listing as ListingData } from "../data/market";
+import { weekBars } from "../data/slate";
 import type { Station } from "../data/station";
 import type { HubSnapshot } from "../data/types";
 import { duration, fmt, units, utc } from "../lib/format";
@@ -12,7 +13,7 @@ import { Player } from "../ui/Player";
 import { FollowButton } from "../ui/FollowButton";
 import { HowLink } from "../ui/HowItWorks";
 import { SeasonCard, SeasonNotOpen } from "../ui/SeasonCard";
-import { NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
+import { TOKEN_DECIMALS } from "../chain/config";
 import { ago, ObservedLine } from "./Market";
 
 export function ChannelPanel({ l, station, sample, now = Date.now() }: { l: ListingData; station: Station; sample?: boolean; now?: number }) {
@@ -35,10 +36,29 @@ export function ChannelPanel({ l, station, sample, now = Date.now() }: { l: List
             <Stat label="Viewers" value={p.live && p.viewers !== null ? fmt(p.viewers) : "—"} note={p.live && p.deltaViewers !== null ? `${p.deltaViewers >= 0 ? "+" : ""}${fmt(p.deltaViewers)} since last read` : undefined} />
             <Stat label="Playing" value={p.live && p.game ? p.game : "—"} word />
           </div>
+          {p.week && p.week.some((v) => v !== null) && <WeekChart week={p.week} now={now} />}
           <p className="small fine">{p.provenance}</p>
         </>
       )}
     </section>
+  );
+}
+
+function WeekChart({ week, now }: { week: Array<number | null>; now: number }) {
+  const bars = weekBars(week, now);
+  const summary = bars.map((b) => `${b.label} ${b.value === null ? "no reading" : fmt(b.value)}`).join(", ");
+  return (
+    <figure className="week" aria-label={`Daily peak audience, last 7 days: ${summary}`}>
+      <div className="week__bars" aria-hidden="true">
+        {bars.map((b, i) => (
+          <span key={i} className="week__col">
+            <span className="week__bar" style={{ height: `${b.height}%` }} title={`${b.label}: ${b.value === null ? "no reading" : fmt(b.value)}`} />
+            <span className="week__day">{b.label.slice(0, 1)}</span>
+          </span>
+        ))}
+      </div>
+      <figcaption className="small">This week · daily peak audience</figcaption>
+    </figure>
   );
 }
 
@@ -67,19 +87,7 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
       </div>
       {!a ? (
         <>
-          <p className="small">
-            {l.kind === "featured"
-              ? `Backing for ${l.name} is not open yet. Radio LAN is setting up this arena on ${NETWORK_LABEL}; it appears here as soon as it is open.`
-              : `Backing for ${l.name} is not open yet. Radio LAN opens arenas itself, listing by listing; this one is not open yet.`}
-          </p>
-          {l.kind === "featured" && l.keys && (
-            <div className="actions">
-              <a className="btn" href={`#/back/${l.slug}`}>
-                <Icon name="wallet" />
-                Streamer: create the arena
-              </a>
-            </div>
-          )}
+          <p className="small">Backing is not open.</p>
         </>
       ) : (
         <>
@@ -197,8 +205,8 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
             </h2>
             <span className="label">Free · separate from backing</span>
           </div>
-          {season ? <SeasonCard season={season} now={now} onJoin={onJoin} backingOpen={listing.backingOpen} /> : <SeasonNotOpen backingOpen={listing.backingOpen} />}
-          <p className="small fine">Points come from activities on this site and never from backing or Twitch. {season && <a href="#/board">See the points board</a>}{season && " · "}<a href="#/play">Play</a></p>
+          {season ? <SeasonCard season={season} now={now} onJoin={onJoin} backingOpen={listing.backingOpen} sample={snapshot?.scenario === "sample"} /> : <SeasonNotOpen backingOpen={listing.backingOpen} />}
+          <p className="small fine">Points come from activities on this site. Backing does not add points. {season && <a href="#/board">See the points board</a>}{season && " · "}<a href="#/play">Play</a>{season && <> · <a href="#/circle">Meet superfans</a></>}</p>
         </section>
       )}
       {listing.claimed && !listing.demo && <YourPage listing={listing} />}

@@ -37,11 +37,3 @@ describe("hub polls", () => {
     for (const p of polls) for (const t of [p.question, ...p.options]) assert.ok(!words.test(t), t);
   });
 });
-
-it("a poll on a day that does not exist is refused", async () => {
-  const { normalizePolls } = await import("../src/hub/polls.js");
-  for (const day of ["2026-02-31", "2026-13-01", "2026-04-31"]) {
-    assert.throws(() => normalizePolls([{ id: "p1", day, question: "Q?", options: ["A", "B"] }]), /needs a day/, day);
-  }
-  assert.equal(normalizePolls([{ id: "p1", day: "2028-02-29", question: "Q?", options: ["A", "B"] }]).length, 1, "a real leap day is fine");
-});

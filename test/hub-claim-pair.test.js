@@ -27,10 +27,10 @@ const idToken = (payload) => {
 };
 const keysFetch = async (url) => { assert.equal(url, TWITCH_KEYS); return new Response(JSON.stringify({ keys: [jwk] })); };
 
-function listings({ fixed = false, featuredMint = null, featured = false } = {}) {
+function listings({ fixed = false, featuredMint = null, featured = false, alias = false } = {}) {
   const rows = [
     { slug: "alpha", name: "Alpha", kind: "tracked", twitch: "alpha_live", streamer: fixed ? OTHER_STREAMER : null, mint: fixed ? MINT : null },
-    { slug: "beta", name: "Beta", kind: "tracked", twitch: "beta_live", streamer: null, mint: null },
+    { slug: "beta", name: "Beta", kind: "tracked", twitch: alias ? "alpha_live" : "beta_live", streamer: null, mint: null },
   ];
   if (featuredMint || featured) {
     rows.unshift({ slug: "radiolanlive", name: "Radio LAN", kind: "featured", twitch: "radiolanlive", streamer: featuredMint ? OFFICIAL_STREAMER : null, mint: featuredMint });
@@ -38,7 +38,7 @@ function listings({ fixed = false, featuredMint = null, featured = false } = {})
   return registry(rows);
 }
 
-async function harness(t, { observedAt = "2026-10-04T00:00:00Z", stale = false,  defaultMint = MINT, fixed = false, featuredMint = null, featured = false, board = () => null, arena = () => null } = {}) {
+async function harness(t, { observedAt = "2026-10-04T00:00:00Z", stale = false,  defaultMint = MINT, fixed = false, featuredMint = null, featured = false, alias = false, board = () => null, arena = () => null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "hub-claim-pair-"));
   const store = createHubStore({ dir });
   const sessions = ["a", "b"].map((letter) => {
@@ -47,8 +47,9 @@ async function harness(t, { observedAt = "2026-10-04T00:00:00Z", stale = false, 
     return store.createSession({ id: randomBytes(32).toString("base64url"), accountId, csrf: randomBytes(32).toString("base64url"), expiresAt: NOW + 1000 });
   });
   const identityStore = createHubIdentityStore({ dir });
-  const market = { registry: listings({ fixed, featuredMint, featured }), board, index: { listingArena: (pair) => arena(pair), status: () => ({ network: "devnet", observedAt, slot: null, stale }), positionsOf: () => [], history: () => [] } };
-  const api = createHubApi({ origins: ORIGIN, store, now: () => NOW, market, defaultMint, resolveTwitchUser: async (id) => ({ id, login: "alpha_live" }), identity: { store: identityStore, twitch: { clientId: "public-client", redirectUri: `${ORIGIN}/hub/twitch` }, fetchImpl: keysFetch }, limits: { read: 500, write: 500, auth: 500 } });
+  const helixLogins = new Map();
+  const market = { registry: listings({ fixed, featuredMint, featured, alias }), board, index: { listingArena: (pair) => arena(pair), status: () => ({ network: "devnet", observedAt, slot: null, stale }), positionsOf: () => [], history: () => [] } };
+  const api = createHubApi({ origins: ORIGIN, store, now: () => NOW, market, defaultMint, resolveTwitchUser: async (id) => ({ id, login: helixLogins.get(id) }), identity: { store: identityStore, twitch: { clientId: "public-client", redirectUri: `${ORIGIN}/hub/twitch` }, fetchImpl: keysFetch }, limits: { read: 500, write: 500, auth: 500 } });
   const server = createServer(api);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => { await new Promise((resolve) => server.close(resolve)); rmSync(dir, { recursive: true, force: true }); });
@@ -57,6 +58,7 @@ async function harness(t, { observedAt = "2026-10-04T00:00:00Z", stale = false, 
     return { status: response.status, json: await response.json() };
   };
   const linkTwitch = async (session, sub, username) => {
+    helixLogins.set(sub, username);
     const start = (await call("/identity/twitch/start", { session })).json;
     const nonce = new URL(start.url).searchParams.get("nonce");
     return call("/identity/twitch/finish", { session, body: { state: start.state, idToken: idToken({ iss: TWITCH_ISSUER, aud: "public-client", azp: "public-client", sub, preferred_username: username, iat: NOW - 10, exp: NOW + 600, nonce }) } });
@@ -207,14 +209,25 @@ describe("claim-derived backing pair", () => {
     assert.equal(after.performance.viewers, 9_000_000, "the reading is shown, and only shown");
   });
 
-  it("does not let two listings share one pair", async (t) => {
+  it("refuses a claim whose display name was rewritten to another channel", async (t) => {
     const h = await harness(t);
-    // One account holds two claims (a data oddity): the same wallet could derive the same pair twice.
     await h.linkTwitch(h.sessions[0], "1001", "alpha_live");
     await h.call("/claims", { body: { slug: "alpha" } });
     const wallet = await h.linkWallet(h.sessions[0]);
     h.identityStore.link(h.sessions[0].accountId, "twitch", { subject: "1001", displayName: "beta_live", verifiedAt: NOW });
-    await h.call("/claims", { body: { slug: "beta" } });
+    const spoofed = await h.call("/claims", { body: { slug: "beta" } });
+    assert.equal(spoofed.status, 403);
+    assert.equal(spoofed.json.error, "not_your_channel");
+    const pairs = [(await h.listing("alpha")).keys, (await h.listing("beta")).keys].filter(Boolean);
+    assert.equal(pairs.length, 1);
+    assert.equal(pairs[0].streamer, wallet);
+  });
+  it("does not publish the same wallet pair on a second listing", async (t) => {
+    const h = await harness(t, { alias: true });
+    await h.linkTwitch(h.sessions[0], "1001", "alpha_live");
+    await h.call("/claims", { body: { slug: "alpha" } });
+    const wallet = await h.linkWallet(h.sessions[0]);
+    assert.equal((await h.call("/claims", { body: { slug: "beta" } })).status, 200);
     const pairs = [(await h.listing("alpha")).keys, (await h.listing("beta")).keys].filter(Boolean);
     assert.equal(pairs.length, 1, "the second listing is skipped");
     assert.equal(pairs[0].streamer, wallet);

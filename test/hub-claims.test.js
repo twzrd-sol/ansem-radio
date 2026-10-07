@@ -79,7 +79,7 @@ describe("streamer claims", () => {
   it("refuses another person's channel, a channel-less listing, an unknown slug and a second claimer", async (t) => {
     const h = await harness(t);
     await h.link(h.sessions[0], "1001", "alpha_live");
-    await h.link(h.sessions[1], "2002", "someone_else");
+    await h.link(h.sessions[1], "2002", "alpha_live");
     assert.equal((await h.call("/claims", { session: h.sessions[1], body: { slug: "alpha" } })).status, 403);
     assert.equal((await h.call("/claims", { body: { slug: "nochan" } })).status, 409);
     assert.equal((await h.call("/claims", { body: { slug: "ghost" } })).status, 404);

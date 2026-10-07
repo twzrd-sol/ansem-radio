@@ -185,9 +185,9 @@ export function PageHead({ eyebrow, title, lede, before }: { eyebrow?: string; t
 
 export function StationPill({ station }: { station: Station }) {
   const live = station.status === "ready" && station.live;
-  const text = `Twitch · ${station.status === "ready" ? (station.live ? "Live" : "Offline") : station.status === "loading" ? "Checking" : "Status unknown"}`;
+  const text = `Data: Twitch · ${station.status === "ready" ? (station.live ? "Live" : "Offline") : station.status === "loading" ? "Checking" : "Status unknown"}`;
   return (
-    <span className={live ? "pill pill--live" : "pill"} title="Data: Twitch. Display only, never an input to points or perks.">
+    <span className={live ? "pill pill--live" : "pill"} title="Data: Twitch.">
       <span className="pill__dot" aria-hidden="true" />
       {text}
     </span>

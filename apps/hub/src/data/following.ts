@@ -37,6 +37,15 @@ export function createFollowStore(storage: StoragePort | null) {
       try { storage?.setItem(FOLLOW_KEY, JSON.stringify({ version: 1, slugs: next })); } catch { /* page memory */ }
       publish(next);
     },
+    /** Merge a one-shot import into this browser's watchlist. The method result counts new valid slugs. */
+    importSlugs: (values: readonly string[]) => {
+      const existing = new Set(slugs);
+      const next = clean([...slugs, ...clean(values)]);
+      const added = next.filter((slug) => !existing.has(slug)).length;
+      try { storage?.setItem(FOLLOW_KEY, JSON.stringify({ version: 1, slugs: next })); } catch { /* page memory */ }
+      publish(next);
+      return added;
+    },
   };
 }
 
@@ -63,5 +72,5 @@ const subscribe = (listener: () => void) => {
 };
 export function useFollowing() {
   const slugs = useSyncExternalStore(subscribe, () => store().snapshot(), () => EMPTY);
-  return { slugs, toggle: (slug: string) => store().toggle(slug) };
+  return { slugs, toggle: (slug: string) => store().toggle(slug), importSlugs: (values: readonly string[]) => store().importSlugs(values) };
 }

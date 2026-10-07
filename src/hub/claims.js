@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // A listing is open to anyone; a streamer can later make it theirs by signing in with Twitch. A claim binds the
-// stable Twitch user id (not the login, which can change) to a listing whose channel login matches the verified
-// username. It grants a "Claimed" mark and nothing else: no points, no deposit, withdrawal or payout authority,
+// stable Twitch user id (not the login, which can change) to a listing whose channel login matches the Helix
+// login for that subject. A display name is not that login. It grants a "Claimed" mark and nothing else: no points, no deposit, withdrawal or payout authority,
 // and Twitch data never reaches points. Tokens and ID tokens are never stored here.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -75,7 +75,8 @@ export function deriveClaimPair({ claim, identityOf, defaultMint }) {
   return { streamer: wallet, mint: defaultMint };
 }
 
-/** `registry`: the listings; `twitchOf(accountId)`: the account's verified Twitch link or null. */
+/** `registry`: the listings; `twitchOf(accountId)`: the account's verified Twitch link or null.
+ * `resolveTwitchUser(subject)`: Helix user for that OIDC subject, `{ id, login }`. The display name is not a login. */
 export function createClaimRoutes({ registry, claims, twitchOf, resolveTwitchUser, requireOrigin, requireSession, authLimit, now, defaultMint = null }) {
   const writeSession = (request, key) => {
     requireOrigin(request);

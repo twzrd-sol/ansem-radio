@@ -1,5 +1,5 @@
 // The hub API over real HTTP through the station, with a virtual authenticator built from node:crypto keys.
-// No browser or external service: origins, season and store are test values.
+// No browser, no network: origins, season and store are test values.
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -247,6 +247,20 @@ describe("hub API: passkeys, sessions, the season and the free activities", () =
     assert.equal(unknown.json.error, "unknown_credential");
   });
 
+  it("a new sign-in retires the previous session for that account", async () => {
+    const first = client(base);
+    const auth = authenticator({ alg: -8 });
+    const registered = await register(first, auth);
+    assert.equal((await first.get("/hub/api/me")).json.accountId, registered.accountId);
+    const second = client(base);
+    const login = await second.post("/hub/api/login", auth.get((await second.post("/hub/api/login/options")).json.publicKey));
+    assert.equal(login.status, 200, JSON.stringify(login.json));
+    assert.equal((await second.get("/hub/api/me")).json.accountId, registered.accountId);
+    const stale = await first.get("/hub/api/me");
+    assert.equal(stale.status, 401, "the cookie from the earlier session is no longer accepted");
+    assert.equal(stale.json.error, "sign_in_required");
+  });
+
   it("joins the season and credits a question, a poll answer, and queues accepted work, with the caps of the season policy", async () => {
     const c = client(base);
     await register(c, authenticator());
@@ -433,6 +447,10 @@ describe("hub API: published polls, the provisional board, ranks and badges", ()
     assert.deepEqual(state.season.board.find(([handle]) => handle === `fan-${b.accountId.slice(0, 8)}`), [`fan-${b.accountId.slice(0, 8)}`, "5"]);
     assert.equal(JSON.stringify(state.season.board).includes(a.accountId), false);
     assert.equal(state.me.rank, 1);
+    const collector = state.season.boardDetails.find((r) => r.handle === `fan-${a.accountId.slice(0, 8)}`);
+    assert.deepEqual(collector.badges.map((b) => b.id), ["first_play"]);
+    assert.equal(collector.streakDays, 1);
+    assert.equal(JSON.stringify(state.season.boardDetails).includes(a.accountId), false);
     const bRank = (await b.c.get("/hub/api/state")).json.me.rank;
     const idleRank = (await idle.c.get("/hub/api/state")).json.me.rank;
     assert.ok(Number.isInteger(bRank) && bRank > state.me.rank);
@@ -443,6 +461,9 @@ describe("hub API: published polls, the provisional board, ranks and badges", ()
     testClock = OPEN_AT + 2 * 86_400;
     const thirdDay = await a.c.post("/hub/api/activities", { action: "question", text: "A on day three" });
     assert.deepEqual(thirdDay.json.badges.map(({ id }) => id), ["first_play", "three_days"]);
+    assert.equal(thirdDay.json.streakDays, 3);
+    assert.equal(thirdDay.json.activityDays, 3);
+    assert.equal(thirdDay.json.playedToday, true);
     testClock = OPEN_AT;
   });
 

@@ -1,11 +1,15 @@
 import { useState } from "react";
 
 import type { ActivityInput } from "../data/api";
-import { isPlaceholderSeason, pointsSeasonEyebrow, seasonPhase } from "../data/season";
+import { creatorCircles } from "../data/circle";
+import { pointsSeasonEyebrow, seasonPhase } from "../data/season";
 import type { Action, CurrentSeason, HubSnapshot } from "../data/types";
 import { fmt, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, type IconName, PageHead, SampleTag, Skeleton } from "../ui/atoms";
+import { SuperfansPeek } from "../ui/Competition";
+import { nextBadge, SeasonStanding } from "../ui/Collector";
 import { OpeningTime, SeasonOpening } from "../ui/SeasonOpening";
+import "../styles/presentation.css";
 
 export interface ActivityDef {
   id: "poll" | "question" | "prompt" | "clip";
@@ -68,8 +72,9 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
 }) {
   const [choice, setChoice] = useState<{ pollId: string; index: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  const points = season ? season.policy.weights[a.action] : null;
-  const capped = season?.me ? season.me.today >= season.policy.dailyCap : false;
+  const points = season ? a.id === "poll" && season.poll?.placeholder ? 0 : season.policy.weights[a.action] : null;
+  const badge = season?.me ? nextBadge(season.me) : "First play";
+  const capped = season?.me ? season.me.today >= season.policy.dailyCap || season.me.points >= season.policy.weeklyCap : false;
   const locked = !season || !joined || !open;
   const send = async (input: ActivityInput, onOk: string) => {
     setBusy(true);
@@ -121,7 +126,7 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
             </button>
           ))}
         </div>
-        <button className="btn btn--primary btn--block" type="button" disabled={poll.placeholder || choice?.pollId !== poll.id || busy} onClick={() => choice?.pollId === poll.id && void send({ action: "poll_response", pollId: poll.id, choice: choice.index }, capped ? "Answer counted; today's cap is reached" : `+${points} points`)}>
+        <button className="btn btn--primary btn--block" type="button" disabled={poll.placeholder || choice?.pollId !== poll.id || busy} onClick={() => choice?.pollId === poll.id && void send({ action: "poll_response", pollId: poll.id, choice: choice.index }, capped ? "Answer counted; today's cap is reached" : "Recorded. Your standing shows the credited points.")}>
           {busy ? "Sending…" : poll.placeholder ? "Preview only" : "Lock in answer"}
         </button>
       </div>
@@ -129,10 +134,10 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
   } else if (a.id === "question") {
     body = done.question
       ? finished("Question sent. The streamer picks which ones to answer.")
-      : <TextActivity id="q" label="Your question" placeholder="Ask the guest or the room…" button="Send question" onSend={(text) => send({ action: "question", text }, capped ? "Question sent; today's cap is reached" : `+${points} points`)} />;
+      : <TextActivity id="q" label="Your question" placeholder="Ask the guest or the room…" button="Send question" onSend={(text) => send({ action: "question", text }, capped ? "Question sent; today's cap is reached" : "Recorded. Your standing shows the credited points.")} />;
   } else {
     body = done[a.id]
-      ? finished(`Sent. Waiting for the streamer to accept it; +${points} when they do.`)
+      ? finished(`Sent. Waiting for the streamer to accept it; up to +${points} within the published caps.`)
       : a.id === "prompt" && !season.prompt
         ? waiting("No prompt is published right now.")
         : (
@@ -161,19 +166,21 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
           </span>
         )}
       </div>
+      {badge && !(a.id === "poll" && season?.poll?.placeholder) && <p className="small act__badge"><Icon name="star" size="sm" /> Can light: {badge}{a.action === "accepted_work" ? " · after acceptance" : " · after credit"}</p>}
       {body}
     </article>
   );
 }
 
-/** What the fan already did this season, from the hub's records (one of each kind in P0). */
-function doneFrom(season: CurrentSeason | null): Done {
+/** What the fan already did this season, from the hub's records (daily question/work cards and the current poll). */
+export function doneFrom(season: CurrentSeason | null, now: number): Done {
   const submissions = season?.me?.submissions ?? [];
+  const today = (at?: number) => at === undefined || Math.floor(at / 86_400_000) === Math.floor(now / 86_400_000);
   return {
     poll: Boolean(season?.poll && submissions.some((s) => s.action === "poll_response" && s.pollId === season.poll?.id)),
-    question: submissions.some((s) => s.action === "question"),
+    question: submissions.some((s) => s.action === "question" && today(s.occurredAt)),
     prompt: false,
-    clip: submissions.some((s) => s.action === "accepted_work"),
+    clip: submissions.some((s) => s.action === "accepted_work" && today(s.occurredAt)),
   };
 }
 
@@ -191,10 +198,9 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
   nextSeasonAt?: number | null;
 }) {
   const season = snapshot?.season ?? null;
-  const sampleSeason = isPlaceholderSeason(season);
   const [doneHere, setDoneHere] = useState<Partial<Done>>({});
   const [donePollId, setDonePollId] = useState<string | null>(null);
-  const serverDone = doneFrom(season);
+  const serverDone = doneFrom(season, now);
   const done = { ...serverDone, ...doneHere };
   if (doneHere.poll) done.poll = donePollId === season?.poll?.id;
   const markDone = (id: ActivityDef["id"]) => {
@@ -206,7 +212,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
     <PageHead
       eyebrow={season ? pointsSeasonEyebrow(season) : "Radio LAN"}
       title="Play"
-      lede="Each activity has a published point value. Points are capped per day and per season, across all activities; the daily cap resets at 00:00 UTC. Everything happens on this site; nothing from Twitch chat counts."
+      lede="This season is the game you are inside. Today's points sit against the published cap. The next action can light a collected mark."
     />
   );
   if (load === "loading") return <>{head}<div className="acts"><Skeleton kinds={["card"]} /><Skeleton kinds={["card"]} /><Skeleton kinds={["card"]} /><Skeleton kinds={["card"]} /></div></>;
@@ -221,15 +227,22 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
             <ActivityCard key={a.id} a={a} season={null} open={false} now={now} joined={false} done={done} markDone={markDone} submit={send} toast={toast} />
           ))}
         </div>
+        <p className="small fine">
+          <a href="#/circle">Meet superfans</a> of the same season. Real Discord or X membership can unlock season-points eligibility. Fake joins are refused. <a href="#/communities">Communities</a>
+        </p>
       </>
     );
   }
   const phase = seasonPhase(season, now);
   const open = phase === "open";
-  const me = season.me;
   return (
     <>
       {head}
+      <ChallengeBrief season={season} sample={snapshot.scenario === "sample"} />
+      <p className="small" style={{ marginTop: -12, marginBottom: 16 }}>
+        Each activity has a published point value. Points are capped per day and per season, across all activities; the daily cap resets at 00:00 UTC. Everything happens on this site; nothing from Twitch chat counts.
+      </p>
+      <SeasonStanding snapshot={snapshot} now={now} />
       {phase === "upcoming" && <SeasonOpening season={season} now={now} />}
       {!joined && open && (
         <div className="join">
@@ -242,13 +255,6 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
           </button>
         </div>
       )}
-      {joined && me && (
-        <p className="act__caps" style={{ marginBottom: 12 }}>
-          <span>
-            Today: {fmt(me.today)} of {fmt(season.policy.dailyCap)} points · season: {fmt(me.points)} of {fmt(season.policy.weeklyCap)}
-          </span>
-        </p>
-      )}
       {phase === "closed" && (
         <p className="note note--warn" style={{ marginBottom: 16 }}>
           <Icon name="clock" />
@@ -260,14 +266,36 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
           <ActivityCard key={a.id} a={a} season={season} open={open} now={now} joined={joined} done={done} markDone={markDone} submit={send} toast={toast} />
         ))}
       </div>
-      {(snapshot.scenario === "sample" || sampleSeason) && (
+      <SuperfansPeek circle={creatorCircles(snapshot, [], [])[0] ?? null} sample={snapshot.scenario === "sample"} />
+      <p className="small fine">
+        <a href="#/circle">Meet superfans</a> of the same season. Real Discord or X membership can unlock season-points eligibility. Fake joins are refused. <a href="#/communities">Communities</a>
+      </p>
+      {snapshot.scenario === "sample" && (
         <p className="small fine">
           <SampleTag />
-          {sampleSeason
-            ? "This points season is a sample. Today's poll is a placeholder and does not count for points."
-            : "Point values and caps here are sample rules. Each season publishes its own before it opens."}
+          Fictional accounts, points and actions for preview. Each live season publishes its own rules.
         </p>
       )}
     </>
+  );
+}
+
+function ChallengeBrief({ season, sample }: { season: CurrentSeason; sample: boolean }) {
+  return (
+    <section className="challenge-brief" aria-labelledby="h-challenge-brief">
+      <div>
+        <div className="challenge-brief__head">
+          <p className="eyebrow">The season challenge</p>
+          {sample && <SampleTag />}
+        </div>
+        <h2 className="h2" id="h-challenge-brief">Show up. Take part. Keep your mark.</h2>
+        <p className="small" style={{ marginTop: 8 }}>Season {season.number} · {fmt(season.players)} players on the board</p>
+      </div>
+      <div className="challenge-brief__steps">
+        <div className="challenge-step"><span className="challenge-step__num">01</span><div><p><strong>Join the room</strong></p><p className="small">Free to play; no wallet needed.</p></div></div>
+        <div className="challenge-step"><span className="challenge-step__num">02</span><div><p><strong>Take part</strong></p><p className="small">Answer a posted poll, ask a question, or reply to a published prompt.</p></div></div>
+        <div className="challenge-step"><span className="challenge-step__num">03</span><div><p><strong>Make something</strong></p><p className="small">Prompt replies and clips count only after the streamer accepts them. Your record stays with your profile.</p></div></div>
+      </div>
+    </section>
   );
 }

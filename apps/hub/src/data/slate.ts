@@ -1,4 +1,4 @@
-// The Board's accessible, playful layer: category lanes to narrow by, and a collection meter
+// The Board's accessible, playful layer over the day's slate: category lanes to narrow by, and a collection meter
 // that fills as a visitor follows channels across categories. Everything here is derived in the browser from the
 // listings and the visitor's own follows. Badges are for fun: they add no points, and a Twitch figure is never an
 // input to anything but the order of the list.
@@ -45,4 +45,19 @@ export function collection(listings: Listing[], followed: readonly string[]): Co
     : open.key === "explorer" ? `${EXPLORER - categories.size} more ${EXPLORER - categories.size === 1 ? "category" : "categories"} to be an Explorer`
     : "Follow a whole category to finish";
   return { followed: got.length, total: pool.length, categories: categories.size, badges, next };
+}
+
+export interface WeekBar { label: string; value: number | null; height: number }
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** Seven bars for a week of daily peaks, oldest first, the last one being the UTC day of `nowMs`. Heights are 0 to 100. */
+export function weekBars(week: ReadonlyArray<number | null>, nowMs: number): WeekBar[] {
+  const top = Math.max(...week.map((v) => v ?? 0), 0);
+  const today = Math.floor(nowMs / 86_400_000);
+  return week.slice(-7).map((value, i, all) => ({
+    label: DAYS[new Date((today - (all.length - 1 - i)) * 86_400_000).getUTCDay()] ?? "",
+    value,
+    height: value === null || top === 0 ? 0 : Math.max(6, Math.round((value / top) * 100)),
+  }));
 }

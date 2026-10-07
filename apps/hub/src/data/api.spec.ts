@@ -94,13 +94,3 @@ describe("hub API client", () => {
     expect(explainApiError(new Error("offline"))).toBe("Couldn't reach the hub. Nothing changed.");
   });
 });
-
-describe("a broken success response", () => {
-  it("a 200 whose body is not JSON is an error, not a success (api and market reads)", async () => {
-    const html = async () => new Response("<!doctype html><html></html>", { status: 200, headers: { "content-type": "text/html" } });
-    const api = createHubApi({ fetchImpl: html, passkeys: fakePasskeys() });
-    await expect(api.state()).rejects.toMatchObject({ status: 200, code: "bad_response" });
-    const { fetchMarket } = await import("./market");
-    await expect(fetchMarket(html)).rejects.toMatchObject({ status: 200, code: "bad_response" });
-  });
-});

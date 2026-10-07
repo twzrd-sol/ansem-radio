@@ -64,3 +64,43 @@ describe("provisional points match settlement", () => {
     assert.equal(provisionalPoints(policy, rows, { now: 86_400 + 100 }).today.get(a), undefined, "a day later nothing counts as today");
   });
 });
+
+describe("Twitch marks", () => {
+  const policy = { dailyCap: 25, weeklyCap: 60, weights: { question: 10, poll_response: 5, accepted_work: 20, twitch_mark: 4 } };
+  const row = { accountId: "a".repeat(64), action: "twitch_mark", source: "twitch", occurredAt: 100, id: "t1" };
+
+  it("scores a Twitch mark only when the flag is on and the operator set that weight", () => {
+    assert.equal(provisionalPoints(policy, [row]).scores.get(row.accountId), undefined);
+    assert.equal(provisionalPoints(policy, [row], { twitch: true }).scores.get(row.accountId), 4n);
+    const borrowed = { ...policy, weights: { question: 10, poll_response: 5, accepted_work: 20 } };
+    assert.equal(provisionalPoints(borrowed, [row], { twitch: true }).scores.get(row.accountId), undefined, "a missing twitch_mark weight is not taken from question");
+  });
+
+  it("refuses a viewer count or a watch minute as the points input", () => {
+    for (const extra of [{ viewers: 1000 }, { minutes: 30 }]) {
+      assert.equal(provisionalPoints(policy, [{ ...row, ...extra }], { twitch: true }).scores.get(row.accountId), undefined);
+    }
+  });
+
+  it("still scores a site question when the Twitch flag is off", () => {
+    const site = { accountId: "b".repeat(64), action: "question", occurredAt: 100, id: "q1" };
+    const { scores } = provisionalPoints(policy, [site, row]);
+    assert.equal(scores.get(site.accountId), 10n);
+    assert.equal(scores.get(row.accountId), undefined);
+  });
+
+  it("never encodes a Twitch mark as a native settlement event, on any proposed network", () => {
+    for (const network of ["devnet", "mainnet", "mainnet-beta"]) {
+      const event = { type: "credit", source: "arena_native", network, arena: ARENA, season: "2",
+        accountId: row.accountId, actionId: actionId(["twitch", network]), action: "twitch_mark", occurredAt: 100 };
+      assert.throws(() => eventPreimage(event), /unknown native arena action/);
+      assert.throws(() => eventPreimage({ ...event, source: "twitch", action: "question" }), /native/);
+    }
+  });
+
+  it("keeps a Twitch mark inside the same daily cap as the other activities", () => {
+    const tight = { ...policy, dailyCap: 6, weeklyCap: 60 };
+    const rows = [row, { ...row, id: "t2", occurredAt: 200 }];
+    assert.equal(provisionalPoints(tight, rows, { twitch: true, now: 200 }).scores.get(row.accountId), 6n);
+  });
+});

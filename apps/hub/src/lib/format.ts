@@ -8,6 +8,11 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 export const fmt = (n: number | bigint) => Number(n).toLocaleString("en-US");
 
+/** A dust signature cost in words. The exact SOL amount stays on a second line, not as a price. */
+export function feltCost(lamports: bigint): string {
+  return lamports <= 10_000n ? "Less than half a cent" : "Less than a cent";
+}
+
 export const short = (id: string) => `${id.slice(0, 4)}…${id.slice(-4)}`;
 
 /** Base units to a decimal string, trimmed of trailing zeros, without floating point. */
@@ -22,7 +27,6 @@ export function units(baseUnits: bigint, decimals: number): string {
 
 /** Base units to a fixed number of decimals, rounded down so a short figure never overstates. */
 export function unitsFloor(baseUnits: bigint, decimals: number, shown: number): string {
-  shown = Math.min(Math.max(0, shown), decimals); // never show more decimals than the token has
   const scale = 10n ** BigInt(decimals - shown);
   const kept = baseUnits / scale;
   const whole = kept / 10n ** BigInt(shown);

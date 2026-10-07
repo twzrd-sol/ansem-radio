@@ -1,5 +1,18 @@
 # Public changelog
 
+## 2026-10-07 — Presentation-ready hub
+
+- Brought the hub frontend and account API up to date with private source
+  `e4240292` (presentation pass): passkey-first identity, optional Twitch link,
+  creator affinity, Superfans (`#/circle`), gated Discord/X communities, Play and
+  Profile polish, and a closed RevenueStory panel. Collect stays disabled.
+- Fan standings stay separate from Twitch marks. Room/play/collector badges and
+  the bounded follows import (`src/hub/twitch-follows.js`) are included.
+- Community cards show Needs credentials and award no points. Sample preview
+  data stays tagged Sample. Points remain display-only.
+- Intentionally omitted operator/finance/serving material, presenter notes,
+  analytics collectors, and station credential configuration.
+
 ## 2026-10-05 — Hub refresh and documentation corrections
 
 - Brought the hub, claims, season rollover, badges and tape up to date with the working tree; the hub now says Radio LAN

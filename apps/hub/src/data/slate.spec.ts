@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryLanes, collection } from "./lanes";
+import { categoryLanes, collection, weekBars } from "./slate";
 import type { Listing } from "./market";
 
 const l = (slug: string, game: string | null, live = true): Listing => ({ slug, name: slug, kind: "tracked", demo: false, blurb: null, twitch: slug, keys: null, backingOpen: false, arena: null, performance: game ? { live, viewers: live ? 10 : null, game, startedAt: null, rank: null, deltaViewers: null, provenance: "Data: Twitch." } : null });
@@ -36,5 +36,19 @@ describe("collection meter", () => {
   });
   it("ignores follows of channels not on the board and channels with no category", () => {
     expect(collection(board, ["f", "ghost"]).followed).toBe(0);
+  });
+});
+
+describe("week bars", () => {
+  const sat = Date.UTC(2026, 9, 3, 12); // Saturday 3 Oct 2026
+  it("labels the last seven UTC days ending today and scales to the busiest day", () => {
+    const bars = weekBars([null, 100, null, 200, 50, null, 400], sat);
+    expect(bars.map((b) => b.label)).toEqual(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+    expect(bars.map((b) => b.height)).toEqual([0, 25, 0, 50, 13, 0, 100]);
+    expect(bars[6]?.value).toBe(400);
+  });
+  it("gives a quiet week no bars and a tiny reading a visible one", () => {
+    expect(weekBars([null, null, null, null, null, null, null], sat).every((b) => b.height === 0)).toBe(true);
+    expect(weekBars([1, null, null, null, null, null, 1000], sat)[0]?.height).toBe(6);
   });
 });

@@ -54,6 +54,9 @@ the network, the mint, the observation time and slot, and a stale flag, and the 
 | My positions | `#/positions` | Every arena a pasted or connected wallet backs, with the arena's release rule and a total; a read, never a signature. The pasted public address is kept in this tab's sessionStorage for the tab's life, nothing else |
 | Radio LAN | `#/lan` | The station, its founder, how a free season works |
 | Back the creator | `#/back/<slug>` | The backing flow for a listing's arena. It works only when that listing has an open arena. No arena is open on mainnet yet, so every listing shows "not open" |
+| Superfans | `#/circle` | Season board for Radio LAN and empty cards for followed Twitch-only creators. Sample affinity is tagged Sample |
+| Communities | `#/communities` | Discord and X membership gates. Live cards show Needs credentials and award no points until an operator configures OAuth |
+| Stats | `#/stats` | Optional free analytics preview from the station (`/analytics/v1/preview`). Hidden when that route is off |
 
 A listing is backable only when it has an open arena. None is open on mainnet yet. Sample listings (`?preview=sample`)
 are fictional and marked SAMPLE wherever they show. Twitch figures are never a points value, a backing weight or an
@@ -97,11 +100,16 @@ the station publishes one, no past seasons.
 - **Account (F-6):** a passkey. "Join free" creates the account with one passkey prompt, then joins the season; the
   profile offers "Create account with a passkey" and "Sign in with a passkey" too. The session is an HttpOnly cookie
   the page never reads; the CSRF token lives in memory and goes on every write.
-- **Optional identity (F-2):** Me can link a verified Twitch identity and a wallet
-  after an exact-message signature. Linking and unlinking preserve native points.
-  Twitch is disabled until the server's public app ID and exact registered callback
-  are configured. The callback captures its token in memory and clears the URL
-  before rendering. No access token or provider activity is stored.
+- **Optional identity (F-2):** passkey is first. Me can optionally link a Twitch
+  identity (only after a station OAuth client is configured) and a wallet after an
+  exact-message signature. Linking and unlinking preserve native points. A bounded
+  follows import may read known curated slugs once and fails closed; the token is
+  not stored. The callback captures its token in memory and clears the URL before
+  rendering. No access token or provider activity is stored. Creator affinity is a
+  local category match from browser follows and board categories; see
+  [`docs/CREATOR_AFFINITY.md`](../../docs/CREATOR_AFFINITY.md). Community membership
+  is gated and awards no points without credentials; see
+  [`docs/COMMUNITY_MEMBERSHIP.md`](../../docs/COMMUNITY_MEMBERSHIP.md).
 - **Activities:** a question and a poll answer are credited at once; prompt answers and clips wait for the streamer.
   Points follow the season policy exactly as settlement applies it: a value per activity, and caps per UTC day and
   per season across all activities. The Play screen shows today's and the season's points against those caps.

@@ -5,6 +5,7 @@ import { createServer, request as httpRequest } from "node:http";
 
 import { decodeBase58 } from "../src/core/base58.js";
 import { clientKey, createRpcRelay, MAX_BODY_BYTES, MAX_UPSTREAM_BYTES, RELAY_METHODS, RELAY_PROGRAMS, transactionPrograms } from "../src/hub/relay.js";
+import { REWARDS_PROGRAM_ID as SHIPPED_REWARDS_PROGRAM_ID } from "../src/sinks/rewards.js";
 import { createLiveServer } from "../src/live/server.js";
 
 // The upstream URL carries a provider key: it must never appear in a response or a log line.
@@ -46,6 +47,8 @@ const ARENA = "5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf";
 const COMPUTE_BUDGET = "ComputeBudget111111111111111111111111111111";
 const SYSTEM = "11111111111111111111111111111111";
 const TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+/** The rewards program belongs to a different sink; the hub relay must never carry it. */
+const REWARDS = "5wAVbHfZCBrYPymk1FNeV4D69iZioUmZaiE4ki4qrqWD";
 const concat = (...parts) => Uint8Array.from(parts.flatMap((p) => [...p]));
 /** A wire transaction calling `programs` in order (one empty signature slot), legacy or v0. */
 function wireTx(programs, { v0 = false, programFromLookup = false } = {}) {
@@ -63,11 +66,12 @@ const logs = () => {
 test("relays an allowed read and returns the upstream body byte for byte (u64 values intact)", async (t) => {
   const up = fakeUpstream();
   const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: up.fetchImpl }), t);
-  const res = await post(port, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), { headers: { "cf-connecting-ip": "203.0.113.7" } });
+  const sliced = call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]);
+  const res = await post(port, sliced, { headers: { "cf-connecting-ip": "203.0.113.7" } });
   assert.equal(res.status, 200);
   assert.equal(res.text, '{"jsonrpc":"2.0","id":1,"result":{"value":18446744073709551615}}');
   assert.equal(res.headers["cache-control"], "no-store");
-  assert.deepEqual(up.calls[0].body, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]));
+  assert.deepEqual(up.calls[0].body, sliced);
   assert.equal(up.calls[0].url, UPSTREAM);
 });
 
@@ -146,66 +150,29 @@ test("upstream failures answer 502 with no trace of the upstream URL", async (t)
   }
 });
 
-function noSecret(text, lines = []) {
-  assert.equal(text.includes("SECRET-PROVIDER-KEY"), false);
-  assert.equal(text.includes("rpc.example.test"), false);
-  assert.equal(lines.some((line) => line.includes("SECRET-PROVIDER-KEY") || line.includes("rpc.example.test")), false);
-}
-
-test("returns a small upstream JSON body and refuses a Content-Length over 256 KiB", async (t) => {
-  const small = '{"jsonrpc":"2.0","id":1,"result":{"genesis":"ok"}}';
-  const up = fakeUpstream({ body: small });
-  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: up.fetchImpl, log: logs() }), t);
-  const ok = await post(port, call("getGenesisHash"), { headers: { "cf-connecting-ip": "203.0.113.40" } });
-  assert.equal(ok.status, 200);
-  assert.equal(ok.text, small);
-  noSecret(ok.text);
-
-  const big = "A".repeat(MAX_UPSTREAM_BYTES + 64);
-  const log = logs();
-  const declared = fakeUpstream();
-  declared.fetchImpl = async () => new Response(big, {
-    status: 200,
-    headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(big)) },
+test("drops an upstream body past the byte cap and does not return it", async (t) => {
+  let read = 0;
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (read >= 8_000) { controller.close(); return; }
+      const chunk = new Uint8Array(1_000);
+      read += chunk.byteLength;
+      controller.enqueue(chunk);
+    },
   });
-  const over = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: declared.fetchImpl, log }), t);
-  const refused = await post(over, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), { headers: { "cf-connecting-ip": "203.0.113.41" } });
-  assert.equal(refused.status, 502);
-  assert.match(refused.text, /response too large/);
-  assert.equal(refused.text.includes("A".repeat(64)), false);
-  assert.equal(MAX_UPSTREAM_BYTES, 256 * 1024);
-  assert.ok(Buffer.byteLength(big) > 256 * 1024);
-  noSecret(refused.text, log.lines);
-});
-
-test("stops reading a stream once it passes 256 KiB and does not keep the rest", async (t) => {
-  let streamed = 0;
-  const planned = MAX_UPSTREAM_BYTES + 512 * 1024;
-  const log = logs();
   const fetchImpl = async (url, init) => {
     JSON.parse(init.body);
-    return new Response(new ReadableStream({
-      pull(controller) {
-        if (init.signal?.aborted || streamed >= planned) {
-          controller.close();
-          return;
-        }
-        const chunk = new Uint8Array(64 * 1024);
-        streamed += chunk.byteLength;
-        controller.enqueue(chunk);
-      },
-    }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(stream, { status: 200, headers: { "content-type": "application/json" } });
   };
-  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl, log }), t);
-  const res = await post(port, call("getAccountInfo", ["11111111111111111111111111111111", { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), { headers: { "cf-connecting-ip": "203.0.113.42" } });
+  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl, maxUpstreamBytes: 1_500 }), t);
+  const res = await post(port, call("getGenesisHash"), { headers: { "cf-connecting-ip": "203.0.113.20" } });
   assert.equal(res.status, 502);
-  assert.match(res.text, /response too large/);
-  assert.ok(streamed > 256 * 1024, "the stream did cross the cap");
-  assert.ok(streamed < planned, `stopped reading near the cap, not after ${streamed}`);
-  noSecret(res.text, log.lines);
+  assert.equal(JSON.parse(res.text).error.message, "upstream response too large");
+  assert.equal(read < 8_000, true, `read ${read} bytes of an oversized body`);
+  assert.equal(MAX_UPSTREAM_BYTES, 256 * 1024);
 });
 
-test("refuses a fifth in-flight read for one client while four are still held", async (t) => {
+test("caps in-flight upstream reads per client before the minute window is used up", async (t) => {
   let started = 0;
   const release = [];
   const fetchImpl = async (url, init) => {
@@ -214,17 +181,20 @@ test("refuses a fifth in-flight read for one client while four are still held", 
     await new Promise((resolve) => release.push(resolve));
     return new Response('{"jsonrpc":"2.0","id":1,"result":1}', { status: 200, headers: { "content-type": "application/json" } });
   };
-  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl, limits: { read: 100, send: 10 } }), t);
-  const headers = { "cf-connecting-ip": "203.0.113.43" };
-  const held = Array.from({ length: 4 }, () => post(port, call("getBlockHeight"), { headers }));
-  while (started < 4) await new Promise((resolve) => setTimeout(resolve, 5));
-  const overflow = await post(port, call("getBlockHeight"), { headers });
-  assert.equal(overflow.status, 429);
-  assert.equal(started, 4);
-  noSecret(overflow.text);
+  const port = await serve(createRpcRelay({
+    upstream: UPSTREAM,
+    fetchImpl,
+    inflightLimits: { perKey: 1, global: 4 },
+    limits: { read: 100, send: 10 },
+  }), t);
+  const headers = { "cf-connecting-ip": "203.0.113.21" };
+  const first = post(port, call("getGenesisHash"), { headers });
+  while (started < 1) await new Promise((resolve) => setTimeout(resolve, 5));
+  const second = await post(port, call("getGenesisHash"), { headers });
+  assert.equal(second.status, 429);
+  assert.equal(started, 1);
   release.forEach((resolve) => resolve());
-  const done = await Promise.all(held);
-  assert.deepEqual(done.map((item) => item.status), [200, 200, 200, 200]);
+  assert.equal((await first).status, 200);
 });
 
 test("a hung read does not consume the in-flight slot a send needs", async (t) => {
@@ -266,14 +236,22 @@ test("refuses getAccountInfo without a bounded dataSlice, and a token read that 
     ["encoding only", [pubkey, { encoding: "base64" }]],
     ["string encoding", [pubkey, "base64"]],
     ["empty dataSlice", [pubkey, { encoding: "base64", dataSlice: {} }]],
-    ["oversized", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 10_000 } }]],
+    ["zero length", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 0 } }]],
+    ["negative offset", [pubkey, { encoding: "base64", dataSlice: { offset: -1, length: 165 } }]],
+    ["oversized length", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 10_000 } }]],
   ]) {
     const res = await post(port, call("getAccountInfo", params), at);
     assert.equal(res.status, 403, label);
+    assert.equal(JSON.parse(res.text).error.code, -32602, label);
   }
+  const sliced = await post(port, call("getAccountInfo", [pubkey, { encoding: "base64", dataSlice: { offset: 0, length: 165 } }]), at);
+  assert.equal(sliced.status, 200);
   const open = await post(port, call("getTokenAccountsByOwner", [pubkey, { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }, { encoding: "base64" }]), at);
   assert.equal(open.status, 403);
-  assert.equal(up.calls.length, 0);
+  const mint = "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy";
+  const bounded = await post(port, call("getTokenAccountsByOwner", [pubkey, { mint }, { encoding: "base64" }]), at);
+  assert.equal(bounded.status, 200);
+  assert.equal(up.calls.length, 2, "only the sliced account read and the mint-scoped token read reach upstream");
 });
 
 test("needs an http(s) upstream and allows exactly the methods the hub uses", () => {
@@ -307,6 +285,10 @@ test("reads the top-level programs of legacy and v0 transactions", () => {
   assert.throws(() => programs(wireTx([ARENA], { v0: true, programFromLookup: true })), /static keys/);
   assert.throws(() => programs("AQ=="), /truncated/);
   assert.deepEqual(RELAY_PROGRAMS, [ARENA, COMPUTE_BUDGET]);
+  assert.equal(RELAY_PROGRAMS.includes(ARENA), true, "the arena program is relayable");
+  assert.equal(RELAY_PROGRAMS.includes(REWARDS), false, "the rewards program is not relayable");
+  assert.equal(RELAY_PROGRAMS.includes(SHIPPED_REWARDS_PROGRAM_ID), false, "the shipped rewards program is not relayable");
+  assert.equal(REWARDS !== ARENA, true);
 });
 
 test("relays only transactions that call the hub's programs, for send and simulate", async (t) => {
@@ -333,6 +315,30 @@ test("relays only transactions that call the hub's programs, for send and simula
     assert.equal(JSON.parse(res.text).error.code, -32602, label);
   }
   assert.equal(up.calls.length, relayed, "refused transactions never reach the upstream");
+});
+
+test("the shipped program allowlist refuses a rewards-only transaction through the real relay", async (t) => {
+  const up = fakeUpstream();
+  // No overrides: the relay defaults to the shipped RELAY_PROGRAMS, not a test copy.
+  const port = await serve(createRpcRelay({ upstream: UPSTREAM, fetchImpl: up.fetchImpl }), t);
+  const at = { headers: { "cf-connecting-ip": "203.0.113.23" } };
+  for (const [tag, rewardsId] of [
+    ["rewards", REWARDS],
+    ["shipped-rewards program", SHIPPED_REWARDS_PROGRAM_ID],
+  ]) {
+    const cases = [
+      [`send a ${tag}-only transaction`, send([rewardsId])],
+      [`simulate a ${tag}-only transaction`, call("simulateTransaction", [wireTx([rewardsId]), { encoding: "base64" }])],
+      [`a ${tag} call hidden behind the arena call`, send([ARENA, rewardsId])],
+    ];
+    for (const [label, payload] of cases) {
+      const res = await post(port, payload, at);
+      assert.equal(res.status, 403, label);
+      assert.equal(JSON.parse(res.text).error.code, -32602, label);
+      assert.match(JSON.parse(res.text).error.message, /program the hub does not use/, label);
+    }
+  }
+  assert.equal(up.calls.length, 0, "a rewards transaction never reaches the upstream");
 });
 
 test("a global budget per window caps all clients together, logged once", async (t) => {

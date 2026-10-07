@@ -32,6 +32,13 @@ export function simulationError(err: unknown): SimulationError | null {
 
 const fromBase64 = (b64: string) => new Uint8Array(getBase64Encoder().encode(b64));
 
+/**
+ * LiveBack reads an arena (112), a position (104), or a support account (165).
+ * The hub relay rejects getAccountInfo unless dataSlice.length is 1..256.
+ * A slice longer than the account comes back as the account's own bytes.
+ */
+export const HUB_ACCOUNT_SLICE = 165;
+
 export function kitRpc(url: string): RpcPort {
   const absolute = typeof window === "undefined" ? url : new URL(url, window.location.origin).toString();
   const rpc = createSolanaRpc(absolute);
@@ -60,7 +67,7 @@ export function kitRpc(url: string): RpcPort {
       return s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized" ? "confirmed" : "pending";
     },
     async account(at) {
-      const { value } = await rpc.getAccountInfo(at, { encoding: "base64", commitment: "confirmed" }).send();
+      const { value } = await rpc.getAccountInfo(at, { encoding: "base64", commitment: "confirmed", dataSlice: { offset: 0, length: HUB_ACCOUNT_SLICE } }).send();
       return value ? { data: fromBase64(value.data[0]), lamports: value.lamports } : null;
     },
     rentExemption: (size) => {

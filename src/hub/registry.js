@@ -95,6 +95,7 @@ export function defaultRegistry({ mint = null } = {}) {
   return registry([lan, ...tracked]);
 }
 
+/** The registry from a JSON file (an array of listings), or the default when no path is given. */
 /** $RLAN on mainnet: the featured listing's mint when the station runs on mainnet. */
 export const RLAN_MINT = "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy";
 
@@ -116,7 +117,6 @@ export function mintForClaims({ defaultMint = null, listings = [] } = {}) {
   return defaultMint ?? featuredMintOf(listings) ?? null;
 }
 
-/** The registry from a JSON file (an array of listings), or the default when no path is given. */
 export function loadRegistry({ path = process.env.RADIOLAN_HUB_REGISTRY, network = process.env.RADIOLAN_HUB_NETWORK ?? "devnet", mint = defaultMintFor(network) } = {}) {
   if (!path) return defaultRegistry({ mint });
   const parsed = JSON.parse(readFileSync(path, "utf8"));

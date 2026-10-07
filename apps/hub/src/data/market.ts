@@ -44,6 +44,7 @@ export interface Performance {
   rank: number | null;
   deltaViewers: number | null;
   /** Daily peak audience for the last seven UTC days, oldest first; null where the station has no reading. */
+  week?: Array<number | null>;
   provenance: string;
 }
 
@@ -102,11 +103,8 @@ export const isAddress = (text: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const read = async <T>(fetchImpl: Fetch, path: string): Promise<T> => {
   const response = await fetchImpl(`${API_BASE}${path}`, { credentials: "same-origin", cache: "no-store" });
-  const parsed = await response.json().then((value: unknown) => ({ ok: true as const, value }), () => ({ ok: false as const, value: { error: "bad_response" } }));
-  const json = parsed.value as Record<string, unknown>;
+  const json = (await response.json().catch(() => ({ error: "bad_response" }))) as Record<string, unknown>;
   if (!response.ok) throw new HubApiError(response.status, String(json.error ?? "request_failed"), typeof json.detail === "string" ? json.detail : undefined);
-  // A 2xx body that is not JSON is a broken response, not a success.
-  if (!parsed.ok) throw new HubApiError(response.status, "bad_response");
   return json as T;
 };
 

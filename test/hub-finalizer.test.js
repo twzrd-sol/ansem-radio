@@ -31,6 +31,7 @@ const row = (accountId, action, occurredAt, n, status = "credited", season = "1"
 function seeded() {
   const dir = mkdtempSync(join(tmpdir(), "hub-final-"));
   const store = createHubStore({ dir });
+  for (const id of [A, B, C]) store.createAccount({ id, credentials: [], joined: { "1": START } });
   store.addSubmission(row(A, "question", START + 100, 1));
   store.addSubmission(row(A, "poll_response", START + 200, 2));
   store.addSubmission(row(B, "question", START + 50, 3));

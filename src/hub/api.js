@@ -13,16 +13,21 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { createTwitchMarkRoutes } from "./twitch-mark.js";
 import { createRateLimiter, HttpError, readJson } from "../platform/guard.js";
-import { ACTIONS, actionId, provisionalPoints, rankAccounts } from "./points.js";
+import { ACTIONS, actionId, provisionalPoints, rankAccounts, twitchPointsEnabled } from "./points.js";
+import { playRecord } from "./play-record.js";
 import { createSeasons } from "./rollover.js";
 import { createSeasonFinalizer, readFrozen } from "./finalizer.js";
-import { normalizePolls, pollFor, utcDay } from "./polls.js";
+import { normalizePolls, pollFor } from "./polls.js";
 import { renderBadge } from "./badge.js";
 import { createClaimRoutes, createClaimStore, deriveClaimPair } from "./claims.js";
 import { mintForClaims, reservedSlug } from "./registry.js";
 import { createIdentityRoutes } from "./identity.js";
 import { createHubIdentityStore } from "./identity-store.js";
+import { communityConfig } from "./community.js";
+import { createCommunityStore } from "./community-store.js";
+import { createCommunityRoutes } from "./community-routes.js";
 import { clientKey } from "./relay.js";
 import { base64url, verifyAssertion, verifyRegistration } from "./webauthn.js";
 
@@ -59,7 +64,7 @@ export function parseOrigins(text) {
 const sha256hex = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const parseCookies = (header) => Object.fromEntries(String(header ?? "").split(";").map((p) => p.trim().split("=")).filter(([k, v]) => k && v !== undefined).map(([k, ...v]) => [k, v.join("=")]));
 
-export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, resolveTwitchUser = null, schedule = undefined, cancel = undefined }) {
+export function createHubApi({ origins: originText, store, season = null, seasonRecurring = false, polls: pollsInput = null, now = () => Math.floor(Date.now() / 1000), secure = true, log = console, limits = { read: 120, write: 30, auth: 10 }, market = null, defaultMint = null, registry: registryInput = null, identity = {}, community = undefined, resolveTwitchUser = null, resolveTwitchMarkEvent = undefined, schedule = undefined, cancel = undefined, stationStatus = () => ({ status: "unknown", source: "Data: Twitch", observedAt: null }) }) {
   const { origins, rpIds } = parseOrigins(originText);
   const { polls: seasonPolls, ...seasonConfig } = season ?? {};
   // The published season, or (seasonRecurring) the arena's recurring season that contains the current instant:
@@ -97,29 +102,26 @@ export function createHubApi({ origins: originText, store, season = null, season
 
   const seasonOpen = () => config !== null && now() >= config.startsAt && now() < config.endsAt;
   const seasonRows = () => (config ? store.submissions().filter((s) => s.season === config.season) : []);
-  /** Provisional points for this season, ranked by points, first credit, then private account id. */
+  // A fan standing uses the same joined population as the player count. Provider marks stay social signals.
+  const fanRows = (rows, c) => rows.filter((s) => s.season === c.season
+    && store.account(s.accountId)?.joined?.[c.season] && ACTIONS.includes(s.action)
+    && (s.source === undefined || s.source === "arena_native"));
+  /** Native points for joined fans, ranked by points, first credit, then private account id. */
   const ranking = () => {
-    const credited = seasonRows().filter((s) => s.status === "credited");
+    const credited = fanRows(seasonRows(), config).filter((s) => s.status === "credited");
     const { scores, today } = provisionalPoints(config.policy, credited, { now: now() });
     return { scores, today, ranked: rankAccounts(config.policy, credited) };
   };
-  /** Badges derive from credited activity only and count distinct UTC days across seasons. */
-  const badges = (accountId) => {
-    const mine = store.submissions().filter((s) => s.accountId === accountId && s.status === "credited").sort((a, b) => a.occurredAt - b.occurredAt);
-    const out = [];
-    if (mine.length) out.push({ id: "first_play", earnedAt: mine[0].occurredAt });
-    const days = new Set();
-    for (const submission of mine) {
-      days.add(utcDay(submission.occurredAt));
-      if (days.size === 3) {
-        out.push({ id: "three_days", earnedAt: submission.occurredAt });
-        break;
-      }
-    }
-    return out;
+  const twitchPoints = (id) => {
+    // Keep old timestamp-only rows as history, but only event-backed marks can contribute a social score.
+    const marks = seasonRows().filter((s) => s.status === "credited" && s.source === "twitch" && s.action === "twitch_mark"
+      && /^[0-9a-f]{64}$/.test(s.detail?.eventId ?? "") && s.detail?.evidenceStrength === "provider_reported"
+      && Number.isSafeInteger(s.detail?.observedAt) && s.detail.observedAt >= s.occurredAt);
+    return (provisionalPoints(config.policy, marks, { twitch: twitchPointsEnabled() }).scores.get(id) ?? 0n).toString();
   };
+  const record = (accountId) => playRecord(store.submissions().filter((s) => s.accountId === accountId), now());
   const standing = (accountId) => {
-    if (!config) return null;
+    if (!config) return { joined: false, points: "0", today: "0", rank: null, pending: 0, submissions: [], ...record(accountId) };
     const rows = seasonRows();
     const { scores, today, ranked } = ranking();
     const rank = ranked.findIndex(([id]) => id === accountId);
@@ -128,14 +130,14 @@ export function createHubApi({ origins: originText, store, season = null, season
       points: (scores.get(accountId) ?? 0n).toString(),
       today: (today.get(accountId) ?? 0n).toString(),
       rank: rank === -1 ? null : rank + 1,
-      badges: badges(accountId),
+      ...record(accountId),
       pending: rows.filter((s) => s.accountId === accountId && s.status === "pending").length,
       submissions: rows.filter((s) => s.accountId === accountId).map(({ id, action, status, occurredAt, detail }) => ({ id, action, status, occurredAt, ...(action === "poll_response" && typeof detail?.pollId === "string" ? { pollId: detail.pollId } : {}) })),
     };
   };
   const seasonState = () => {
     if (!config) return null;
-    const rows = seasonRows();
+    const rows = fanRows(seasonRows(), config);
     const poll = pollFor(polls, now());
     const { ranked } = ranking();
     return {
@@ -150,6 +152,10 @@ export function createHubApi({ origins: originText, store, season = null, season
       credited: rows.filter((s) => s.status === "credited").length,
       poll: poll ? { id: poll.id, question: poll.question, options: poll.options, placeholder: poll.placeholder } : null,
       board: ranked.slice(0, BOARD_SIZE).map(([id, points]) => [handleOf(id), points.toString()]),
+      boardDetails: ranked.slice(0, BOARD_SIZE).map(([id]) => {
+        const { badges, streakDays } = record(id);
+        return { handle: handleOf(id), badges, streakDays };
+      }),
     };
   };
 
@@ -187,10 +193,17 @@ export function createHubApi({ origins: originText, store, season = null, season
   // separate, labelled object next to backing, never merged into it.
   const claims = createClaimStore({ dir: store.dir });
   const identityStore = identity.store ?? createHubIdentityStore({ dir: store.dir });
+  const communityStore = (community && community.store) || createCommunityStore({ dir: store.dir });
+  const communitySettings = community?.config ?? communityConfig();
   // Station-wide default mint, or the featured listing's mint when that setting is unset. Never a hardcoded address.
   const claimMint = mintForClaims({ defaultMint, listings: registryInput ?? market?.registry ?? [] });
+  // The fixed registry plus the day's slate streamers (open, unclaimed listings). A fixed entry always wins a slug.
   const listingsNow = () => {
-    const merged = (registryInput ?? market?.registry ?? []).filter((entry) => entry?.slug && !reservedSlug(entry.slug));
+    const base = registryInput ?? market?.registry ?? [];
+    const extra = (market?.slate?.listings?.() ?? []).filter((entry) => entry?.slug && !reservedSlug(entry.slug));
+    const slugs = new Set(base.map((e) => e.slug));
+    const logins = new Set(base.map((e) => e.twitch).filter(Boolean));
+    const merged = [...base, ...extra.filter((e) => !slugs.has(e.slug) && !logins.has(e.twitch) && slugs.add(e.slug))];
     // A claimed listing with no operator-set pair gets {streamer: the claimer's verified linked wallet, mint: the
     // station default or the featured listing's mint}, so an arena that wallet creates is backable with no operator
     // edit. An operator-set pair is never overridden, the registry's banned keys are refused, and a pair some other
@@ -215,7 +228,7 @@ export function createHubApi({ origins: originText, store, season = null, season
   };
   const marketListing = (entry, { withHistory = false } = {}) => {
     const arena = market.index.listingArena(entry);
-    const twitch = entry.twitch ? (market.board?.(entry.twitch) ?? null) : null;
+    const twitch = entry.twitch ? (market.board?.(entry.twitch) ?? market.slate?.performance?.(entry.twitch) ?? null) : null;
     return {
       slug: entry.slug,
       name: entry.name,
@@ -240,6 +253,7 @@ export function createHubApi({ origins: originText, store, season = null, season
   const marketRoutes = market
     ? {
         "GET /hub/api/market": () => marketEnvelope({ listings: listingsNow().map((entry) => marketListing(entry)) }),
+        "GET /hub/api/slate": () => { if (!market.slate) throw new HttpError(404, "no_slate"); return { ...market.slate.slate(), generatedAt: now() }; },
         "GET /hub/api/market/positions": (request) => {
           const fan = new URL(request.url ?? "/", "http://localhost").searchParams.get("fan") ?? "";
           if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(fan)) throw new HttpError(400, "fan_address_required");
@@ -292,13 +306,28 @@ export function createHubApi({ origins: originText, store, season = null, season
     };
   };
 
+  const history = (accountId) => {
+    if (!accountId) return [];
+    return Object.keys(store.account(accountId)?.joined ?? {}).filter((season) => /^[1-9][0-9]{0,5}$/.test(season)).map((season) => readFrozen(store.dir, season)).filter(Boolean).flatMap((frozen) => {
+      const mine = frozen.scores.find((s) => s.handle === handleOf(accountId));
+      return mine ? [{ season: Number(frozen.season), points: Number(mine.points), rank: mine.rank, players: frozen.players, eligiblePoints: Number(frozen.totalPoints), reward: { kind: "provisional" } }] : [];
+    }).sort((a, b) => b.season - a.season);
+  };
+
   const routes = {
+    ...createTwitchMarkRoutes({ store, config: () => config, listings: listingsNow,
+      points: twitchPoints, writeLimit, now, resolveEvent: resolveTwitchMarkEvent }),
     ...marketRoutes,
+    "GET /hub/api/station-status": () => stationStatus(),
     ...createIdentityRoutes({ hubStore: store, origins, requireOrigin, requireSession, authLimit, now, ...identity, store: identityStore }),
+    ...createCommunityRoutes({
+      origins, requireOrigin, requireSession, sessionOf, authLimit, now,
+      community: communitySettings, store: communityStore, season: () => config, standingOf: standing,
+    }),
     ...createClaimRoutes({ registry: listingsNow, claims, twitchOf: (accountId) => identityStore.get(accountId), resolveTwitchUser, requireOrigin, requireSession, authLimit, now, defaultMint: claimMint }),
     "GET /hub/api/state": (request) => {
       const session = sessionOf(request);
-      return { season: seasonState(), lastSeason: lastSeason(session?.accountId ?? null), me: session ? { accountId: session.accountId, createdAt: store.account(session.accountId)?.createdAt ?? null, ...standing(session.accountId) } : null, generatedAt: now() };
+      return { season: seasonState(), lastSeason: lastSeason(session?.accountId ?? null), history: history(session?.accountId ?? null), me: session ? { accountId: session.accountId, createdAt: store.account(session.accountId)?.createdAt ?? null, ...standing(session.accountId) } : null, generatedAt: now() };
     },
     "GET /hub/api/me": (request) => {
       const session = requireSession(request, { csrf: false });
@@ -370,6 +399,7 @@ export function createHubApi({ origins: originText, store, season = null, season
       }
       store.updateAccount(account.id, { credentials: account.credentials.map((c) => (c.credentialId === body.id ? { ...c, signCount: result.signCount, usedAt: now() } : c)) });
       const session = newSession(account.id);
+      store.deleteSessionsFor(account.id, { keep: session.id });
       return { accountId: account.id, csrf: session.csrf, _cookie: cookieHeader(session.id) };
     },
     "POST /hub/api/logout": (request) => {
@@ -430,7 +460,9 @@ export function createHubApi({ origins: originText, store, season = null, season
     },
   };
 
-  const finalizer = seasons ? createSeasonFinalizer({ seasons, store, rank: (credited, c = config) => rankAccounts(c.policy, credited), handleOf, now, log, ...(schedule ? { schedule } : {}), ...(cancel ? { cancel } : {}) }) : null;
+  const finalizer = seasons ? createSeasonFinalizer({ seasons, store, selectRows: fanRows,
+    playerCount: (c) => store.joinedCount(c.season), rank: (credited, c = config) => rankAccounts(c.policy, credited),
+    handleOf, now, log, ...(schedule ? { schedule } : {}), ...(cancel ? { cancel } : {}) }) : null;
 
   const hubApi = async function hubApi(request, response) {
     const head = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", Vary: "Cookie, Origin" };

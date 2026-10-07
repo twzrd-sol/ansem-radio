@@ -44,7 +44,15 @@ export type RewardState =
 export const showsMoney = (reward: RewardState): reward is Extract<RewardState, { pool: FundedPool }> =>
   reward.kind === "funded" || reward.kind === "claimable";
 
-export interface Standing {
+export type PlayBadge = "first_play" | "three_days";
+export interface CollectorRecord {
+  badges?: PlayBadge[];
+  activityDays?: number;
+  playedToday?: boolean;
+  streakDays?: number;
+}
+
+export interface Standing extends CollectorRecord {
   points: number;
   /** null until this fan has credited points. */
   rank: number | null;
@@ -52,7 +60,7 @@ export interface Standing {
   /** Points awarded today (UTC), against the daily cap. */
   today: number;
   /** What this fan has sent this season; pending work waits for the streamer. */
-  submissions: Array<{ action: Action; status: "credited" | "pending"; pollId?: string }>;
+  submissions: Array<{ action: Action; status: "credited" | "pending"; occurredAt?: number; pollId?: string }>;
   badges?: Array<"first_play" | "three_days">;
 }
 
@@ -70,6 +78,7 @@ export interface CurrentSeason {
   prompt: string | null;
   /** Top accounts with credited provisional points; short pseudonymous handles only. */
   board: Array<[string, number]>;
+  boardDetails?: Array<{ handle: string; badges: PlayBadge[]; streakDays: number }>;
   /** null until the fan joins. */
   me: Standing | null;
 }
@@ -92,7 +101,7 @@ export interface HistoryRow {
   eligiblePoints: number;
 }
 
-export interface FanAccount {
+export interface FanAccount extends CollectorRecord {
   handle: string;
   since: number;
 }

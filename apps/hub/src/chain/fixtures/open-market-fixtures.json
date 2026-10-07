@@ -1,0 +1,20 @@
+{
+  "note": "Tag 5 init_open_market fixture captured from src/sinks/arena.js. Public data only; used to pin builder bytes.",
+  "program": "5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf",
+  "slug": "radiolanlive",
+  "seasonStart": 1759449600,
+  "seasonSeconds": 604800,
+  "market": "2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn",
+  "marketBump": 253,
+  "arena": "5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq",
+  "rlanMint": "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy",
+  "payer": "EatwUpB2JZFSJHNuASeaPWcT1oNqGiVFFLgw35miLK3T",
+  "dataHex": "050c726164696f6c616e6c6976650012df6800000000803a090000000000",
+  "accounts": [
+    { "pubkey": "EatwUpB2JZFSJHNuASeaPWcT1oNqGiVFFLgw35miLK3T", "isSigner": true, "isWritable": true },
+    { "pubkey": "2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn", "isSigner": false, "isWritable": true },
+    { "pubkey": "5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq", "isSigner": false, "isWritable": true },
+    { "pubkey": "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy", "isSigner": false, "isWritable": false },
+    { "pubkey": "11111111111111111111111111111111", "isSigner": false, "isWritable": false }
+  ]
+}

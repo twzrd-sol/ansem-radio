@@ -69,7 +69,7 @@ test("describeTwitchRow is one chat-safe sentence", () => {
   assert.equal(describeTwitchRow(normalizeTwitchStream(null, "ninja", AT)), "ninja is offline");
 });
 
-test("fetchTwitchBoard sends one Helix call with Client-Id and Bearer, reports errors, never throws", async () => {
+test("fetchTwitchBoard sends one Helix call with Client-Id and Bearer, reports errors, never throws, and the board object has no all_rows", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push([url, init.headers]);
@@ -82,6 +82,7 @@ test("fetchTwitchBoard sends one Helix call with Client-Id and Bearer, reports e
   assert.equal(calls[0][1].Authorization, "Bearer tok");
   assert.equal(board.rows.length, 2);
   assert.equal(board.offline.length, TRACKED_STREAMERS.length - 2);
+  assert.equal(Object.hasOwn(board, "all_rows"), false);
   assert.deepEqual(board.errors, []);
 
   const noCreds = await fetchTwitchBoard({ fetchImpl, clientId: "", token: "" });

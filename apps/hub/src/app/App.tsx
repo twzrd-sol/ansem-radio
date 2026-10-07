@@ -2,8 +2,10 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 
 import { IS_MAINNET, NETWORK, OFFICIAL_STREAMER } from "../chain/config";
 import { BRAND } from "../brand";
+import { Stats } from "../screens/Stats";
 import { seasonIndex, withdrawAvailableAt } from "../chain/season";
 import { explainApiError, type ActivityInput } from "../data/api";
+import { useFollowing } from "../data/following";
 import { HubProvider, type HubLoad } from "../data/hub";
 import { useLiveHub } from "../data/live";
 import { useListing, useMarket, type Listing as ListingData, type Market as MarketData } from "../data/market";
@@ -16,7 +18,9 @@ import { seasonPhase } from "../data/season";
 import { short } from "../lib/format";
 import { Back } from "../screens/Back";
 import { Board } from "../screens/Board";
+import { Circle } from "../screens/Circle";
 import { Claim } from "../screens/Claim";
+import { CommunitiesPage } from "../screens/Communities";
 import { Lan } from "../screens/Lan";
 import { Listing } from "../screens/Listing";
 import { Market } from "../screens/Market";
@@ -128,6 +132,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
   const wallet = session.wallet?.address ?? givenWallet;
   const route = useRoute();
   const preview = usePreview();
+  const { slugs: followed } = useFollowing();
   const hub = useLiveHub(!preview.enabled);
   const market = useMarket(!preview.enabled);
   const slug = route.key === "s" ? route.arg : route.key === "back" ? route.arg || "radiolanlive" : null;
@@ -259,10 +264,16 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
       screen = <Lan snapshot={shown} load={state} onRetry={retry} station={station} />;
       break;
     case "play":
-      screen = <Play key={`${shown?.season?.number ?? "none"}:${shown?.fan?.handle ?? "guest"}`} snapshot={shown} load={state} now={now} joined={joined} onJoin={() => void join()} onRetry={retry} toast={toast} submit={preview.enabled ? undefined : submit} nextSeasonAt={nextSeasonAt(listingOf("radiolanlive"), now)} />;
+      screen = <Play key={`${shown?.season?.number ?? "none"}:${shown?.fan?.handle ?? "guest"}:${Math.floor(now / 86_400_000)}`} snapshot={shown} load={state} now={now} joined={joined} onJoin={() => void join()} onRetry={retry} toast={toast} submit={preview.enabled ? undefined : submit} nextSeasonAt={nextSeasonAt(listingOf("radiolanlive"), now)} />;
       break;
     case "board":
       screen = <Board snapshot={shown} load={state} joined={joined} onRetry={retry} />;
+      break;
+    case "circle":
+      screen = <Circle snapshot={shown} load={state} listings={board?.listings ?? []} followed={preview.enabled && preview.scenario === "sample" ? ["radiolanlive", "crate-breed", "dusty-rhymes"] : followed} selected={route.arg} onRetry={retry} />;
+      break;
+    case "communities":
+      screen = <CommunitiesPage snapshot={shown} load={state} api={preview.enabled ? undefined : hub.api} onRetry={retry} />;
       break;
     case "positions":
       screen = <Positions listings={board?.listings ?? []} now={now} wallet={wallet} onConnect={preview.enabled ? undefined : connectForPositions} sample={preview.enabled && preview.scenario === "sample" ? samplePositions(now) : null} load={boardLoad} onRetry={retry} />;
@@ -286,6 +297,9 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
       break;
     case "how":
       screen = <HowItWorks />;
+      break;
+    case "stats":
+      screen = <Stats />;
       break;
     default:
       screen = <Market market={board} load={boardLoad} onRetry={retry} station={station} now={now} />;
@@ -329,6 +343,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
         <footer className="foot">
           <span>{BRAND.host}</span>
           <span>Free to play</span>
+          <a href="#/stats">Stats</a>
           {preview.enabled && preview.scenario === "sample" ? <a href="./#/">Live hub</a> : <a href="?preview=sample#/play">Sample season</a>}
           <HowLink />
           <a href={PUBLIC_SOURCE} target="_blank" rel="noopener noreferrer">MIT source</a>

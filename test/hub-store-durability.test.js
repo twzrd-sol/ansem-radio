@@ -107,3 +107,32 @@ test("a failed session delete or expiry leaves the session in memory as on disk"
   store.expireSessions(100);
   assert.equal(store.session("s1"), null);
 });
+
+test("deleteSessionsFor drops every other session for that account and leaves the rest", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "hub-store-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const store = createHubStore({ dir });
+  store.createSession({ id: "old", accountId: "a1" });
+  store.createSession({ id: "keep", accountId: "a1" });
+  store.createSession({ id: "other", accountId: "a2" });
+  store.deleteSessionsFor("a1", { keep: "keep" });
+  assert.equal(store.session("old"), null, "the earlier session for the account is gone");
+  assert.equal(store.session("keep")?.accountId, "a1", "the session just issued is kept");
+  assert.equal(store.session("other")?.accountId, "a2", "another account's session is not touched");
+  const reopened = createHubStore({ dir });
+  assert.equal(reopened.session("old"), null);
+  assert.equal(reopened.session("keep")?.accountId, "a1");
+});
+
+test("a failed deleteSessionsFor leaves every session in memory as on disk", (t) => {
+  if (process.getuid?.() === 0) return t.skip("root ignores directory permissions");
+  const dir = mkdtempSync(join(tmpdir(), "hub-store-"));
+  t.after(() => { chmodSync(dir, 0o700); rmSync(dir, { recursive: true, force: true }); });
+  const store = createHubStore({ dir });
+  store.createSession({ id: "old", accountId: "a1" });
+  store.createSession({ id: "keep", accountId: "a1" });
+  chmodSync(dir, 0o500);
+  assert.throws(() => store.deleteSessionsFor("a1", { keep: "keep" }));
+  assert.equal(store.session("old")?.id, "old", "a failed rotation does not drop the earlier session in memory");
+  assert.equal(store.session("keep")?.id, "keep");
+});

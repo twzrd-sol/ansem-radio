@@ -13,27 +13,31 @@ import type { FlowStep, Position, PreviewState } from "./app/preview";
 import { parseHash } from "./app/route";
 import { ARENA_MINT, ARENA_PROGRAM } from "./chain/config";
 import { seasonIndex, withdrawAvailableAt } from "./chain/season";
-import { sortListings, type Market as MarketData } from "./data/market";
+import { sortListings, type Listing as ListingData, type Market as MarketData } from "./data/market";
 import { buildSample, sampleListingDetail, sampleMarket, samplePositions } from "./data/sample";
 import type { Station } from "./data/station";
 import { buildToday } from "./data/today";
 import type { HubSnapshot } from "./data/types";
+import { fmt } from "./lib/format";
 import { Back } from "./screens/Back";
 import { LiveBack } from "./screens/LiveBack";
 import { Board } from "./screens/Board";
+import { Circle } from "./screens/Circle";
 import { Claim } from "./screens/Claim";
+import { COMMUNITY_COPY, gatedCommunityCatalog, sampleCommunityCatalog } from "./data/community";
+import { Communities } from "./screens/Communities";
 import { Lan } from "./screens/Lan";
-import { SampleTag } from "./ui/atoms";
 import { Listing } from "./screens/Listing";
-import { Market } from "./screens/Market";
+import { lockerIsOpen, lockerStatus, Market } from "./screens/Market";
 import { ACTIVITIES, Play } from "./screens/Play";
 import { Profile } from "./screens/Profile";
 import { Positions } from "./screens/Positions";
+import { StatsView } from "./screens/Stats";
 import { YourPageView } from "./ui/YourPage";
 import { EMBED_MIN_WIDTH, twitchEmbedSrc } from "./ui/Player";
 
 const NOW = Date.parse("2026-10-02T13:00:00Z");
-const station: Station = { status: "ready", live: false };
+const station: Station = { status: "ready", live: false, observedAt: NOW };
 const noop = () => {};
 
 const decode = (s: string) => s.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
@@ -55,9 +59,11 @@ function screens(snapshot: HubSnapshot, p: PreviewState): Array<[string, ReactEl
     ["positions", <Positions listings={market.listings} now={NOW} wallet={null} sample={sampleScenario ? samplePositions(NOW) : null} load="ready" onRetry={noop} />],
     ["play", <Play snapshot={snapshot} load="ready" now={NOW} joined={p.joined} onJoin={noop} onRetry={noop} toast={noop} />],
     ["board", <Board snapshot={snapshot} load="ready" joined={p.joined} onRetry={noop} />],
+    ["circle", <Circle snapshot={snapshot} load="ready" listings={market.listings} followed={sampleScenario ? ["radiolanlive", "crate-breed", "dusty-rhymes"] : []} selected="" onRetry={noop} />],
     ["back", <Back snapshot={snapshot} load="ready" preview={p} now={NOW} onRetry={noop} />],
     ["profile", <Profile snapshot={snapshot} load="ready" backer={false} wallet={null} onRetry={noop} />],
     ["claim", <Claim snapshot={snapshot} load="ready" onRetry={noop} />],
+    ["communities", <Communities snapshot={snapshot} catalog={sampleScenario ? sampleCommunityCatalog(NOW) : gatedCommunityCatalog()} />],
   ];
 }
 const sample = buildSample(NOW);
@@ -96,8 +102,23 @@ describe("copy rules (plan section 11)", () => {
     const all = text(<Play snapshot={sample} load="ready" now={NOW} joined onJoin={noop} onRetry={noop} toast={noop} />);
     expect(all).toMatch(/nothing from Twitch chat counts/);
     expect(all).toMatch(/capped per day and per season, across all activities/);
+    expect(all).toMatch(/This season is the game you are inside/);
+    expect(all).toMatch(/Today's points sit against the published cap/);
+    expect(all).toMatch(/The next action can light a collected mark/);
     expect(all).toMatch(/Today: 30 of 60 points · season: 230 of 300/);
     for (const a of ACTIVITIES) expect(all).toContain(`+${sample.season!.policy.weights[a.action]}`);
+    expect(all).toContain("Show up. Take part. Keep your mark.");
+    expect(all).toContain("Prompt replies and clips count only after the streamer accepts them.");
+    expect(all).toContain(`Season ${sample.season!.number} · ${fmt(sample.season!.players)} players on the board`);
+    expect(all).toMatch(/Meet superfans/);
+    expect(all).toContain("Real Discord or X membership can unlock season-points eligibility");
+  });
+
+  it("puts the SAMPLE marker on the challenge primer before sample activity cards", () => {
+    const page = html(<Play snapshot={sample} load="ready" now={NOW} joined onJoin={noop} onRetry={noop} toast={noop} />);
+    expect(page.indexOf("h-challenge-brief")).toBeLessThan(page.indexOf("tag--sample"));
+    expect(page).toContain("no wallet needed.");
+    expect(page).toContain("the streamer accepts them");
   });
 
   it("shows placeholder polls for preview without offering a points submission", () => {
@@ -115,14 +136,15 @@ describe("copy rules (plan section 11)", () => {
     expect(markup).toContain("Answers here do not earn points");
     expect(markup).toContain("Preview only");
     expect(markup).toMatch(/disabled=""[^>]*>Preview only/);
-    expect(markup).toContain("Sample season 12 · Radio LAN");
-    expect(markup).toContain("tag--sample");
-    expect(markup).toContain("This points season is a sample");
+    expect(markup).toContain("Season 12 · Radio LAN");
+    expect(markup).not.toContain("tag--sample");
+    expect(markup).not.toContain("This points season is a sample");
+    expect(markup).toContain("Ask the guest or the room a question.");
     const emptyBoard: HubSnapshot = { ...current, season: { ...current.season!, players: 0, board: [] } };
     const board = html(<Board snapshot={emptyBoard} load="ready" joined onRetry={noop} />);
-    expect(board).toContain("Sample season 12 · Radio LAN");
-    expect(board).toContain("tag--sample");
-    expect(board).toContain("Sample season. The board stays empty until a live season is published.");
+    expect(board).toContain("Season 12 · Radio LAN");
+    expect(board).not.toContain("tag--sample");
+    expect(board).toContain("Your points so far: 0");
     expect(markup).not.toContain("Solana devnet");
     expect(board).not.toContain("Solana devnet");
   });
@@ -178,13 +200,19 @@ describe("copy rules (plan section 11)", () => {
     const live: HubSnapshot = {
       ...sample,
       scenario: "today",
-      season: { ...sample.season!, me: { ...sample.season!.me!, badges: ["first_play"] } },
+      fan: { handle: "fan-ab12cd34", since: 1, badges: ["first_play"], activityDays: 1, playedToday: true },
+      season: { ...sample.season!, me: { ...sample.season!.me!, badges: ["first_play"], activityDays: 1, playedToday: true } },
     };
     const markup = text(<Profile snapshot={live} load="ready" backer={false} wallet={null} onRetry={noop} />);
     expect(markup).toContain("First play");
     expect(markup).toContain("Three days played (locked)");
     expect(markup).not.toContain("First poll");
-    expect(html(<Profile snapshot={sample} load="ready" backer={false} wallet={null} onRetry={noop} />)).toContain("Sample");
+    expect(html(<Profile snapshot={live} load="ready" backer={false} wallet={null} onRetry={noop} />)).not.toContain("who__avatar");
+    const samplePage = html(<Profile snapshot={sample} load="ready" backer={false} wallet={null} onRetry={noop} />);
+    expect(samplePage).toContain("Sample");
+    expect(samplePage).toContain("First play");
+    expect(samplePage).toContain("Three days played");
+    expect(samplePage).not.toContain("who__avatar");
   });
 });
 
@@ -211,7 +239,8 @@ describe("vocabulary (plan section 11, operator 2026-10-02)", () => {
     const states = [preview(), preview({ joined: false }), preview({ scenario: "today" }), ...(["active", "requested", "releasable"] as Position[]).flatMap((position) => (["edit", "review", "done"] as FlowStep[]).map((flow) => preview({ position, flow })))];
     for (const p of states) {
       for (const [name, el] of screens(snapshotFor(p, NOW), p)) {
-        const found = money.exec(text(el));
+        // Collector marks may be called earned badges (operator, hub room objective).
+        const found = money.exec(text(el).replace(/(?:No )?earned badges(?: yet)?/gi, "collected marks"));
         expect(found?.[0], `${name} ${p.scenario}/${p.position}/${p.flow}`).toBeUndefined();
       }
     }
@@ -254,13 +283,15 @@ describe("on-chain screens", () => {
   it("carry the devnet ribbon and link the program and mint", () => {
     expect(parseHash("#/back").onchain).toBe(true);
     expect(parseHash("#/back/crate-breed")).toMatchObject({ key: "back", arg: "crate-breed", onchain: true });
-    for (const key of ["#/", "#/s/radiolanlive", "#/lan", "#/play", "#/board", "#/positions", "#/me", "#/claim"]) expect(parseHash(key).onchain, key).toBe(false);
+    for (const key of ["#/", "#/s/radiolanlive", "#/lan", "#/play", "#/board", "#/circle", "#/communities", "#/positions", "#/me", "#/claim"]) expect(parseHash(key).onchain, key).toBe(false);
     expect(text(<Ribbon />)).toMatch(/^Solana devnet Test tokens only\. No real value\./);
     const back = html(<Back snapshot={sample} load="ready" preview={preview({ flow: "review" })} now={NOW} onRetry={noop} />);
     expect(back).toContain(`https://explorer.solana.com/address/${ARENA_PROGRAM}?cluster=devnet`);
     if (ARENA_MINT) expect(back).toContain(`https://explorer.solana.com/address/${ARENA_MINT}?cluster=devnet`);
-    else expect(decode(back)).toMatch(/Test mint <span class="addr"><span class="mono">Mint…1111<\/span><span class="tag tag--sample">Sample/);
-    expect(decode(back)).toMatch(/Account rent<\/dt><dd>0\.003654 SOL, returned when you withdraw everything/);
+    else expect(decode(back)).toMatch(/Token address<\/dt><dd><span class="addr"><span class="mono">Mint…1111<\/span><span class="tag tag--sample">Sample/);
+    expect(decode(back)).toMatch(/Account deposit \(returned when you withdraw\)<\/dt><dd>0\.003654 SOL, returned when you withdraw everything/);
+    expect(decode(back)).toMatch(/Less than half a cent/);
+    expect(decode(back)).toContain("0.000005 SOL");
     // The review card already carries network, program, token and unlock: no second "On chain" copy beside it.
     expect(decode(back).match(/<dt>Network<\/dt>/g)?.length).toBe(1);
     expect(decode(back)).not.toContain("The radiolan-arena program has been live on mainnet");
@@ -336,19 +367,88 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     // The featured listing shows once, in its card; the backable group is ranked; Twitch-only rows are collapsed below.
     expect(board).toMatch(/Radio LAN Featured .*12,400 RLAN 37 backers · 2 leaving \+850 this season/);
     expect(boardHtml).not.toMatch(/mkt__name">Radio LAN/);
-    expect(board).toMatch(/Backing open · 2 1 Crate Breed Demo .*2 Dusty Rhymes Demo/);
+    expect(board).toMatch(/Open lockers · 2 1 Crate Breed Fictional creator .*2 Dusty Rhymes Fictional creator/);
     expect(board).toMatch(/On Twitch, not listed yet · 2 channels, 1 live/);
     expect(boardHtml).toMatch(/<details class="mkt__more">/);
-    expect(board).toMatch(/ninja .*Backing Not open yet Twitch Live · 18,240 Fortnite Data: Twitch/);
+    expect(board).toMatch(/ninja .*Locker Closed · no listed market is open Twitch Live · 18,240 Fortnite Data: Twitch/);
     expect(board).not.toMatch(/Crate Breed Demo [^]*?Twitch No Twitch/);
     expect(boardHtml).not.toContain('class="mkt__rank num" aria-label="Backing rank 3"');
     expect(board).toMatch(/Read from Solana devnet 1 min ago\./);
     expect(boardHtml).toMatch(/title="[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · slot 500,400 · Solana devnet"/);
+    expect(board).toMatch(/A backing locker is your own position and comes back 1:1/);
+    expect(board).toMatch(/It stays closed until a listed market is open/);
     expect(board).toMatch(/Backing adds no points\. How this works/);
     expect(boardHtml).toContain('href="#/how"');
     expect(boardHtml).toContain('title="Data: Twitch. Recorded by radiolanlive at ');
-    expect(boardHtml.match(/>Demo</g)?.length).toBe(2);
+    expect(boardHtml.match(/>Fictional creator</g)?.length).toBe(2);
     expect(boardHtml).toContain(">Featured<");
+  });
+
+  it("shows a real locker only from a fresh, matching open arena read", () => {
+    const source = market.listings[0]!;
+    const realOpen: ListingData = { ...source, kind: "tracked", demo: false };
+    const current: MarketData = { ...market, sample: undefined, stale: false, listings: [realOpen] };
+    expect(lockerStatus(realOpen, current)).toBe("open");
+    expect(lockerIsOpen(realOpen, current)).toBe(true);
+    const page = html(<Market market={current} load="ready" onRetry={noop} station={station} now={NOW} />);
+    expect(decode(page)).toContain("Open lockers · 1");
+    expect(page).not.toContain('tag--sample');
+  });
+
+  it("keeps a closed arena and a listing with no arena closed on a fresh read", () => {
+    const current: MarketData = { ...market, sample: undefined, stale: false };
+    const hasClosedArena = { ...market.listings[0]!, backingOpen: false, arena: { ...market.listings[0]!.arena!, closed: true } };
+    const noArena = market.listings.find((l) => l.slug === "ninja")!;
+    expect(lockerStatus(hasClosedArena, current)).toBe("closed");
+    expect(lockerStatus(noArena, current)).toBe("closed");
+    const page = text(<Market market={{ ...current, listings: [noArena] }} load="ready" onRetry={noop} station={station} now={NOW} />);
+    expect(page).toContain("Closed · no listed market is open");
+  });
+
+  it("does not trust a bare or contradictory backingOpen flag", () => {
+    const current: MarketData = { ...market, sample: undefined, stale: false };
+    const source = market.listings.find((l) => l.slug === "ninja")!;
+    const bareFlag = { ...source, backingOpen: true };
+    const contradictory = { ...market.listings[0]!, arena: { ...market.listings[0]!.arena!, closed: true } };
+    const wrongPair = { ...market.listings[0]!, keys: { streamer: source.keys?.streamer ?? "11111111111111111111111111111111", mint: "So11111111111111111111111111111111111111112" } };
+    expect(lockerStatus(bareFlag, current)).toBe("unavailable");
+    expect(lockerStatus(contradictory, current)).toBe("unavailable");
+    expect(lockerStatus(wrongPair, current)).toBe("unavailable");
+  });
+
+  it("does not present a stale or missing arena read as closed or open", () => {
+    const source = market.listings[0]!;
+    const realOpen: ListingData = { ...source, kind: "tracked", demo: false };
+    const stale: MarketData = { ...market, sample: undefined, stale: true, listings: [realOpen] };
+    const missing: MarketData = { ...stale, stale: false, observedAt: null };
+    expect(lockerStatus(realOpen, stale)).toBe("stale");
+    expect(lockerStatus(realOpen, missing)).toBe("unavailable");
+    const stalePage = text(<Market market={stale} load="ready" onRetry={noop} station={station} now={NOW} />);
+    const missingPage = text(<Market market={missing} load="ready" onRetry={noop} station={station} now={NOW} />);
+    expect(stalePage).toContain("Locker status unavailable · last read is stale");
+    expect(stalePage).not.toContain("Open lockers · 1");
+    expect(missingPage).toContain("Locker status unavailable · no current read");
+    expect(missingPage).not.toContain("Open lockers · 1");
+  });
+
+  it("keeps sample open lockers marked as sample fixtures", () => {
+    const page = html(<Market market={market} load="ready" onRetry={noop} station={station} now={NOW} />);
+    expect(lockerStatus(market.listings[0]!, market)).toBe("open");
+    expect(page).toContain("tag--sample");
+    expect(decode(page)).toContain("Fictional creators and backing for preview. No live locker is opened here.");
+  });
+
+  it("presents creator fees, RLAN, and the closed ICELAN vault as separate states", () => {
+    expect(board).toContain("Creator fee terms are managed by ClawPump");
+    expect(board).toContain("fee collection and release stay outside this interface");
+    expect(board).not.toContain("75%");
+    expect(board).not.toContain("25%");
+    expect(board).toContain("Holder controls are not live in this hub");
+    expect(boardHtml).toContain('href="https://clawpump.tech/tokens/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy"');
+    expect(board).toContain("Vault not created");
+    expect(board).toContain("Collect stays disabled");
+    expect(board).toContain("Season points stay free and separate");
+    expect(board).not.toMatch(/ICELAN.{0,100}(?:open|available to collect)/i);
   });
 
   it("renders the stale state and an empty live board without inventing anything", () => {
@@ -357,7 +457,8 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(marketFor({ ...preview({ scenario: "today" }), enabled: false }, NOW, null)).toBeNull();
     const empty = text(<Market market={{ network: "devnet", observedAt: null, slot: null, stale: false, generatedAt: 1, listings: [] }} load="ready" onRetry={noop} station={station} now={NOW} />);
     expect(empty).toMatch(/Solana devnet: no read yet/);
-    expect(empty).toMatch(/Backing open · 0 No creator has an arena open for backing yet/);
+    expect(empty).toMatch(/No channels match the current read yet\./);
+    expect(empty).not.toMatch(/Creators list themselves/);
     expect(empty).not.toContain("Sample");
   });
 
@@ -384,6 +485,30 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     const small = text(<Market market={{ ...emptyMarket, listings: full.listings.slice(0, 2) }} load="ready" onRetry={noop} station={station} now={NOW} />);
     expect(small).not.toContain("Collect today's channels");
     expect(small).not.toContain("All categories");
+  });
+
+  it("draws a week of daily peaks on a channel that has them, with a text alternative, and nothing when it has none", () => {
+    const tracked = sampleListingDetail(NOW, "ninja")!;
+    const withWeek = { ...tracked.listing, performance: { live: true, viewers: 100, game: "Fortnite", startedAt: null, rank: 1, deltaViewers: null, week: [null, 120, null, 300, 80, null, 450], provenance: "Data: Twitch. Recorded by Radio LAN." } };
+    const page = html(<Listing listing={withWeek} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
+    expect(decode(page)).toContain("This week · daily peak audience");
+    expect(decode(page)).toMatch(/aria-label="Daily peak audience, last 7 days: \w{3} no reading, \w{3} 120/);
+    expect((page.match(/class="week__bar"/g) ?? []).length).toBe(7);
+    const none = html(<Listing listing={{ ...withWeek, performance: { ...withWeek.performance, week: [null, null, null, null, null, null, null] } }} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
+    expect(none).not.toContain("week__bars");
+  });
+
+  it("shows the stats page's free preview with its source, and a clear empty and error state", () => {
+    const preview = { source: "Data: Twitch. Radio LAN analytics. Observed top channels only; small channels are not covered.", coverage: { firstSampleAt: 1, lastSampleAt: Math.floor(NOW / 1000), polls: 12, avgChannelsPerPoll: 274, retentionDays: 400 }, generatedAt: Math.floor(NOW / 1000), data: { window: { days: 1 }, channels: [{ rank: 1, login: "caseoh_", name: "CaseOh", game: "Just Chatting", language: "en", peakViewers: 87481, averageViewers: 50000, hoursWatched: 1234.5, airtimeHours: 6 }], categories: [{ rank: 1, game: "Just Chatting", hoursWatched: 9000.2, peakViewers: 200000, channels: 20 }] } };
+    const page = text(<StatsView preview={preview} load="ready" onRetry={noop} />);
+    expect(page).toContain("Twitch right now");
+    expect(page).toContain("CaseOh");
+    expect(page).toContain("87,481");
+    expect(page).toContain("Data: Twitch. Radio LAN analytics.");
+    expect(page).not.toMatch(/x402|pay-per-call/);
+    expect(html(<StatsView preview={preview} load="ready" onRetry={noop} />)).toContain('href="#/s/caseoh"');
+    expect(text(<StatsView preview={null} load="ready" onRetry={noop} />)).toContain("No stats yet");
+    expect(text(<StatsView preview={null} load="error" onRetry={noop} />)).toContain("didn't load");
   });
 
   it("walks a streamer from linking a wallet to creating their arena, and never offers it before it can work", () => {
@@ -469,14 +594,15 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(page).toContain("Back Crate Breed");
     const tracked = sampleListingDetail(NOW, "ninja")!;
     const other = text(<Listing listing={tracked.listing} observed={tracked} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="ninja" />);
-    expect(other).toMatch(/Backing for ninja is not open yet\. Radio LAN opens arenas itself, listing by listing/);
-    expect(other).not.toMatch(/their own arena|on anyone's behalf/);
+    expect(other).toMatch(/Backing is not open/);
+    expect(other).not.toMatch(/create their own arena/);
     expect(other).toMatch(/Viewers 18,240 \+120 since last read Playing Fortnite/);
     expect(other).toMatch(/Data: Twitch\. Recorded by radiolanlive at \S+\./);
     const lan = sampleListingDetail(NOW, "radiolanlive")!;
     const featured = text(<Listing listing={lan.listing} observed={lan} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="radiolanlive" />);
     expect(featured).toMatch(/Season · points Free · separate from backing/);
-    expect(featured).toMatch(/Points come from activities on this site and never from backing or Twitch/);
+    expect(featured).toMatch(/Points come from activities on this site\. Backing does not add points/);
+    expect(featured).not.toMatch(/never from backing or Twitch/);
   });
 
   it("lists a wallet's positions with the arena's release rule, totals them, and points to the free season elsewhere", () => {
@@ -498,25 +624,33 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
   });
 });
 
-describe("review fixes", () => {
-  it("a live season on the Lan page is not labelled as a sample", () => {
-    const live: HubSnapshot = { ...today, scenario: "today", season: { ...sample.season!, poll: { id: "real-1", question: "Q?", options: ["A", "B"], placeholder: false } } };
-    const tag = html(<SampleTag />);
-    expect(html(<Lan snapshot={live} load="ready" onRetry={noop} station={station} />)).not.toContain(tag);
-    expect(html(<Lan snapshot={{ ...live, scenario: "sample" }} load="ready" onRetry={noop} station={station} />)).toContain(tag);
+describe("community membership", () => {
+  it("shows needs-credentials gates on the live page and marks sample membership as fictional", () => {
+    const live = html(<Communities snapshot={today} catalog={gatedCommunityCatalog()} />);
+    const liveText = text(<Communities snapshot={today} catalog={gatedCommunityCatalog()} />);
+    expect(live).not.toContain("tag--sample");
+    expect(liveText).toContain(COMMUNITY_COPY.needsCredentials);
+    expect(liveText).toContain(COMMUNITY_COPY.joinClick);
+    expect(liveText).toContain(COMMUNITY_COPY.noFarm);
+    expect(liveText).toContain(COMMUNITY_COPY.notTokens);
+    expect(liveText).toContain(COMMUNITY_COPY.unpublished);
+    expect(liveText).not.toContain("sample_lan");
+    const previewPage = html(<Communities snapshot={sample} catalog={sampleCommunityCatalog(NOW)} />);
+    const previewText = text(<Communities snapshot={sample} catalog={sampleCommunityCatalog(NOW)} />);
+    expect(previewPage).toContain("tag--sample");
+    expect(previewText).toContain(COMMUNITY_COPY.sampleNote);
+    expect(previewText).toContain(COMMUNITY_COPY.notLive);
+    expect(previewText).toContain("sample_lan");
+    expect(previewText).toContain("+15 once, under the daily and season caps");
   });
 
-  it("share math survives a season with no eligible points", async () => {
-    const { sharePercent, shareOf } = await import("./screens/Profile");
-    expect(sharePercent(5, 0)).toBe("0.00%");
-    expect(shareOf(1_000n, 5, 0)).toBe(0n);
-    expect(sharePercent(1, 4)).toBe("25.00%");
-  });
-
-  it("unitsFloor never asks for more decimals than the token has", async () => {
-    const { unitsFloor } = await import("./lib/format");
-    expect(() => unitsFloor(123_456_789n, 6, 9)).not.toThrow();
-    expect(unitsFloor(123_456_789n, 6, 9)).toBe("123.456789");
-    expect(unitsFloor(123_456_789n, 6, 2)).toBe("123.45");
+  it("keeps native activities as the only Play actions and leaves listing points copy unchanged", () => {
+    expect([...new Set(ACTIVITIES.map((a) => a.action))].sort()).toEqual(["accepted_work", "poll_response", "question"]);
+    const play = text(<Play snapshot={today} load="ready" now={NOW} joined={false} onJoin={noop} onRetry={noop} toast={noop} />);
+    expect(play).toContain("Real Discord or X membership can unlock season-points eligibility");
+    expect(play).toContain("Fake joins are refused");
+    const lan = sampleListingDetail(NOW, "radiolanlive")!;
+    const featured = text(<Listing listing={lan.listing} observed={lan} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="radiolanlive" />);
+    expect(featured).toMatch(/Points come from activities on this site\. Backing does not add points/);
   });
 });

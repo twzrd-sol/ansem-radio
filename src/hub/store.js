@@ -3,7 +3,7 @@
  * append-only JSONL of activity submissions. Zero dependencies, loopback station only. The directory is created
  * mode 0o700. Nothing here holds a fan's key: credentials are public keys, sessions are random ids.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, truncateSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, truncateSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -61,12 +61,14 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
       }
     }
   }
-  // Writes the next state to disk first and only then adopts it, so a failed write leaves memory and disk agreeing.
-  const flush = (next = state) => {
+  const commit = (next) => {
     const tmp = `${statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 });
+    writeFileSync(tmp, JSON.stringify(next), { mode: 0o600, flush: true });
     renameSync(tmp, statePath);
+    // Once renamed, memory follows the installed file even if directory fsync fails.
     state = next;
+    const directory = openSync(dir, "r");
+    try { fsyncSync(directory); } finally { closeSync(directory); }
   };
   return {
     dir,
@@ -81,38 +83,52 @@ export function createHubStore({ dir = defaultHubDir() } = {}) {
       for (const c of account.credentials) if (state.credentials[c.credentialId]) throw new Error("credential exists");
       const credentials = { ...state.credentials };
       for (const c of account.credentials) credentials[c.credentialId] = account.id;
-      flush({ ...state, accounts: { ...state.accounts, [account.id]: account }, credentials });
+      commit({ ...state, accounts: { ...state.accounts, [account.id]: account }, credentials });
       return account;
     },
     updateAccount: (id, patch) => {
       const current = state.accounts[id];
       if (!current) throw new Error("no such account");
-      flush({ ...state, accounts: { ...state.accounts, [id]: { ...current, ...patch } } });
+      commit({ ...state, accounts: { ...state.accounts, [id]: { ...current, ...patch } } });
       return state.accounts[id];
     },
     joinedCount: (season) => Object.values(state.accounts).filter((a) => a.joined?.[season]).length,
     session: (id) => state.sessions[id] ?? null,
     createSession: (session) => {
-      flush({ ...state, sessions: { ...state.sessions, [session.id]: session } });
+      commit({ ...state, sessions: { ...state.sessions, [session.id]: session } });
       return session;
     },
     deleteSession: (id) => {
       if (state.sessions[id]) {
         const sessions = { ...state.sessions };
         delete sessions[id];
-        flush({ ...state, sessions });
+        commit({ ...state, sessions });
       }
     },
+    /** Drop every session for an account except `keep` (the session just issued). */
+    deleteSessionsFor: (accountId, { keep = null } = {}) => {
+      let changed = false;
+      const sessions = { ...state.sessions };
+      for (const [id, session] of Object.entries(sessions)) {
+        if (session.accountId === accountId && id !== keep) {
+          delete sessions[id];
+          changed = true;
+        }
+      }
+      if (changed) commit({ ...state, sessions });
+    },
     expireSessions: (now) => {
-      const sessions = Object.fromEntries(Object.entries(state.sessions).filter(([, s]) => s.expiresAt > now));
-      if (Object.keys(sessions).length !== Object.keys(state.sessions).length) flush({ ...state, sessions });
+      let changed = false;
+      const sessions = { ...state.sessions };
+      for (const [id, s] of Object.entries(sessions)) if (s.expiresAt <= now) { delete sessions[id]; changed = true; }
+      if (changed) commit({ ...state, sessions });
     },
     submissions: () => submissions.slice(),
     addSubmission: (row) => {
       appendFileSync(
         submissionsPath,
         `${tailNeedsDelimiter ? "\n" : ""}${JSON.stringify(row)}\n`,
-        { mode: 0o600 },
+        { mode: 0o600, flush: true },
       );
       tailNeedsDelimiter = false;
       submissions.push(row);

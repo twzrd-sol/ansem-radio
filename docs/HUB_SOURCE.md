@@ -70,8 +70,10 @@ their verification remain necessary before real collecting can be enabled.
 ## Current scope
 
 Local passkey accounts, native activity points, daily polls, a provisional board,
-ranks and credited-activity badges, wallet/Twitch identity proofs, browser Follow
-and the devnet backing frontend are inspectable here. Live provider and wallet-device
-certification, final recaps, mainnet activation and native season collection are
-not established by this source batch. No source test signs or sends a live chain
-transaction.
+ranks and credited-activity badges, wallet/Twitch identity proofs, browser Follow,
+creator affinity, Superfans (`#/circle`), gated Discord/X community cards, a closed
+RevenueStory panel and the devnet backing frontend are inspectable here. Twitch is
+an optional link and stays inactive until a station OAuth client is configured.
+Collect stays disabled. Live provider and wallet-device certification, final recaps,
+mainnet activation and native season collection are not established by this source
+batch. No source test signs or sends a live chain transaction.

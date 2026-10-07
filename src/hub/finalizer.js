@@ -12,7 +12,7 @@ export const FROZEN_LABEL = "provisional, not a settlement";
 const MAX_TIMER_MS = 2 ** 31 - 1; // setTimeout's ceiling; a later end re-arms
 
 /** The ranked recap of one season from its credited submissions; handles only, never account ids. */
-export function recapOf({ config, submissions, rank, handleOf, frozenAt }) {
+export function recapOf({ config, submissions, rank, handleOf, frozenAt, players }) {
   const rows = submissions.filter((s) => s.season === config.season);
   const credited = rows.filter((s) => s.status === "credited" && s.occurredAt < config.endsAt);
   const ranked = rank(credited);
@@ -28,7 +28,7 @@ export function recapOf({ config, submissions, rank, handleOf, frozenAt }) {
     endsAt: config.endsAt,
     frozenAt,
     policy: config.policy,
-    players: new Set(rows.map((s) => s.accountId)).size,
+    players: players ?? new Set(rows.map((s) => s.accountId)).size,
     credited: credited.length,
     pendingAtClose: rows.filter((s) => s.status === "pending").length,
     totalPoints: total.toString(),
@@ -43,7 +43,9 @@ export function readFrozen(dir, season) {
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
 }
 
-export function createSeasonFinalizer({ config = null, seasons = null, store, dir = store.dir, rank, handleOf, now = () => Math.floor(Date.now() / 1000), schedule = (fn, ms) => setTimeout(fn, ms), cancel = (t) => clearTimeout(t), log = console }) {
+export function createSeasonFinalizer({ config = null, seasons = null, store, dir = store.dir, rank, handleOf,
+  selectRows = (rows) => rows, playerCount = null, now = () => Math.floor(Date.now() / 1000),
+  schedule = (fn, ms) => setTimeout(fn, ms), cancel = (t) => clearTimeout(t), log = console }) {
   if (!config && !seasons) throw new TypeError("a season config is required");
   // A fixed config is the one-season case of the rollover helper: nothing after it.
   const known = seasons ?? { at: () => config, endedBefore: (seconds) => (seconds >= config.endsAt ? [config] : []) };
@@ -56,7 +58,8 @@ export function createSeasonFinalizer({ config = null, seasons = null, store, di
     for (const c of known.endedBefore(now())) {
       const path = seasonPath(dir, c.season);
       if (existsSync(path)) continue;
-      const recap = recapOf({ config: c, submissions: store.submissions(), rank: (credited) => rank(credited, c), handleOf, frozenAt: now() });
+      const recap = recapOf({ config: c, submissions: selectRows(store.submissions(), c),
+        players: playerCount?.(c), rank: (credited) => rank(credited, c), handleOf, frozenAt: now() });
       const tmp = `${path}.tmp`;
       writeFileSync(tmp, `${JSON.stringify(recap, null, 2)}\n`, { mode: 0o600 });
       renameSync(tmp, path);

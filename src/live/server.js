@@ -20,6 +20,7 @@ import { MACRO_NOTICE, isLoopbackHost, macroSnapshot, parseHours } from "../time
 import { createTimelineStore } from "../timeline/store.js";
 import { createHubApi } from "../hub/api.js";
 import { createArenaIndex } from "../hub/market.js";
+import { resolveTwitchStreamEvent } from "../hub/twitch-mark.js";
 import { defaultMintFor, loadRegistry } from "../hub/registry.js";
 import { createRpcRelay } from "../hub/relay.js";
 import { createHubStore } from "../hub/store.js";
@@ -122,6 +123,7 @@ export function createLiveServer({
   let sponsorApi = configuredSponsorApi;
   let arenaIndex = null;
   let marketRegistry = null;
+  let timelineStore = null;
   // One switch for the whole backing layer (Hermes' risk note, 2026-10-03): RADIO_LAN_BACKING=off turns the
   // market routes off entirely (404) while the rest of the hub - live, identity, points - stays up. Backing data
   // is also never an input anywhere else; the switch removes the routes themselves, not just the UI.
@@ -142,6 +144,17 @@ export function createLiveServer({
     hubApi = createHubApi({
       origins: hubOrigins, store, season, seasonRecurring: hubSeasonRecurring, polls, secure: hubSecure, log, market,
       defaultMint: defaultMintFor(hubNetwork), schedule: hubSchedule, cancel: hubCancel,
+      resolveTwitchMarkEvent: (query) => resolveTwitchStreamEvent(timelineStore, query),
+      stationStatus: () => {
+        const current = boardFeed?.snapshot();
+        const observedAt = current?.updated_at ? Date.parse(current.updated_at) : NaN;
+        if (!current?.enabled || !current.board || !Number.isFinite(observedAt) || observedAt > Date.now() || Date.now() - observedAt > 120_000) {
+          return { status: "unknown", source: "Data: Twitch", observedAt: null };
+        }
+        const live = current.board.rows?.some((row) => row.login === STATION_CHANNEL && row.is_live === true);
+        const offline = current.board.offline?.includes(STATION_CHANNEL);
+        return { status: live ? "live" : offline ? "offline" : "unknown", source: "Data: Twitch", observedAt: new Date(observedAt).toISOString() };
+      },
       resolveTwitchUser: async (id) => {
         if (!clientId || !currentAccessToken) throw new Error("Twitch account lookup unavailable");
         const url = new URL("https://api.twitch.tv/helix/users");
@@ -245,7 +258,7 @@ export function createLiveServer({
   }
 
   // The same store feeds the ingest and the local /macro page.
-  const timelineStore = enableTimeline ? createTimelineStoreImpl() : null;
+  timelineStore = enableTimeline ? createTimelineStoreImpl() : null;
   if (enableTimeline) {
     timeline = createTimelineImpl({
       clientId,

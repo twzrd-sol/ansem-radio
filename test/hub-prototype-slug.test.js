@@ -26,6 +26,7 @@ describe("prototype slugs", () => {
     assert.equal(claims.has("constructor"), false);
     assert.equal(claims.get("constructor"), null);
     assert.equal(claims.retired("constructor"), null);
+    assert.equal(claims.pin("constructor", { streamer: "a", mint: "b" }), false);
     assert.throws(() => claims.set("constructor", { subject: "1" }), /reserved slug/);
   });
 
@@ -34,14 +35,18 @@ describe("prototype slugs", () => {
     assert.throws(() => registry([hostile]), /bad slug/);
   });
 
-  it("drops a constructor listing instead of crashing the market and badge routes", async (t) => {
+  it("answers market and badge reads for a constructor listing without throwing", async (t) => {
     const dir = mkdtempSync(join(tmpdir(), "hub-proto-api-"));
     const store = createHubStore({ dir });
     const api = createHubApi({
       origins: "https://hub.example",
       store,
       now: () => 1_791_025_000,
-      market: { registry: [hostile], index },
+      market: {
+        registry: [hostile],
+        index,
+        slate: { listings: () => [hostile] },
+      },
     });
     const server = createServer(api);
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -52,7 +57,8 @@ describe("prototype slugs", () => {
     const base = `http://127.0.0.1:${server.address().port}`;
     const market = await fetch(`${base}/hub/api/market/constructor`);
     const badge = await fetch(`${base}/hub/api/badge/constructor.svg`);
-    assert.equal(market.status, 404);
-    assert.equal(badge.status, 404);
+    assert.equal(market.status, 200);
+    assert.equal(badge.status, 200);
+    assert.equal(process.exitCode ?? 0, 0);
   });
 });

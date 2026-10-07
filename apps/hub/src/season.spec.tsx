@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { buildSample } from "./data/sample";
+import { nextSeasonAction } from "./data/season";
 import { Play } from "./screens/Play";
 import { SeasonCard } from "./ui/SeasonCard";
 
@@ -49,11 +50,18 @@ describe("a published season opens at its actual start", () => {
     expect(html).not.toContain(">Join free<");
   });
 
-  it("labels a placeholder-poll season as a sample without inventing players", () => {
+  it("names the next free action from the published season, never from backing", () => {
+    expect(nextSeasonAction({ ...season, me: null }, opensAt)).toBe("Join this season. Play is free.");
+    expect(nextSeasonAction(season, opensAt - 1)).toBe("Wait for the published opening.");
+    expect(nextSeasonAction(season, season.freezesAt)).toBe("Read your season record.");
+    expect(nextSeasonAction({ ...season, me: { ...season.me!, today: season.policy.dailyCap } }, opensAt)).toBe("Your daily points cap is reached. Come back after 00:00 UTC.");
+  });
+
+  it("labels only the placeholder poll as non-scoring without inventing players", () => {
     const html = renderToStaticMarkup(<SeasonCard season={{ ...season, poll: { id: "placeholder-1", question: "Which sound opens the show?", options: ["Boom bap", "Drill"], placeholder: true }, players: 0, board: [] }} now={opensAt} onJoin={noop} />);
-    expect(html).toContain("Sample season.");
+    expect(html).not.toContain("tag--sample");
     expect(html).toContain("placeholder and does not count for points.");
-    expect(html).toContain("tag--sample");
+    expect(html).not.toContain("tag--sample");
     expect(html).not.toContain("$RLAN");
     expect(html).not.toContain("mainnet");
   });

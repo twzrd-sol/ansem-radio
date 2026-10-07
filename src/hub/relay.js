@@ -5,10 +5,8 @@
  *
  * - An explicit method allowlist; anything else is refused before the upstream is called.
  * - Params pass through unchanged, including getSignatureStatuses' searchTransactionHistory.
- * - The upstream response is copied through with a 256 KiB cap. It is never parsed and re-serialized, because RPC
- *   values can be u64 integers beyond JavaScript's safe range. The cap is checked on Content-Length and again
- *   while the body is read; crossing it cancels the body instead of buffering it with res.text().
- * - In-flight upstream fetches are capped at 4 per client and 32 for the process, separate from the call window.
+ * - The upstream response is copied through with a byte cap. It is never parsed and re-serialized, because RPC
+ *   values can be u64 integers beyond JavaScript's safe range. A response past the cap is dropped, not buffered.
  * - The station binds loopback behind the edge (Cloudflare -> cloudflared -> Caddy -> station), so a request whose
  *   socket peer is not loopback is refused. Caddy does not trust incoming X-Forwarded-For and sets it to
  *   cloudflared's address, so the client key is CF-Connecting-IP, which Cloudflare overwrites at ingress. Without
@@ -40,13 +38,13 @@ export const RELAY_METHODS = Object.freeze({
 /** A v0 transaction is at most 1,232 bytes (about 1.7 KB base64); 64 KB leaves room for any allowed call. */
 export const MAX_BODY_BYTES = 64 * 1024;
 
-/** Hub accounts fit under this. A multi-megabyte getAccountInfo body is cancelled, not buffered. */
+/** Hub accounts fit well under this. A 10 MiB program-data account does not, so it is never buffered. */
 export const MAX_UPSTREAM_BYTES = 256 * 1024;
 
 /** A caller-supplied dataSlice is required on getAccountInfo and may not ask for more than this. */
 export const MAX_DATA_SLICE = 256;
 
-/** In-flight upstream fetches, separate from the per-minute call window. */
+/** In-flight upstream reads, separate from the per-minute call window. */
 export const DEFAULT_INFLIGHT = Object.freeze({ perKey: 4, global: 32 });
 
 /** The program every relayed transaction must call at least once. */
@@ -152,7 +150,7 @@ export function accountReadProblem(method, params) {
   return null;
 }
 
-/** Read at most `limit` bytes. A declared or streamed overrun cancels the body. */
+/** Read at most `limit` bytes of an upstream body. A declared or streamed overrun cancels the body. */
 export async function readCapped(response, limit) {
   const declared = Number(response.headers?.get?.("content-length"));
   if (Number.isFinite(declared) && declared > limit) {

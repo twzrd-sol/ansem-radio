@@ -3,7 +3,6 @@ import type { Station } from "../data/station";
 import type { HubSnapshot } from "../data/types";
 import { BRAND } from "../brand";
 import { fmt } from "../lib/format";
-import { isPlaceholderSeason } from "../data/season";
 import { ErrorBlock, Icon, LanMark, SampleTag, Skeleton, StationPill } from "../ui/atoms";
 import { HowLink } from "../ui/HowItWorks";
 
@@ -45,7 +44,7 @@ export function Lan({ snapshot, load, onRetry, station }: { snapshot: HubSnapsho
           <p className="counter">
             <span className="counter__dot" aria-hidden="true" />
             <span className="num">{fmt(season.players)}</span>players this season
-            {(snapshot.scenario === "sample" || isPlaceholderSeason(season)) && <SampleTag />}
+            {snapshot.scenario === "sample" && <SampleTag />}
           </p>
         ) : (
           <p className="counter">The player count appears when the first season opens.</p>
