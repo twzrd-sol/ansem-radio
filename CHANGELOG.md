@@ -1,5 +1,21 @@
 # Public changelog
 
+Dated snapshots of what this public tree said at the time. For what is true
+today, use the [root README](README.md).
+
+## 2026-10-07 — Checkable public status
+
+- Rewrote the root README so current claims match the hosted hub and on-chain
+  state: this repo is a lagging source mirror; accounts are passkey + Twitch
+  OIDC + wallet link; `$RLAN` is on ClawPump with authorities revoked; the
+  `radiolanlive` support arena is open; `$ICELAN` is off-chain and unpaid;
+  season points stay free on unfunded devnet.
+- Removed live-product claims for x402 payments, holder yield, revenue share,
+  signed creator credits, and payouts.
+- Added a Status table and explorer links for the mint, program, arena, and
+  market. Corrected DEVELOPMENT.md rows that still said no mainnet arena was
+  open.
+
 ## 2026-10-05 — Hub refresh and documentation corrections
 
 - Brought the hub, claims, season rollover, badges and tape up to date with the working tree; the hub now says Radio LAN

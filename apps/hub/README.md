@@ -1,12 +1,15 @@
 # Radio LAN hub (`apps/hub`)
 
+Live-site facts (accounts, `$RLAN`, the open `radiolanlive` arena, `$ICELAN`,
+season points) are in the [root README](../../README.md). This file describes
+**this checkout**. The hosted hub is built from a private tree and can be
+ahead: `$ICELAN` task accrual and mainnet arena reads are not in this package
+yet. No test here sends a live transaction.
+
 The streamer hub from `docs/HUB_FRONTEND_PLAN.md`, P0: a mobile-first web app on Vite, TypeScript, React,
 `@solana/kit`, Wallet Standard and Tailwind (F-1), built for the canonical public endpoint `radiolan.live/hub` (F-3, as updated 2026-10-03). `/stream` is the macro view and links back to the hub;
 the local station room and OBS page are separate operator tools, not public product endpoints. It is a separate package so the
 repo core stays zero-dependency. The design came from the `public/hub.html` prototype (#50).
-
-The hub is served at `radiolan.live/hub`, with no edge password and not in a public launch. Feature work is built and
-verified in a named worktree before an attended release. No test sends a live transaction.
 
 The hub package is MIT licensed (`LICENSE`, matching the public repository).
 Bundled fonts retain their OFL notices in `src/assets/fonts`.
@@ -27,7 +30,7 @@ npm run preview   # serves dist/ on 127.0.0.1 under /hub/
 ```
 
 `?preview=sample` shows every screen with fixtures, each marked SAMPLE; `?preview=today` shows today's real state with
-the review controls. Without `preview`, the hub shows the real state; the backing flow appears only for a listing with an open arena.
+the review controls. Without `preview`, the hub shows the real state; the backing flow appears only for a listing with an open arena. This checkout does not yet read the hosted mainnet `radiolanlive` arena; see the root README for that live pair.
 
 | Build variable | Default | Meaning |
 |---|---|---|
@@ -53,9 +56,9 @@ the network, the mint, the observation time and slot, and a stale flag, and the 
 | Listing | `#/s/<slug>` | Two panels: Backing (on chain: backed, backers, leaving, season, release rule, a sparkline of the last days) and Channel (Twitch, labelled with its provenance line). The featured listing also carries the stream and the free season card, labelled separate |
 | My positions | `#/positions` | Every arena a pasted or connected wallet backs, with the arena's release rule and a total; a read, never a signature. The pasted public address is kept in this tab's sessionStorage for the tab's life, nothing else |
 | Radio LAN | `#/lan` | The station, its founder, how a free season works |
-| Back the creator | `#/back/<slug>` | The backing flow for a listing's arena. It works only when that listing has an open arena. No arena is open on mainnet yet, so every listing shows "not open" |
+| Back the creator | `#/back/<slug>` | The backing flow for a listing's arena. It works only when that listing has an open arena. This checkout does not yet include the hosted mainnet arena reads, so listings here still show "not open" |
 
-A listing is backable only when it has an open arena. None is open on mainnet yet. Sample listings (`?preview=sample`)
+A listing is backable only when it has an open arena. The hosted hub's `radiolanlive` arena is open (root README); this package does not yet read that pair. Sample listings (`?preview=sample`)
 are fictional and marked SAMPLE wherever they show. Twitch figures are never a points value, a backing weight or an
 on-chain parameter. Vocabulary (decision S-4): backing, position, season, points,
 perks; never price, trade, sell or stock, checked by the specs over every rendered screen.
@@ -116,13 +119,15 @@ The hub's featured listing pins one arena: the PDA `["arena", official streamer,
 |---|---|
 | Official streamer wallet | `A2fN4LCB5se9nDtttqQj6fx5yg3TpZLuphiZVJ4JZLyb` |
 | RLAN mint (mainnet) | `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy` |
-| Official mainnet arena (not created yet) | `pwSFGjmwEXBsP7WJfyhV2uYXSwTo2rr1aocqnuU9zGK`, bump 255 |
+| Derived official-streamer PDA (unused in this checkout) | `pwSFGjmwEXBsP7WJfyhV2uYXSwTo2rr1aocqnuU9zGK`, bump 255 |
+| Live `radiolanlive` market (hosted hub; not read here yet) | `2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn` |
+| Live `radiolanlive` arena (hosted hub; not read here yet) | `5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq` |
 
-`config.spec.ts` derives that address and bump from the pinned streamer and mint. It also checks that the app source
+`config.spec.ts` derives the official-streamer PDA and bump from the pinned streamer and mint. The hosted support arena is a different, open-market pair (root README). It also checks that the app source
 never names the program's upgrade-authority key, which is kept out of the streamer role on purpose: it can replace the
 program, while a streamer key cannot move fan tokens. It also checks that no internal test wallet is named.
 
-On mainnet no arena exists yet, so backing shows as not open. On devnet the hub backs only with a test mint, set at build
+This checkout still treats backing as not open because it does not read the live pair. On devnet the hub backs only with a test mint, set at build
 time (`VITE_DEVNET_TEST_MINT`) or served by the station's registry.
 
 ## Security
@@ -188,18 +193,17 @@ mentions Twitch.
 - **The hub API served:** the station mounts it when `RADIOLAN_HUB_ORIGIN` is set (the page origin, so the edge
   hostname), and the season state needs `RADIOLAN_HUB_SEASON` (a published season config, once the devnet arena
   exists). Each is an operator setting, with the `/hub` route.
-- **Backable listings:** the devnet test mint (`RADIOLAN_HUB_TEST_MINT` or a registry file), the official devnet
-  arena from the Brave wallet, and demo arenas from the prepared runbook. Until then the Board lists creators with no
-  backing open.
+- **Backable listings in this checkout:** the hosted `radiolanlive` pair is not read here yet (root README). A local
+  Board still needs a registry mint and an arena this package can see.
 - **From the hub API, still:** streamer acceptance of work, prompts, final board records, past seasons,
-  email recovery, and live-device verification of the optional Twitch and wallet links.
+  and email recovery.
 - **The RPC relay deployed:** `src/hub/relay.js` is merged (plan section 5, F-4; it passes `searchTransactionHistory`
   through and relays only transactions that call radiolan-arena). It still needs `RADIOLAN_RPC_URL` set and `/hub/rpc`
   routed, each an operator go.
 - **A devnet arena from the official streamer** (the decision above).
-- **The device-tested wallet matrix** (plan section 8). Nothing is listed as supported until tested on a real device.
-- **Serving:** mount the built app at the canonical `/hub` edge route behind the existing password. Configure `/stream`
-  as a redirect to `/hub`; do not maintain a second public chart application. This needs its own operator go.
+- **Wallets in this package:** Wallet Standard discovery (Phantom, Solflare, Backpack, and others). The hosted picker
+  is documented in the root README.
+- **Serving:** the hosted hub is at `/hub` on `radiolan.live`. A local preview is `npm run preview` on loopback.
 - **The PWA install prompt** (F-5) and the nominations panel, which are not in P0.
 
 ## Published polls and provisional standings
