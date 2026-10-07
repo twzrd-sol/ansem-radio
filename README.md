@@ -12,11 +12,12 @@ Checked 7 October 2026. **Live** means it is on the hosted hub or on Solana main
 | --- | --- | --- |
 | Hosted hub | Live | [radiolan.live/hub](https://radiolan.live/hub/) |
 | Passkey, Twitch, and wallet on one account | Live | See [Accounts](#accounts) |
-| `$RLAN` mint | Live | Token-2022 on mainnet; mint and freeze authorities revoked; buy on ClawPump |
+| `$RLAN` mint | Live | Token-2022 on mainnet; mint and freeze authorities revoked; launched on ClawPump as part of AnsemHack and can be bought now |
 | Arena program | Live | Mainnet program below |
 | `radiolanlive` support arena | Live | Open market + arena; ~85,527.6 `$RLAN` deposited |
 | Position boosts the next site credit | Live | A linked wallet with an active position doubles that user's next site credit, within caps |
 | `$ICELAN` earning | Live | Off-chain marks from real activity; this mirror does not yet include the hosted accrual code |
+| `$ICELAN` mint | Live | Classic SPL on mainnet; authorities revoked; not for sale and only earned |
 | `$ICELAN` claims / wallet payouts | Not live | Claims open at season end after a rewards vault is created and funded. Nothing is paid to wallets yet |
 | Season points | Live | Current season is on Solana **devnet**, free, unfunded, and separate from tokens |
 | Source mirror | In progress | Public `main` can trail the private live tree |
@@ -69,13 +70,23 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 
 ## $ICELAN
 
-`$ICELAN` is earned from real activity and is **tracked off-chain** on the hosted hub. This mirror does not yet include that accrual path. There is **no mint address** in this repository.
+`$ICELAN` is earned from real activity and is **tracked off-chain** on the hosted hub. This mirror does not yet include that accrual path.
+
+| | |
+| --- | --- |
+| Mint | `Dxpt78DTyBv3USxqsFKhQsthTF1JnjdiXQXTPLGBK9m` |
+| Program | classic SPL Token (`TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`) |
+| Decimals | 6 |
+| Mint authority | Revoked |
+| Freeze authority | Revoked |
+| Supply | 6,665,498,680.204183 |
+| Buy | Not sold. No DEX market exists, and Jupiter reports it as not tradable. `$ICELAN` is earned, not purchased. |
 
 | Action | Credit |
 | --- | --- |
 | Link Twitch | 100, once |
 | Link wallet | 100, once |
-| Chat in `#radiolanlive` | 10 each, max 10 per day |
+| Chat in `#radiolanlive` | 10 each, max 10 per UTC day |
 
 Claims open at season end once a rewards vault is created and funded. **Nothing is paid to wallets yet.**
 
@@ -92,11 +103,12 @@ Collecting a funded season is not implemented.
 | What | Explorer | Solscan |
 | --- | --- | --- |
 | `$RLAN` mint | [explorer.solana.com](https://explorer.solana.com/address/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) | [solscan.io](https://solscan.io/token/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) |
+| `$ICELAN` mint | [explorer.solana.com](https://explorer.solana.com/address/Dxpt78DTyBv3USxqsFKhQsthTF1JnjdiXQXTPLGBK9m) | [solscan.io](https://solscan.io/token/Dxpt78DTyBv3USxqsFKhQsthTF1JnjdiXQXTPLGBK9m) |
 | Arena program | [explorer.solana.com](https://explorer.solana.com/address/5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf) | [solscan.io](https://solscan.io/account/5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf) |
 | `radiolanlive` arena | [explorer.solana.com](https://explorer.solana.com/address/5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq) | [solscan.io](https://solscan.io/account/5PXzDwSwVu9xYMRT9QS6c5m6dapb4oGVGQc99azS2XVq) |
 | `radiolanlive` market | [explorer.solana.com](https://explorer.solana.com/address/2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn) | [solscan.io](https://solscan.io/account/2MhkAt7MBVAN4EnP9K6NB62GuqGfiecx5m2XVDjvkXGn) |
 
-On the mint, confirm Token-2022, 6 decimals, and empty mint/freeze authorities. On the program, confirm it is upgradeable and that upgrade authority is still a single key. On the arena, confirm owner `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy`, streamer = the market address, and `total` ÷ 10^6 for deposited `$RLAN`. On the market, confirm owner is the same program and the slug is `radiolanlive`.
+On the mint, confirm Token-2022, 6 decimals, and empty mint/freeze authorities. On the `$ICELAN` mint, confirm classic SPL Token, 6 decimals, and empty authorities. On the program, confirm it is upgradeable and that upgrade authority is still a single key. On the arena, confirm owner `5MvZnDK38E3MkvgxnvwMAuSAvxtAf7CQirzunK3Sr8Kf`, mint `CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy`, streamer = the market address, and `total` ÷ 10^6 for deposited `$RLAN`. On the market, confirm owner is the same program and the slug is `radiolanlive`.
 
 This checkout can derive those PDAs:
 
