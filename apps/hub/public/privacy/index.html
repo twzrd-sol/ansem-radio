@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Privacy Policy | Radio LAN</title>
+  <link rel="canonical" href="https://radiolan.live/privacy">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="icon" href="/hub/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/hub/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="/hub/legal/legal.css">
+</head>
+<body>
+<main>
+  <a class="brand" href="/hub/">Radio LAN</a>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Effective October 9, 2026 · Last updated October 9, 2026</p>
+  <p>Radio LAN is operated by TWZRD, Inc., a Delaware corporation. We are the controller of the personal information described here. This notice covers radiolan.live and its hub, account, participation and token features. TWZRD’s other products have their own notices; sharing a company, code repository or contact address does not make their data practices identical.</p>
+<section><h2>Accounts and passkeys</h2>
+<p>To create an account, we store a generated account identifier, your passkey credential identifier and public key, verification counters, and account and session timestamps. Your authenticator keeps the private key. We do not receive your fingerprint, face scan or device unlock code. A secure, HttpOnly session cookie keeps you signed in and expires after thirty days unless you sign out or it is replaced sooner.</p></section>
+<section><h2 id="identity">Twitch and wallet links</h2>
+<p>Linking Twitch is optional and uses Twitch’s OpenID Connect identity service after passkey sign-in. We verify an identity token and store your Twitch subject identifier, display name and verification time. The token is processed for verification, not saved in our identity store. Temporary link state is held in your browser tab and cleared when the callback is handled. Twitch is an identity link, not your hub account or transaction signer.</p>
+<p>Connecting a Solana wallet exposes its public address to the hub. Linking it asks you to sign a message and stores the verified address and verification time against your account. We verify the signature without retaining the signature in the identity store. We never need your seed phrase or wallet private key.</p>
+<p><strong>Linking connects your Twitch identity and wallet within our account records. Linking alone does not publish that connection on-chain.</strong> If you later submit a blockchain transaction, public wallet activity and claim identifiers may allow others to connect your account activity to a wallet. Reusing an address increases that possibility.</p>
+<p>Unlinking removes the active link. It does not erase your account, recorded task credits, claim records or anti-duplication records. Identity/address reservations used to prevent repeated credit may also remain after unlinking. Ask us about deletion using the contact below.</p></section>
+<section><h2>Participation and Twitch observations</h2>
+<p>We record season joins, submitted questions, poll choices, accepted work, followed creators when synced, community participation, task counts, points and claim records to provide those features and prevent duplicate credit. Questions, participation records and leaderboard entries may be visible where the feature presents them publicly. Do not submit confidential information.</p>
+<p>We observe public Twitch channel information such as creator names, categories, live status, viewer counts and stream times. These figures are labelled “Data: Twitch”; our records are observations, not Twitch certification.</p>
+<p>When chat counting is enabled, we process message events, channel and participant identifiers, timestamps, counts and public engagement events such as subscriptions, Bits, gifts and raids. We use a Twitch identifier to match eligible activity to a linked account or a keyed pseudonym for aggregate measurement. We do not retain raw chat text or viewer login names in chat observation records. Your voluntarily linked Twitch identity is a separate account record. Twitch itself retains and displays chat under its own rules.</p></section>
+<section><h2 id="chain">Blockchain transactions</h2>
+<p>Arena deposits, withdrawal requests, withdrawals and token claims involve public Solana addresses, amounts, program accounts and transaction signatures. Claim records can contain an account-derived identifier. We read these records through an RPC provider and relay signed transactions when you approve them. The provider and blockchain network process those requests.</p>
+<p><strong>Confirmed on-chain records are public and generally permanent.</strong> Unlinking a wallet, deleting a hub account or clearing browser storage cannot remove them. We do not promise anonymity for wallet activity.</p></section>
+<section><h2>Browser storage and technical records</h2>
+<p>In addition to the session cookie, the hub uses local storage for followed-channel preferences and session storage for temporary account and Twitch-link state, a pasted positions address, and pending-transaction recovery metadata such as a public transaction signature. You can clear these in your browser; doing so can sign you out or remove local preferences. The hub serves its fonts locally and has no advertising analytics SDK.</p>
+<p>Our hosting and security systems, including Cloudflare, process IP addresses, request paths, timestamps, browser details and network or error reports to deliver and protect the site. Cloudflare may use a security cookie. Loading the official Twitch player contacts Twitch, which can process your IP address, device information and its own cookies. Following links to ClawPump, Jupiter, wallet providers or explorers puts you under those services’ privacy practices.</p></section>
+<section><h2>Why we use and share information</h2>
+<p>We use account, identity and participation data to provide the features you request; technical records and anti-duplication associations to secure the service and prevent abuse; and transaction records to reconcile claims and meet legal obligations. Where a legal basis is required, we rely on performing our service agreement, our legitimate interests in operation and security, applicable legal obligations, or consent where required. You may choose not to link an identity or wallet.</p>
+<p>Service providers receive the information needed for hosting, security, email, identity verification and blockchain access. We may disclose information when legally required or to protect users and the service. Public participation and blockchain records are available to others as described above. We do not sell personal account information to advertisers or data brokers. Providers may process information in the United States or other countries where they operate.</p></section>
+<section><h2>Retention</h2>
+<p>Temporary identity challenges expire after five minutes. Session validity is limited as described above. Raw normalized timeline events have a 24-hour retention window; this is not a deletion limit for all Radio LAN data. Creator-discovery caches normally retain seven days of observations, while the separate internal analytics collector retains raw analytics rows for 14 days, channel history and rollups for up to 400 days, and pseudonymous fan activity rows for up to 90 days. The separate durable creator record, accounts, submissions, task books, claim records and anti-duplication associations currently have no automatic deletion schedule.</p>
+<p>We retain those records as needed to operate accounts, reconcile claims, prevent repeat credit and meet legal obligations. Technical logs and backup copies have separate operational retention and can outlast unlinking. Contact us to request deletion or details about records we hold; public blockchain history remains outside our control.</p></section>
+<section><h2>Your choices and rights</h2>
+<p>You can sign out, unlink Twitch or your wallet, clear local storage, and choose not to load or use optional features. Email <!--email_off--><a href="mailto:privacy@twzrd.xyz">privacy@twzrd.xyz</a><!--/email_off--> to request access, correction, deletion, a copy of your information, or restriction of or objection to processing. Rights depend on your location and may have legal exceptions. We may ask for proportionate proof that you control the account; never send a seed phrase, private key or identity token. Where applicable, you may complain to your data protection authority.</p></section>
+<section><h2>Age, security and changes</h2>
+<p>Radio LAN accounts and token features are for people aged 18 or older. We do not knowingly collect account information from children; contact us if you believe a child has provided it. We use HTTPS and access controls, but no system is completely secure. We will update the date on this notice when it changes and provide additional notice of material changes where required.</p></section>
+  <nav aria-label="Legal navigation"><a href="/hub/">Back to Radio LAN</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/legal">Disclosures</a></nav>
+</main>
+</body>
+</html>
