@@ -1,8 +1,10 @@
 # Radio LAN
 
-Fans earn from real attention. `$RLAN` holders back stations to boost rewards.
+Fans get credit for real attention. `$RLAN` holders back stations to raise the next site credit.
 
 This repository is an MIT-licensed **source mirror** of the hub at [radiolan.live/hub](https://radiolan.live/hub/). The live site is built from a private tree. Public `main` at `2bdf1f5a` mirrors an earlier private commit, so **this checkout can lag the hosted hub**. Features already on the live site that are not in this tree yet include `$ICELAN` task accrual and mainnet arena reads.
+
+Live-site terms and privacy: [radiolan.live/terms](https://radiolan.live/terms) and [radiolan.live/privacy](https://radiolan.live/privacy).
 
 ## Status
 
@@ -16,15 +18,15 @@ Checked 7 October 2026. **Live** means it is on the hosted hub or on Solana main
 | Arena program | Live | Mainnet program below |
 | `radiolanlive` support arena | Live | Open market + arena; ~85,527.6 `$RLAN` deposited |
 | Position boosts the next site credit | Live | A linked wallet with an active position doubles that user's next site credit, within caps |
-| `$ICELAN` earning | Live | Off-chain marks from real activity; this mirror does not yet include the hosted accrual code |
-| `$ICELAN` mint | Live | Classic SPL on mainnet; authorities revoked; not for sale and only earned |
-| `$ICELAN` claims / wallet payouts | Not live | Claims open at season end after a rewards vault is created and funded. Nothing is paid to wallets yet |
+| `$ICELAN` credit | Live | Off-chain marks from real activity; this mirror does not yet include the hosted accrual code |
+| `$ICELAN` mint | Live | Classic SPL on mainnet; authorities revoked; not for sale and only credited from activity |
+| `$ICELAN` claims | Live | A mainnet `$ICELAN` vault exists (created 7 October 2026). Claims are enabled on the hosted hub |
 | Season points | Live | Current season is on Solana **devnet**, free, unfunded, and separate from tokens |
 | Source mirror | In progress | Public `main` can trail the private live tree |
 | Program upgrade control | In progress | A **single key** still holds upgrade authority. A Squads multisig migration is planned |
-| x402 payments | Not live | Optional seller source exists in this tree and stays off unless configured. It is not a live payment product |
-| Holder yield / revenue share | Not live | Not offered |
-| Signed creator credits / payouts | Not live | Not a live product. Local attribution tooling in this tree is not a payout |
+| x402 checkout | Not live | Optional seller source exists in this tree and stays off unless configured. It is not a live checkout product |
+| Holder distributions / revenue share | Not live | Not offered |
+| Signed creator credits | Not live | Not a live product. Local attribution tooling in this tree is not a live credit |
 
 ## Accounts
 
@@ -70,7 +72,7 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 
 ## $ICELAN
 
-`$ICELAN` is earned from real activity and is **tracked off-chain** on the hosted hub. This mirror does not yet include that accrual path.
+`$ICELAN` is credited from real activity and is **tracked off-chain** on the hosted hub. This mirror does not yet include that accrual path.
 
 | | |
 | --- | --- |
@@ -80,7 +82,7 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 | Mint authority | Revoked |
 | Freeze authority | Revoked |
 | Supply | 6,665,498,680.204183 |
-| Buy | Not sold. No DEX market exists, and Jupiter reports it as not tradable. `$ICELAN` is earned, not purchased. |
+| Buy | Not sold. No DEX market exists, and Jupiter reports it as not tradable. `$ICELAN` is credited from activity, not purchased. |
 
 | Action | Credit |
 | --- | --- |
@@ -88,7 +90,7 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 | Link wallet | 100, once |
 | Chat in `#radiolanlive` | 10 each, max 10 per UTC day |
 
-Claims open at season end once a rewards vault is created and funded. **Nothing is paid to wallets yet.**
+A mainnet `$ICELAN` vault exists (created 7 October 2026). Claims are enabled on the hosted hub.
 
 ## Season points
 
