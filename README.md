@@ -24,8 +24,7 @@ Checked 7 October 2026. **Live** means it is on the hosted hub or on Solana main
 | Season points | Live | Current season is on Solana **devnet**, free, unfunded, and separate from tokens |
 | Source mirror | In progress | Public `main` can trail the private live tree |
 | Program upgrade control | In progress | A **single key** still holds upgrade authority. A Squads multisig migration is planned |
-| x402 checkout | Not live | Optional seller source exists in this tree and stays off unless configured. It is not a live checkout product |
-| Holder distributions / revenue share | Not live | Not offered |
+| x402 payments | Not live | Optional seller source exists in this tree and stays off unless configured. It is not a live payment product |
 | Signed creator credits | Not live | Not a live product. Local attribution tooling in this tree is not a live credit |
 
 ## Accounts
