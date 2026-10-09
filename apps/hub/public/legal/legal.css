@@ -1,0 +1,59 @@
+/* Radio LAN legal pages. Static, no script: the same ink, cream, amber and lime as the hub, with the hub's two faces. */
+@font-face { font-family: "Big Shoulders Display"; src: url("/hub/legal/fonts/big-shoulders-display-latin-800-normal.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/hub/legal/fonts/barlow-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/hub/legal/fonts/barlow-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+
+:root {
+  color-scheme: dark;
+  --ink-0: #0b0a08; --ink-1: #13110e; --ink-2: #1b1814;
+  --line: rgba(239, 230, 210, 0.10); --line-2: rgba(239, 230, 210, 0.18);
+  --cream: #efe6d2; --cream-2: #bab09b; --cream-3: #9a917f;
+  --amber: #ffb23f; --lime: #c9f23d;
+  --display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--body);
+  background: var(--ink-0);
+  color: var(--cream);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100dvh; padding: 0 0 56px; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(1100px 520px at 50% -12%, rgba(255, 178, 63, 0.11), transparent 62%); }
+main { max-width: 760px; margin: 0 auto; padding: 28px 16px 0; }
+@media (min-width: 900px) { main { padding: 40px 28px 0; } }
+
+.brand { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 18px; color: var(--cream-2); font: 600 13px/1 var(--body); letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none; }
+.brand::before { content: "←"; font-size: 15px; color: var(--amber); }
+.brand:hover { color: var(--cream); }
+
+h1 { margin: 6px 0 10px; font: 800 clamp(40px, 9vw, 64px)/0.92 var(--display); letter-spacing: 0.008em; text-transform: uppercase; text-wrap: balance; text-shadow: 0 0 42px rgba(255, 178, 63, 0.14); }
+h2 { margin: 2.2rem 0 0.6rem; font: 800 24px/1.05 var(--display); letter-spacing: 0.02em; text-transform: uppercase; color: var(--cream); }
+.meta { margin: 0 0 18px; font: 600 12px/1.4 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber); }
+p, li { overflow-wrap: anywhere; }
+p { margin: 0 0 0.9rem; color: var(--cream-2); }
+p strong { color: var(--cream); }
+ul { padding-left: 1.2rem; color: var(--cream-2); }
+li { margin: 0.3rem 0; }
+section { margin-top: 0.4rem; }
+
+a { color: var(--lime); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
+a:hover { color: var(--cream); text-decoration-color: var(--lime); }
+a:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; border-radius: 6px; }
+
+table { width: 100%; border-collapse: collapse; margin: 0.4rem 0 1.4rem; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: linear-gradient(180deg, var(--ink-2), var(--ink-1)); font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 0.6rem 0.75rem; border-top: 1px solid var(--line); color: var(--cream-2); }
+tr:first-child th, tr:first-child td { border-top: 0; }
+th[scope="row"] { width: 7.5rem; font: 600 11px/1.7 var(--body); letter-spacing: 0.13em; text-transform: uppercase; color: var(--cream-3); white-space: nowrap; }
+td { color: var(--cream); }
+code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.85em; word-break: break-all; color: var(--cream); }
+
+nav { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 2.6rem; padding-top: 1.2rem; border-top: 1px solid var(--line); font-size: 13px; }
+nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--cream-2); }
+
+@media print {
+  :root { color-scheme: light; background: white; color: black; }
+  body::before { display: none; }
+  h1, h2, p, td, th, li, a, .meta { color: black; text-shadow: none; }
+  table { background: none; }
+  .brand::before { content: ""; }
+}
