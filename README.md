@@ -1,24 +1,24 @@
 # Radio LAN
 
-Fans earn from real attention. `$RLAN` holders back stations to boost rewards.
+Discover Twitch creators, participate in free Play activities, and record contributions with Radio LAN. Optional `$RLAN` backing and `$ICELAN` claims are separate features.
 
 This repository is an MIT-licensed **source mirror** of the hub at [radiolan.live/hub](https://radiolan.live/hub/). The live site is built from a private tree. Public `main` at `2bdf1f5a` mirrors an earlier private commit, so **this checkout can lag the hosted hub**. Features already on the live site that are not in this tree yet include `$ICELAN` task accrual and mainnet arena reads.
 
 ## Status
 
-Checked 7 October 2026. **Live** means it is on the hosted hub or on Solana mainnet today. **In progress** means planned or only partly shipped. **Not live** means it is not a current product.
+Updated 9 October 2026. Dated amounts below are snapshots, not live balances. **Live** means it is on the hosted hub or on Solana mainnet today. **In progress** means planned or only partly shipped. **Not live** means it is not a current product.
 
 | Item | Status | What is true |
 | --- | --- | --- |
 | Hosted hub | Live | [radiolan.live/hub](https://radiolan.live/hub/) |
 | Passkey, Twitch, and wallet on one account | Live | See [Accounts](#accounts) |
-| `$RLAN` mint | Live | Token-2022 on mainnet; mint and freeze authorities revoked; launched on ClawPump as part of AnsemHack and can be bought now |
+| `$RLAN` mint | Live | Token-2022 on mainnet; mint and freeze authorities revoked; launched on ClawPump as part of AnsemHack with an external ClawPump token page |
 | Arena program | Live | Mainnet program below |
 | `radiolanlive` support arena | Live | Open market + arena; ~85,527.6 `$RLAN` deposited |
 | Position boosts the next site credit | Live | A linked wallet with an active position doubles that user's next site credit, within caps |
-| `$ICELAN` earning | Live | Off-chain marks from real activity; this mirror does not yet include the hosted accrual code |
-| `$ICELAN` mint | Live | Classic SPL on mainnet; authorities revoked; not for sale and only earned |
-| `$ICELAN` claims / wallet payouts | Not live | Claims open at season end after a rewards vault is created and funded. Nothing is paid to wallets yet |
+| `$ICELAN` task records | Live | Eligible account-task credits are recorded off-chain; this mirror does not yet include the hosted accrual code |
+| `$ICELAN` mint | Live | Classic SPL on mainnet; authorities revoked; separate from RLAN and season points |
+| `$ICELAN` claims | Handler enabled | Mainnet rewards vault initially funded with 100,000 ICELAN on October 7. Claims require account eligibility, wallet approval, station co-signature and confirmation. Handler availability does not establish a completed payout |
 | Season points | Live | Current season is on Solana **devnet**, free, unfunded, and separate from tokens |
 | Source mirror | In progress | Public `main` can trail the private live tree |
 | Program upgrade control | In progress | A **single key** still holds upgrade authority. A Squads multisig migration is planned |
@@ -31,10 +31,26 @@ Checked 7 October 2026. **Live** means it is on the hosted hub or on Solana main
 One hub account can use all three:
 
 - **Passkey** sign-in
-- **Twitch** login (OIDC)
+- Optional **Twitch** identity link (OIDC) after passkey sign-in
 - **Solana wallet** linking by **one signed message** (no transaction)
 
 The wallet picker supports **Phantom**, **Solflare**, **Backpack**, and other [Wallet Standard](https://github.com/wallet-standard/wallet-standard) wallets.
+
+## Terms, privacy and token disclosures
+
+Radio LAN is a distinct product at radiolan.live, operated by TWZRD, Inc.
+Shared company/repository ownership does not make it the TWZRD x402 product.
+Read the [Privacy Policy](https://radiolan.live/privacy),
+[Terms](https://radiolan.live/terms) and [disclosures](https://radiolan.live/legal).
+
+Tokens can lose all value. A single operator key can upgrade the arena and
+rewards programs and administer the rewards vault. Creator fees are collected
+and forwarded by ClawPump to its custodial agent wallet; credit there is not
+proof of a self-custody withdrawal. Holding RLAN does not entitle a holder to
+company equity or creator-fee distributions.
+
+The MIT license covers code distributed under it. It does not grant rights to
+branding, domains, tokens, wallets, administrative keys or third-party content.
 
 ## $RLAN
 
@@ -45,7 +61,7 @@ The wallet picker supports **Phantom**, **Solflare**, **Backpack**, and other [W
 | Decimals | 6 |
 | Mint authority | Revoked |
 | Freeze authority | Revoked |
-| Buy | [ClawPump](https://clawpump.tech/tokens/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) |
+| External token page | [ClawPump](https://clawpump.tech/tokens/CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy) |
 
 Season points and hub play do not require holding `$RLAN`. Points are not `$RLAN`.
 
@@ -70,7 +86,7 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 
 ## $ICELAN
 
-`$ICELAN` is earned from real activity and is **tracked off-chain** on the hosted hub. This mirror does not yet include that accrual path.
+Eligible `$ICELAN` account-task credits are **tracked off-chain** on the hosted hub until claimed. This mirror does not yet include that accrual path.
 
 | | |
 | --- | --- |
@@ -80,15 +96,21 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 | Mint authority | Revoked |
 | Freeze authority | Revoked |
 | Supply | 6,665,498,680.204183 |
-| Buy | Not sold. No DEX market exists, and Jupiter reports it as not tradable. `$ICELAN` is earned, not purchased. |
+| Hub role | Eligible task credits and claims; separate from RLAN deposits and Play points |
 
 | Action | Credit |
 | --- | --- |
 | Link Twitch | 100, once |
 | Link wallet | 100, once |
-| Chat in `#radiolanlive` | 10 each, max 10 per UTC day |
+| Chat in `#radiolanlive` (when enabled) | 10 each, max 10 per UTC day; chat credit is currently off |
 
-Claims open at season end once a rewards vault is created and funded. **Nothing is paid to wallets yet.**
+The mainnet rewards program is `5wAVbHfZCBrYPymk1FNeV4D69iZioUmZaiE4ki4qrqWD`.
+Vault `HYrsR1jrwJXxP91Dr8mxgyMAW1upp8JFXJVZScD5391U` was initially funded with
+**100,000 ICELAN on October 7, 2026**. This is a historical funding amount.
+The claim handler is enabled and session-gated. A usable claim also depends on
+the hub's display gates, eligible recorded credit, the linked wallet, station
+co-signing and available vault funds. No completed user payout was independently
+verified for this update. Verify any payout using its confirmed transaction.
 
 ## Season points
 
