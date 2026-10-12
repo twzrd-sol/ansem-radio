@@ -6,7 +6,7 @@ This repository is an MIT-licensed **source mirror** of the hub at [radiolan.liv
 
 ## Status
 
-Updated 9 October 2026. Dated amounts below are snapshots, not live balances. **Live** means it is on the hosted hub or on Solana mainnet today. **In progress** means planned or only partly shipped. **Not live** means it is not a current product.
+Updated 12 October 2026. Dated amounts below are snapshots, not live balances. **Live** means it is on the hosted hub or on Solana mainnet today. **In progress** means planned or only partly shipped. **Not live** means it is not a current product.
 
 | Item | Status | What is true |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Updated 9 October 2026. Dated amounts below are snapshots, not live balances. **
 | Arena program | Live | Mainnet program below |
 | `radiolanlive` support arena | Live | Open market + arena; ~85,527.6 `$RLAN` deposited |
 | Position boosts the next site credit | Live | A linked wallet with an active position doubles that user's next site credit, within caps |
-| `$ICELAN` task records | Live | Eligible account-task credits are recorded off-chain; this mirror does not yet include the hosted accrual code |
+| `$ICELAN` task records | Live | Eligible account-task credits are recorded off-chain. Since 12 October 2026 this mirror includes the task book, budget and day-zero modules the hub reads (`src/hub/icelan-tasks.js`, `src/hub/economy-budgets.js`, `src/hub/day-zero.js`); the station HTTP routes that write them are not in this tree |
 | `$ICELAN` mint | Live | Classic SPL on mainnet; authorities revoked; separate from RLAN and season points |
 | `$ICELAN` claims | Handler enabled | Mainnet rewards vault initially funded with 100,000 ICELAN on October 7. Claims require account eligibility, wallet approval, station co-signature and confirmation. Handler availability does not establish a completed payout |
 | Season points | Live | Current season is on Solana **devnet**, free, unfunded, and separate from tokens |
@@ -86,7 +86,7 @@ This checkout still derives an older unused official-streamer PDA (`pwSFGjmwEXBs
 
 ## $ICELAN
 
-Eligible `$ICELAN` account-task credits are **tracked off-chain** on the hosted hub until claimed. This mirror does not yet include that accrual path.
+Eligible `$ICELAN` account-task credits are **tracked off-chain** on the hosted hub until claimed. Since 12 October 2026 this mirror includes the modules that define the task book and its budget; the station HTTP routes that record credits are not in this tree.
 
 | | |
 | --- | --- |
@@ -102,7 +102,7 @@ Eligible `$ICELAN` account-task credits are **tracked off-chain** on the hosted 
 | --- | --- |
 | Link Twitch | 100, once |
 | Link wallet | 100, once |
-| Chat in `#radiolanlive` (when enabled) | 10 each, max 10 per UTC day; chat credit is currently off |
+| Chat in `#radiolanlive` | 10 each, max 10 per UTC day. Chat credit has been **on** since 10 October 2026. Message text is not stored |
 
 The mainnet rewards program is `5wAVbHfZCBrYPymk1FNeV4D69iZioUmZaiE4ki4qrqWD`.
 Vault `HYrsR1jrwJXxP91Dr8mxgyMAW1upp8JFXJVZScD5391U` was initially funded with

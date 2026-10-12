@@ -3,6 +3,17 @@
 Dated snapshots of what this public tree said at the time. For what is true
 today, use the [root README](README.md).
 
+## 2026-10-12 — Status corrections
+
+- Chat credit is **on**, not off: the hosted station has recorded chat credit since 10 October 2026.
+  The `$ICELAN` credit table said it was off, which also contradicted the project's own public
+  update post on 10 October.
+- The `$ICELAN` task records row and the `$ICELAN` section no longer say the accrual code is missing
+  from this mirror: the task book, budget and day-zero modules landed here earlier the same day.
+- Restated both as what is and is not in this tree, since the station HTTP routes that write those
+  records are still private.
+- Dated the Status section 12 October 2026.
+
 ## 2026-10-12 — Hub frontend brought up to the live build
 
 - Synced `apps/hub` (the frontend) to the source the hosted hub is built from today, including the
