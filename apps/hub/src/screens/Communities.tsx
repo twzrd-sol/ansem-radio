@@ -34,7 +34,7 @@ function ProviderCard({ card, sample, canStart, busy, onStart }: { card: Communi
           <span className="small block">{communityReasonCopy(card.eligibility.reason)}</span>
         </Fact>
       </dl>
-      <button className="btn btn--primary btn--block" type="button" disabled={gated || busy || sample} onClick={onStart}>
+      <button className="btn btn--block" type="button" disabled={gated || busy || sample} onClick={onStart}>
         {COMMUNITY_COPY.verify}
       </button>
       {sample && <p className="small">{COMMUNITY_COPY.sampleNote} {COMMUNITY_COPY.notLive}</p>}

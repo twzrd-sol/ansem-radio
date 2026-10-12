@@ -1,35 +1,46 @@
 import { useState } from "react";
 import { IS_MAINNET, RLAN_MINT } from "../chain/config";
+import { RLAN_TOKEN_URL, VAULT_HOLDS, claimsStory } from "../data/public-copy";
 import { useFollowing } from "../data/following";
 import { collectionSummary } from "../data/collection";
-import { followingListings, type Market } from "../data/market";
+import { anyBackingOpen, followingListings, openForLabel, type Market } from "../data/market";
+import { openForNames } from "../screens/Market";
 import { seasonPhase } from "../data/season";
 import type { HubSnapshot } from "../data/types";
 import type { Station } from "../data/station";
-import { short } from "../lib/format";
 import { Icon, LanMark, SampleTag } from "./atoms";
-import { HowLink, PUBLIC_SOURCE } from "./HowItWorks";
+import { HowLink, PUBLIC_SOURCE, SUPPORT_BOOST_COPY } from "./HowItWorks";
 import { OpeningTime } from "./SeasonOpening";
 import { StationBrief } from "./StationBrief";
+import "../styles/station-guide.css";
 
 type Topic = "pulse" | "now" | "play" | "rlan" | "collect";
 export function LanCompanion({ market, snapshot, now, ready, station = { status: "unknown" } }: { market: Market | null; snapshot: HubSnapshot | null; now: number; ready: boolean; station?: Station }) {
   const [topic, setTopic] = useState<Topic>("pulse");
   const { slugs } = useFollowing();
-  const live = ready && market && !market.stale ? followingListings(market.listings, slugs).filter((l) => l.performance?.live) : [];
+  const listings = market?.listings ?? [];
+  const live = ready && market && !market.stale ? followingListings(listings, slugs).filter((l) => l.performance?.live) : [];
   const season = snapshot?.season;
   const record = collectionSummary(snapshot, now);
-  const backingOpen = !!market?.listings.some((l) => l.backingOpen);
-  return <aside className="lan-guide" aria-label="LAN station guide">
-    <div className="lan-guide__bar">
+  const backingOpen = anyBackingOpen(market);
+  const openFor = openForLabel(openForNames(market));
+  return <aside className="lan-guide lan-guide--compact" aria-label="Guide">
     <details className="lan-guide__details">
-    <summary className="lan-guide__head"><LanMark className="lan-guide__mark" /><span><span className="label">Station guide</span><span className="small">{backingOpen ? "Play is free. Backing is optional." : "Play is free. Support isn't open yet."}</span></span>{(market?.sample || snapshot?.scenario === "sample") && <SampleTag />}</summary>
+    <summary className="lan-guide__head">
+      <LanMark className="lan-guide__mark" />
+      <span className="lan-guide__title">Guide</span>
+      <span className="lan-guide__hint">Play is free</span>
+      {(market?.sample || snapshot?.scenario === "sample") && <SampleTag />}
+      <svg className="lan-guide__chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    </summary>
+    <div className="lan-guide__panel">
+    <p className="small">AI agents in the room.</p>
     <div className="lan-guide__topics" role="group" aria-label="Ask LAN">
-      {([["pulse", "Station brief"], ["now", "Who's on"], ["play", "What can I do"], ["rlan", "What's RLAN"], ["collect", "Can I collect"]] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={topic === key} onClick={() => setTopic(key)}>{label}</button>)}
+      {([["pulse", "Channel brief"], ["now", "Who's on"], ["play", "What can I do"], ["rlan", "What's RLAN"], ["collect", "Can I collect"]] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={topic === key} onClick={() => setTopic(key)}>{label}</button>)}
     </div>
     <div className="lan-guide__body">
       {topic === "pulse" ? <StationBrief station={station} market={market} now={now} sample={market?.sample || snapshot?.scenario === "sample"} /> : topic === "now" ? <>
-        <p>{!ready || market?.stale ? "I'm waiting for a fresh channel read." : live.length > 0 ? `${live.length} of your followed creators ${live.length === 1 ? "is" : "are"} live.` : slugs.length > 0 ? "No followed creator is live in the latest read." : "Follow creators to build your watchlist. I'll keep their live channels up front."}</p>
+        <p>{!ready || market?.stale ? "Waiting for a fresh channel read." : live.length > 0 ? `${live.length} of your followed creators ${live.length === 1 ? "is" : "are"} live.` : slugs.length > 0 ? "No followed creator is live in the latest read." : "Follow creators to build your watchlist. Their live channels stay up front."}</p>
         <div className="lan-guide__links">{live.slice(0, 3).map((l) => <a key={l.slug} href={`#/s/${l.slug}`}><span className="live-dot" aria-hidden="true" />{l.name}</a>)}</div>
         <p className="small">Channel status · Data: Twitch</p>
       </> : topic === "play" ? <>
@@ -37,15 +48,15 @@ export function LanCompanion({ market, snapshot, now, ready, station = { status:
         {season && seasonPhase(season, now) === "upcoming" && <OpeningTime at={season.opensAt} />}
         <div className="lan-guide__links"><a href="#/play">Play activities <Icon name="play" size="sm" /></a><a href="#/board">Points board</a></div>
       </> : topic === "collect" ? <>
-        <p>{record.label}. {record.text}</p>
+        <p>{claimsStory()} {VAULT_HOLDS} {record.label}. {record.text}</p>
         <div className="lan-guide__links"><a href="#/claim">Season record <Icon name="receipt" size="sm" /></a><a href="#/board">Points board</a></div>
       </> : <>
-        <p>RLAN is Radio LAN's token, launched through ClawPump. {IS_MAINNET ? "Support isn't open on this hub yet, so there is nothing to set aside." : "This build rehearses creator backing with test tokens."}</p>
-        <div className="lan-guide__links"><a href="https://clawpump.tech" target="_blank" rel="noopener noreferrer">ClawPump</a><a href={`https://jup.ag/swap/SOL-${RLAN_MINT}`} target="_blank" rel="noopener noreferrer">Jupiter</a><a href={PUBLIC_SOURCE} target="_blank" rel="noopener noreferrer">MIT source</a></div>      </>}
+        <p>RLAN is Radio LAN's token, launched through ClawPump. {IS_MAINNET ? (backingOpen ? "Support is open. Deposited RLAN stays yours to withdraw under the arena schedule." : "Support isn't open on this hub yet, so there is nothing to set aside.") : "This build rehearses creator backing with test tokens."}</p>
+        <p className="small">{SUPPORT_BOOST_COPY}</p>
+        <div className="lan-guide__links"><a href={RLAN_TOKEN_URL} target="_blank" rel="noopener noreferrer">ClawPump</a><a href={`https://jup.ag/swap/SOL-${RLAN_MINT}`} target="_blank" rel="noopener noreferrer">Jupiter</a><a href={PUBLIC_SOURCE} target="_blank" rel="noopener noreferrer">MIT source</a></div>      </>}
     </div>
-    <div className="lan-guide__foot"><span>Play is free · {backingOpen ? "Backing is open for listed creators" : "Support isn't open yet"}</span><HowLink /></div>
+    <div className="lan-guide__foot"><span>Play is free · {backingOpen ? `Backing is open for ${openFor}` : "Support isn't open yet"}</span><a href="#/lan">About</a><HowLink /></div>
+    </div>
     </details>
-    <a className="btn btn--primary lan-guide__play" href="#/play">Play free</a>
-    </div>
   </aside>;
 }

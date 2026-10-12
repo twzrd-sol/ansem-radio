@@ -36,6 +36,7 @@ export interface ApiSubmission {
   pollId?: string;
 }
 export interface ApiMe {
+  supportBoost?: 1 | 2;
   accountId: string;
   createdAt?: number;
   joined: boolean;
@@ -93,6 +94,14 @@ export function explainApiError(error: unknown): string {
     case "unknown_credential": return "No account for that passkey here. Create one instead.";
     case "community_credentials_required": return "This community connection needs credentials. Nothing changed.";
     case "oauth_not_wired": return "OAuth membership checks are not wired on this hub yet.";
+    case "wallet_link_required": return "Link a wallet first.";
+    case "nothing_to_claim": return "Nothing booked to claim yet.";
+    case "cosigner_unavailable": return "Claims are not armed on the station yet.";
+    case "claim_review_expired": return "That claim review expired. Start Collect again.";
+    case "claim_book_changed": return "Your booked amount changed. Start Collect again.";
+    case "claim_wallet_locked": return "This account's claims stay with the wallet that claimed first. Link that wallet again.";
+    case "invalid_claim_transaction": return "The claim request was not valid. Nothing was sent.";
+    case "wallet_signature_invalid": return "The wallet signature did not match. Nothing was sent.";
     default: return `The hub refused it (${error.code}).`;
   }
 }
@@ -121,13 +130,11 @@ export function createHubApi({ fetchImpl = (input: string, init?: RequestInit) =
       headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...(csrf ? { [CSRF_HEADER]: csrf } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    const parsed = await response.json().then((value: unknown) => ({ ok: true as const, value }), () => ({ ok: false as const, value: { error: "bad_response" } }));
-    const json = parsed.value as Record<string, unknown>;
+    const json = (await response.json().catch(() => ({ error: "bad_response" }))) as Record<string, unknown>;
     if (!response.ok) {
       if (response.status === 401) csrf = "";
       throw new HubApiError(response.status, String(json.error ?? "request_failed"), typeof json.detail === "string" ? json.detail : undefined);
     }
-    if (!parsed.ok) throw new HubApiError(response.status, "bad_response");
     if (typeof json.csrf === "string") csrf = json.csrf;
     return json as T;
   };
@@ -171,8 +178,9 @@ export function createHubApi({ fetchImpl = (input: string, init?: RequestInit) =
   };
   const join = () => call<ApiMe>("POST", "/join", {});
   const submit = (input: ActivityInput) => call<ApiMe & { submission: ApiSubmission }>("POST", "/activities", input);
+  const icelanClaim = (body: { blockhash: string } | { signedTransaction: string }) => call<{ wallet: string; cumulativeAmount: string; destination: string; transaction: string; source: string }>("POST", "/icelan-claim", body);
 
-  return { state, me, register, login, logout, join, submit, ...identityApi(call), ...communityApi(call), get hasSession() { return csrf !== ""; } };
+  return { state, me, register, login, logout, join, submit, icelanClaim, ...identityApi(call), ...communityApi(call), get hasSession() { return csrf !== ""; } };
 }
 
 export type HubApi = ReturnType<typeof createHubApi>;

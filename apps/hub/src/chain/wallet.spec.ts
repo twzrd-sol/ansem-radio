@@ -1,6 +1,6 @@
 import type { Wallet, WalletAccount } from "@wallet-standard/base";
 import { describe, expect, it, vi } from "vitest";
-import { connectWallet } from "./wallet";
+import { connectWallet, orderWallets } from "./wallet";
 
 const key = "A2fN4LCB5se9nDtttqQj6fx5yg3TpZLuphiZVJ4JZLyb";
 const account = (chains: WalletAccount["chains"] = ["solana:devnet"]): WalletAccount => ({ address: key, publicKey: new Uint8Array(32), chains, features: ["solana:signTransaction"] });
@@ -87,5 +87,15 @@ describe("shared wallet connection", () => {
     fake.message.mockImplementationOnce(async ({ message }) => { fake.change([]); return [{ signedMessage: message, signature: new Uint8Array(64) }]; });
     await expect(port.signMessage!(new Uint8Array([1]))).rejects.toThrow("wallet account changed");
     expect(fake.sign).not.toHaveBeenCalled();
+  });
+
+  it("lists Phantom, Solflare, and Backpack ahead of Brave", () => {
+    const names = orderWallets([
+      { name: "Brave Wallet" },
+      { name: "Backpack" },
+      { name: "Solflare" },
+      { name: "Phantom" },
+    ]).map((wallet) => wallet.name);
+    expect(names).toEqual(["Phantom", "Solflare", "Backpack", "Brave Wallet"]);
   });
 });

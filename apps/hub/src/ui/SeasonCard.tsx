@@ -1,5 +1,5 @@
 import type { CurrentSeason, RewardState } from "../data/types";
-import { seasonPhase } from "../data/season";
+import { pointsSeasonNetworkLabel, seasonPhase, seasonStandingLabel } from "../data/season";
 import { showsMoney } from "../data/types";
 import { fmt, left, units } from "../lib/format";
 import { Icon, SampleTag, Stat, Vu } from "./atoms";
@@ -22,7 +22,7 @@ export const rewardLabel: Record<RewardState["kind"], string> = {
   claimable: "Final points, ready to collect",
 };
 
-export function SeasonCard({ season, now, onJoin, backingOpen = false, sample = false }: { season: CurrentSeason; now: number; onJoin: () => void; backingOpen?: boolean; sample?: boolean }) {
+export function SeasonCard({ season, now, onJoin, backingOpen = false, sample = false, primaryAction = true }: { season: CurrentSeason; now: number; onJoin: () => void; backingOpen?: boolean; sample?: boolean; primaryAction?: boolean }) {
   const phase = seasonPhase(season, now);
   const open = phase === "open";
   const max = seasonMax(season);
@@ -33,7 +33,7 @@ export function SeasonCard({ season, now, onJoin, backingOpen = false, sample = 
         <h2 className="h3" id="h-season">
           Season {season.number}
         </h2>
-        {sample ? <SampleTag /> : season.number === 2 ? <span className="label">Solana devnet</span> : null}
+        {sample ? <SampleTag /> : pointsSeasonNetworkLabel(season) ? <span className="label">{pointsSeasonNetworkLabel(season)}</span> : null}
         <span className={open ? "phase phase--open" : "phase phase--closed"}>{open ? "Open" : phase === "upcoming" ? "Upcoming" : "Closed"}</span>
         <span className="season__clock">
           <Icon name="clock" size="sm" />
@@ -64,18 +64,18 @@ export function SeasonCard({ season, now, onJoin, backingOpen = false, sample = 
           <p className="crt__label">Free to play</p>
           <p className="crt__value crt__value--idle">Join this season</p>
           <p className="crt__sub">No wallet needed. Points start at 0 every season.</p>
-          <button className="btn btn--primary" type="button" disabled={!open} onClick={onJoin}>
+          <button className={primaryAction ? "btn btn--primary" : "btn"} type="button" disabled={!open} onClick={onJoin}>
             Join free
           </button>
         </div>
       )}
       <div className="stats">
         {poolStat(season.reward)}
-        <Stat label="Players" value={fmt(season.players)} note="This season" />
-        <Stat label="Backers" value={fmt(season.backers)} note="Optional" />
+        <Stat label="Players" value={seasonStandingLabel(season)} word />
+        <Stat label="Season cap" value={fmt(max)} note="Points per fan" />
       </div>
       <div className="season__actions">
-        <a className="btn btn--primary" href="#/play">
+        <a className={me && primaryAction ? "btn btn--primary" : "btn"} href="#/play">
           <Icon name="play" />
           Play activities
         </a>

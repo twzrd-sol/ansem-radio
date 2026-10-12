@@ -17,10 +17,10 @@ export interface ChallengeDef {
 
 /** Named challenge paths. Point values come from the published season policy, never from Twitch. */
 export const CHALLENGE_DEFS: readonly ChallengeDef[] = [
-  { id: "poll", action: "poll_response", title: "Live poll", blurb: "The streamer posts a poll during the show. Pick an answer." },
-  { id: "question", action: "question", title: "Ask a question", blurb: "Ask the guest or the room. The streamer picks which ones to answer on stream." },
+  { id: "poll", action: "poll_response", title: "Live poll", blurb: "When a poll is posted on this site, pick an answer." },
+  { id: "question", action: "question", title: "Ask a question", blurb: "Ask the guest or the room. The streamer picks which ones to answer on this site." },
   { id: "prompt", action: "accepted_work", title: "Answer the prompt", blurb: "Reply to the streamer's published prompt. It counts once the streamer accepts it." },
-  { id: "clip", action: "accepted_work", title: "Clip or note", blurb: "Send a moment from the show or a short note, your own work only. It counts once the streamer accepts and co-signs it." },
+  { id: "clip", action: "accepted_work", title: "Clip or note", blurb: "Send a short clip or note, your own work only. It counts once the streamer accepts and co-signs it." },
 ];
 
 export interface SeasonChallenge extends ChallengeDef {

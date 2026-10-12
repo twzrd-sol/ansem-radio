@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
+import { orderWallets, useWallets } from "../chain/wallet";
 import { fetchPositions, isAddress, positionStatus, type FanPositions, type Listing } from "../data/market";
 import { fmt, left, units, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, PageHead, SampleTag, Skeleton } from "../ui/atoms";
+import { SUPPORT_BOOST_COPY } from "../ui/HowItWorks";
 import { ObservedLine } from "./Market";
 
 const FAN_KEY = "radiolan-hub:fan";
@@ -30,7 +32,7 @@ export function Positions({ listings, now, wallet, onConnect, sample, load: mark
   /** A wallet the page already connected, if any. */
   wallet: string | null;
   /** Opens the fan's wallet to read its address; absent in a design preview. */
-  onConnect?: () => Promise<string | null>;
+  onConnect?: (walletName: string) => Promise<string | null>;
   /** Fixtures for design review. */
   sample?: FanPositions | null;
   load: "loading" | "error" | "ready";
@@ -52,24 +54,27 @@ export function Positions({ listings, now, wallet, onConnect, sample, load: mark
     try {
       setState({ status: "ready", data: await read(address) });
     } catch {
-      setState({ status: "error", text: "Couldn't read positions from the station. Nothing on chain changed." });
+      setState({ status: "error", text: "Couldn't read positions. Nothing on chain changed." });
     }
   };
-  const connect = async () => {
+  const wallets = orderWallets(useWallets());
+  const connect = async (walletName: string) => {
     if (!onConnect) return;
     setBusy(true);
     try {
-      const address = await onConnect();
+      const address = await onConnect(walletName);
       if (address) {
         setFan(address);
         await lookup(address);
       }
+    } catch {
+      setState({ status: "error", text: "The wallet connection was cancelled or unavailable. Choose a wallet and try again." });
     } finally {
       setBusy(false);
     }
   };
 
-  const head = <PageHead title="My positions" lede="Every arena this wallet backs, read from chain. Request withdrawal anytime; it is available when the on-chain season you asked in ends. Reading needs no signature." />;
+  const head = <PageHead title="My positions" lede="Every arena this wallet backs, read from chain. Withdraw in two steps: request, then withdraw when the on-chain season you requested in ends. Reading needs no signature." />;
   if (marketLoad === "loading") return <>{head}<Skeleton kinds={["block", "block"]} /></>;
   if (marketLoad === "error") return <>{head}<ErrorBlock text="The board didn't load, so positions can't be matched to listings." onRetry={onRetry} /></>;
   const nameOf = (slug: string | null) => listings.find((l) => l.slug === slug)?.name ?? "An unlisted arena";
@@ -89,16 +94,16 @@ export function Positions({ listings, now, wallet, onConnect, sample, load: mark
           <label className="label" htmlFor="fan">
             Wallet address
           </label>
-          <div className="amount">
+          <div className="amount amount--addr">
             <input id="fan" value={fan} inputMode="text" autoComplete="off" spellCheck={false} placeholder="Paste an address" onChange={(e) => setFan(e.target.value)} />
           </div>
           <div className="actions">
-            {onConnect && (
-              <button className="btn btn--primary" type="button" disabled={busy} onClick={() => void connect()}>
+            {onConnect && wallets.map((wallet) => (
+              <button key={wallet.name} className="btn btn--ghost" type="button" disabled={busy} onClick={() => void connect(wallet.name)}>
                 <Icon name="wallet" />
-                {busy ? "Opening wallet…" : "Use my wallet"}
+                {busy ? "Opening wallet…" : wallet.name}
               </button>
-            )}
+            ))}
             <button className={onConnect ? "btn btn--ghost" : "btn btn--primary"} type="submit" disabled={state.status === "loading" || fan.trim() === ""}>
               {state.status === "loading" ? "Reading…" : "Show positions"}
             </button>
@@ -160,7 +165,7 @@ export function Positions({ listings, now, wallet, onConnect, sample, load: mark
       )}
       <p className="note aside-note">
         <Icon name="info" />
-        Season points are free and separate: backing never adds points or changes a season's perks. <a href="#/play">Play</a> · <a href="#/me">Profile</a>
+        Play is free. {SUPPORT_BOOST_COPY} <a href="#/play">Play</a> · <a href="#/me">Profile</a>
       </p>
     </>
   );

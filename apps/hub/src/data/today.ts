@@ -20,6 +20,7 @@ export function buildToday(state: ApiState | null = null): HubSnapshot {
     season: s
       ? {
           number: Number(s.number),
+          network: s.network === "mainnet" || s.network === "devnet" ? s.network : null,
           opensAt: s.startsAt * 1000,
           freezesAt: s.endsAt * 1000,
           players: s.players,
@@ -30,7 +31,7 @@ export function buildToday(state: ApiState | null = null): HubSnapshot {
           prompt: null,
           board: (s.board ?? []).map(([handle, points]) => [handle, Number(points)] as [string, number]),
           boardDetails: s.boardDetails?.map((row) => ({ ...row, badges: row.badges.map((badge) => badge.id) })),
-          me: me?.joined ? { points: Number(me.points), rank: me.rank ?? null, streakDays: me.streakDays ?? 0, activityDays: me.activityDays, playedToday: me.playedToday, today: Number(me.today), submissions: me.submissions.map(({ action, status, occurredAt, pollId }) => ({ action, status, occurredAt: occurredAt * 1000, ...(pollId ? { pollId } : {}) })), badges: (me.badges ?? []).map((badge) => badge.id) } : null,
+          me: me?.joined ? { supportBoost: me.supportBoost === 2 ? 2 : 1, points: Number(me.points), rank: me.rank ?? null, streakDays: me.streakDays ?? 0, activityDays: me.activityDays, playedToday: me.playedToday, today: Number(me.today), submissions: me.submissions.map(({ action, status, occurredAt, pollId }) => ({ action, status, occurredAt: occurredAt * 1000, ...(pollId ? { pollId } : {}) })), badges: (me.badges ?? []).map((badge) => badge.id) } : null,
         }
       : null,
   };

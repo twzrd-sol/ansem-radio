@@ -15,6 +15,26 @@ export function feltCost(lamports: bigint): string {
 
 export const short = (id: string) => `${id.slice(0, 4)}…${id.slice(-4)}`;
 
+/** Compact token amount for cards: 85.5K or 85,527.6. Full precision stays in `title`. */
+export function tokenAmount(baseUnits: bigint, decimals: number): { label: string; title: string } {
+  const title = units(baseUnits, decimals);
+  const negative = baseUnits < 0n;
+  const abs = negative ? -baseUnits : baseUnits;
+  const scale = 10n ** BigInt(decimals);
+  const whole = abs / scale;
+  const sign = negative ? "−" : "";
+  if (whole >= 10_000n) {
+    const tenths = whole / 100n;
+    return { label: `${sign}${tenths / 10n}.${tenths % 10n}K`, title };
+  }
+  if (decimals === 0) return { label: `${sign}${whole.toLocaleString("en-US")}`, title };
+  const tenthScale = 10n ** BigInt(decimals - 1);
+  const tenths = abs / tenthScale;
+  const frac = tenths % 10n;
+  const shown = tenths / 10n;
+  return { label: frac === 0n ? `${sign}${shown.toLocaleString("en-US")}` : `${sign}${shown.toLocaleString("en-US")}.${frac}`, title };
+}
+
 /** Base units to a decimal string, trimmed of trailing zeros, without floating point. */
 export function units(baseUnits: bigint, decimals: number): string {
   const negative = baseUnits < 0n;
@@ -59,6 +79,25 @@ export function duration(seconds: number): string {
     if (n && out.length < 2) out.push(`${n} ${name}${n === 1 ? "" : "s"}`);
   }
   return out.join(" ");
+}
+
+/** "just now", "6 min ago", "3 h ago", "2 days ago": how old a read is, in a fan's words. */
+export function ago(ms: number): string {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.floor(h / 24)} days ago`;
+}
+
+/** Replace a trailing ISO instant in a Twitch provenance line with relative time; keep the exact UTC for a title. */
+export function formatTwitchProvenance(text: string, now = Date.now()): { label: string; exact?: string } {
+  const match = /at (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\.?$/.exec(text);
+  if (!match) return { label: text };
+  const ms = Date.parse(match[1]!);
+  if (!Number.isFinite(ms)) return { label: text };
+  return { label: `${text.slice(0, match.index)}at ${ago(now - ms)}.`, exact: utc(ms) };
 }
 
 export const left = (ms: number) => {

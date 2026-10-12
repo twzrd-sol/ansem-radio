@@ -1,5 +1,7 @@
 export interface LinkedIdentities {
   twitchEnabled: boolean;
+  /** The wallet this account's ICELAN claim signatures are bound to, once the station has co-signed one. Only that wallet can be linked again. */
+  claimWallet?: string | null;
   twitch: { subject: string; displayName: string; verifiedAt: number } | null;
   wallet: { address: string; verifiedAt: number } | null;
 }

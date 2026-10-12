@@ -32,13 +32,15 @@ export function AddToChannel({ slug, name }: { slug: string; name: string }) {
     }
   };
   return (
-    <section className="section" aria-labelledby="h-addto">
+    <section className="section panel addto" aria-labelledby="h-addto">
       <div className="section__head">
         <h2 className="h2" id="h-addto">
           Add this to your channel
         </h2>
         <span className="label">For streamers · free</span>
       </div>
+      <details className="addto__details">
+      <summary className="small">Streamer tools: a live badge and the embed code for this page</summary>
       <img className="addto__badge" src={s.badgeUrl} alt={`${name} on Radio LAN, live badge`} width={320} height={140} />
       <p className="small">A live badge for your own site or README. For a Twitch panel, save it as an image and upload it with a link to this page.</p>
       <label className="label" htmlFor="addto-html">Website or README (HTML)</label>
@@ -60,6 +62,7 @@ export function AddToChannel({ slug, name }: { slug: string; name: string }) {
       <p className="small fine" role="status" aria-live="polite">
         {note || "The badge shows your channel's public Twitch status, labelled Data: Twitch."}
       </p>
+      </details>
     </section>
   );
 }

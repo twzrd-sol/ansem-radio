@@ -3,6 +3,10 @@
 
 export const MIN_SEASON_SECONDS = 60n;
 export const MAX_SEASON_SECONDS = 28n * 86_400n;
+/** Hub / official-arena schedule: 7 days (docs/examples/arena-mainnet/INIT.md). */
+export const HUB_SEASON_SECONDS = 604_800n;
+/** Mon 2026-09-28 00:00 UTC; any Monday 00:00 UTC is congruent with this epoch. */
+export const HUB_SEASON_EPOCH = 1_790_553_600n;
 
 export interface ArenaSchedule {
   /** `season_start` from the arena account, unix seconds. */
@@ -33,6 +37,16 @@ export function mostRecentMondayUtc(now: bigint): bigint {
 }
 
 export const nowSeconds = (): bigint => BigInt(Math.floor(Date.now() / 1000));
+
+/**
+ * A market is indexed only when its on-chain pair matches this schedule: `season_seconds`
+ * is seven days and `season_start` is a Monday 00:00 UTC. First-opener squatting of another
+ * length or phase stays on chain (permanent, rent only) but does not surface on the hub.
+ */
+export function matchesHubSchedule(seasonStart: bigint, seasonSeconds: bigint): boolean {
+  if (seasonSeconds !== HUB_SEASON_SECONDS) return false;
+  return (seasonStart - HUB_SEASON_EPOCH) % HUB_SEASON_SECONDS === 0n;
+}
 
 /** When a withdrawal requested at `now` becomes available, in milliseconds. */
 export function releaseIfRequestedAt(schedule: ArenaSchedule, now: bigint = nowSeconds()): number {

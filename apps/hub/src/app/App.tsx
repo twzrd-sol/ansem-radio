@@ -1,13 +1,18 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { IS_MAINNET, NETWORK, OFFICIAL_STREAMER } from "../chain/config";
-import { BRAND } from "../brand";
+import { CLAIM_GENESIS_HASH, IS_MAINNET, LOCAL_CLAIM, NETWORK, OFFICIAL_STREAMER, RPC_URL } from "../chain/config";
+import { claimTaskBook } from "../chain/icelan-claim";
+import { kitRpc } from "../chain/rpc";
+import { ATTRIBUTION, BRAND, LAN_ROLE } from "../brand";
+import { Leaderboard } from "../screens/Leaderboard";
+import { Stats } from "../screens/Stats";
 import { seasonIndex, withdrawAvailableAt } from "../chain/season";
 import { explainApiError, type ActivityInput } from "../data/api";
 import { useFollowing } from "../data/following";
 import { HubProvider, type HubLoad } from "../data/hub";
+import { useDayZeroVault } from "../data/day-zero";
 import { useLiveHub } from "../data/live";
-import { useListing, useMarket, type Listing as ListingData, type Market as MarketData } from "../data/market";
+import { anyBackingOpen, openForLabel, useListing, useMarket, type Listing as ListingData, type Market as MarketData } from "../data/market";
 import { buildSample, sampleListingDetail, sampleMarket, samplePositions } from "../data/sample";
 import { stationAt, useStation } from "../data/station";
 import { buildToday } from "../data/today";
@@ -22,17 +27,23 @@ import { Claim } from "../screens/Claim";
 import { CommunitiesPage } from "../screens/Communities";
 import { Lan } from "../screens/Lan";
 import { Listing } from "../screens/Listing";
-import { Market } from "../screens/Market";
+import { Market, openForNames } from "../screens/Market";
+export { openForLabel, openForNames };
 import { Play } from "../screens/Play";
 import { Positions } from "../screens/Positions";
 import { Profile } from "../screens/Profile";
+import { Tape } from "../screens/Tape";
+
+const NO_LISTINGS: Array<{ slug: string; name: string; arena: { address: string } | null }> = [];
+import { MARKET_BOARD_ENABLED } from "../tape/flag";
 import { Icon, type IconName, LanMark, Skeleton } from "../ui/atoms";
 import { HowItWorks, HowLink, PUBLIC_SOURCE } from "../ui/HowItWorks";
 import { LanCompanion } from "../ui/LanCompanion";
 import { IdentityLinks } from "../ui/IdentityLinks";
+import { IcelanTasks } from "../ui/IcelanTasks";
 import { PreviewPanel } from "./PreviewPanel";
 import { usePreview, writePreview, type PreviewState } from "./preview";
-import { useRoute, type Tab } from "./route";
+import { parseHash, useRoute, type Tab } from "./route";
 
 // The live backing flow (Solana Kit, Wallet Standard, Mobile Wallet Adapter) loads only on a backing screen.
 const LiveBack = lazy(() => import("../screens/LiveBack").then((m) => ({ default: m.LiveBack })));
@@ -65,11 +76,11 @@ export const SampleBanner = () => (
 );
 
 /** Plan section 8: the network stays visible on every on-chain screen, as a calm note rather than a warning banner. */
-export const Ribbon = ({ backingOpen = false }: { backingOpen?: boolean } = {}) =>
+export const Ribbon = ({ backingOpen = false, openFor = [] }: { backingOpen?: boolean; openFor?: readonly string[] } = {}) =>
   IS_MAINNET ? (
     <div className="network-note" role="note">
       <span className="network-note__chip">Mainnet board</span>
-      <span>{backingOpen ? "Solana mainnet data. Backing is open for listed creators." : "Solana mainnet data. No mainnet arena is open, so backing is not available here."}</span>
+      <span>{backingOpen ? `Solana mainnet data. Backing is open for ${openForLabel(openFor)}.` : "Solana mainnet data. No mainnet arena is open, so backing is not available here."}</span>
     </div>
   ) : (
     <div className="network-note" role="note">
@@ -129,11 +140,13 @@ export function App({ wallet = null, fallbackMint = null }: AppViewProps) {
 function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewProps) {
   const session = useWalletSession();
   const wallet = session.wallet?.address ?? givenWallet;
-  const route = useRoute();
+  const rawRoute = useRoute();
+  const route = rawRoute.key === "tape" && !MARKET_BOARD_ENABLED ? parseHash("#/") : rawRoute;
   const preview = usePreview();
   const { slugs: followed } = useFollowing();
   const hub = useLiveHub(!preview.enabled);
   const market = useMarket(!preview.enabled);
+  const dayZero = useDayZeroVault(!preview.enabled);
   const slug = route.key === "s" ? route.arg : route.key === "back" ? route.arg || "radiolanlive" : null;
   const detail = useListing(slug, !preview.enabled && route.key === "s");
   const stationRead = useStation(!preview.enabled);
@@ -142,6 +155,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
   const [toastText, setToastText] = useState("");
   const [toastOn, setToastOn] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [taskRefresh, setTaskRefresh] = useState(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const view = useRef<HTMLElement>(null);
 
@@ -217,18 +231,17 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
     }
     await hub.refresh();
   };
-  // Reads a wallet's address for the positions screen; the wallet module loads only when tapped.
-  const connectForPositions = async (): Promise<string | null> => {
+  // Profile and positions share the wallet selected by the fan; connection happens only when tapped.
+  const connectHubWallet = async (walletName: string): Promise<string | null> => {
     try {
-      if (session.wallet) return session.wallet.address;
       const w = await import("../chain/wallet");
-      if (/android/i.test(navigator.userAgent)) w.registerMobileWallet();
-      const usable = w.listWallets();
-      if (usable.length === 0) {
-        toast("No Solana wallet was found in this browser.");
+      if (/android/i.test(navigator.userAgent)) await w.registerMobileWallet();
+      const chosen = w.listWallets().find((wallet) => wallet.name === walletName);
+      if (!chosen) {
+        toast("That wallet is not available in this browser.");
         return null;
       }
-      const port = await w.connectWallet(usable[0]!);
+      const port = await w.connectWallet(chosen);
       session.setWallet(port);
       return port.address;
     } catch (error) {
@@ -237,11 +250,19 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
     }
   };
 
+  const claimIcelan = async () => {
+    if (!IS_MAINNET && !LOCAL_CLAIM) throw new Error("ICELAN claims are available only on the mainnet release.");
+    const activeWallet = session.wallet;
+    if (!activeWallet) throw new Error("Connect the linked wallet from Profile, then return here to claim.");
+    return claimTaskBook({ api: hub.api.icelanClaim, wallet: activeWallet, rpc: kitRpc(RPC_URL), expectedGenesisHash: CLAIM_GENESIS_HASH });
+  };
+
   // The title follows the listing's name once the board has it; scroll and focus move only on navigation, never on
   // the board's periodic refresh.
   const listingName = route.key === "s" && slug ? (board?.listings.find((l) => l.slug === slug)?.name ?? null) : null;
   useEffect(() => {
-    document.title = `${listingName ?? route.title} · Radio LAN`;
+    const name = listingName ?? route.title;
+    document.title = name === "Radio LAN" ? "Radio LAN" : `${name} · Radio LAN`;
   }, [route.title, listingName]);
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -255,7 +276,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
       const live = !preview.enabled && detail.load === "ready" && detail.detail?.listing.slug === slug ? detail.detail : null;
       const listing = live ? live.listing : preview.enabled && preview.scenario === "sample" && slug ? sampleListingDetail(now, slug)?.listing ?? null : listingOf(slug);
       const observed = live ?? (board ? { ...board } : null);
-      const listingLoad = preview.enabled ? boardLoad : detail.load === "ready" || detail.load === "error" ? detail.load : board ? "ready" : market.load;
+      const listingLoad = preview.enabled ? boardLoad : detail.load === "ready" || detail.load === "error" || detail.load === "missing" ? detail.load : board ? "ready" : market.load;
       screen = <Listing listing={listing} observed={observed} load={listingLoad} onRetry={retry} station={station} now={now} snapshot={shown} onJoin={() => void join()} slug={slug ?? ""} />;
       break;
     }
@@ -275,7 +296,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
       screen = <CommunitiesPage snapshot={shown} load={state} api={preview.enabled ? undefined : hub.api} onRetry={retry} />;
       break;
     case "positions":
-      screen = <Positions listings={board?.listings ?? []} now={now} wallet={wallet} onConnect={preview.enabled ? undefined : connectForPositions} sample={preview.enabled && preview.scenario === "sample" ? samplePositions(now) : null} load={boardLoad} onRetry={retry} />;
+      screen = <Positions listings={board?.listings ?? []} now={now} wallet={wallet} onConnect={preview.enabled ? undefined : connectHubWallet} sample={preview.enabled && preview.scenario === "sample" ? samplePositions(now) : null} load={boardLoad} onRetry={retry} />;
       break;
     case "back": {
       const listing = listingOf(slug);
@@ -289,13 +310,22 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
       break;
     }
     case "me":
-      screen = <Profile snapshot={shown} load={state} backer={preview.enabled && preview.scenario === "sample" && preview.position !== "none"} wallet={wallet} onRetry={retry} onAccount={preview.enabled ? undefined : account} onSignOut={preview.enabled ? undefined : signOut} links={preview.enabled ? undefined : <IdentityLinks api={hub.api} accountId={hub.state?.me?.accountId ?? null} wallet={session.wallet} />} />;
+      screen = <Profile snapshot={shown} load={state} backer={preview.enabled && preview.scenario === "sample" && preview.position !== "none"} wallet={wallet} onRetry={retry} onAccount={preview.enabled ? undefined : account} onSignOut={preview.enabled ? undefined : signOut} market={board} now={now} links={preview.enabled ? undefined : <IdentityLinks api={hub.api} accountId={hub.state?.me?.accountId ?? null} wallet={session.wallet} onConnectWallet={connectHubWallet} onChange={() => setTaskRefresh((n) => n + 1)} />} tasks={preview.enabled ? undefined : <IcelanTasks accountId={hub.state?.me?.accountId ?? null} refreshKey={taskRefresh} />} />;
       break;
     case "claim":
-      screen = <Claim snapshot={shown} load={state} onRetry={retry} now={now} />;
+      screen = <Claim snapshot={shown} load={state} onRetry={retry} now={now} vault={dayZero.vault} accountId={hub.state?.me?.accountId ?? null} walletReady={Boolean(session.wallet)} wallet={wallet} onClaim={preview.enabled ? undefined : claimIcelan} />;
       break;
     case "how":
-      screen = <HowItWorks />;
+      screen = <HowItWorks backingOpen={Boolean(board && !board.stale && board.listings.some((l) => l.backingOpen))} openFor={board && !board.stale ? openForNames(board) : []} />;
+      break;
+    case "stats":
+      screen = <Stats />;
+      break;
+    case "leaderboard":
+      screen = <Leaderboard />;
+      break;
+    case "tape":
+      screen = <Tape listings={board?.listings ?? NO_LISTINGS} />;
       break;
     default:
       screen = <Market market={board} load={boardLoad} onRetry={retry} station={station} now={now} />;
@@ -312,7 +342,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
             <LanMark className="brand__mark" />
             <span className="brand__text">
               <span className="brand__name">Radio LAN</span>
-              <span className="brand__by">{BRAND.host}</span>
+              <span className="brand__by">by {BRAND.artist}</span>
             </span>
           </a>
           <nav className="top__nav" aria-label="Hub">
@@ -323,7 +353,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
             ))}
           </nav>
           <span className="top__spacer" />
-          {!preview.enabled && <div className="header-wallet">{wallet ? <><a href="#/me" title={wallet}><Icon name="wallet" size="sm" /><span>{short(wallet)}</span></a>{session.wallet && <button className="link-btn" type="button" onClick={() => session.setWallet(null)}>Disconnect</button>}</> : <a href="#/me"><Icon name="me" size="sm" /><span>Profile</span></a>}</div>}
+          {!preview.enabled && <div className="header-wallet">{wallet ? <><a href="#/me" title={wallet}><Icon name="wallet" size="sm" /><span>{short(wallet)}</span></a>{session.wallet && <button className="link-btn" type="button" onClick={() => session.setWallet(null)}>Disconnect</button>}</> : <a href="#/me" aria-current={route.tab === "me" ? "page" : undefined}><Icon name="me" size="sm" /><span>Profile</span></a>}</div>}
           {preview.enabled && (
             <button className="preview-chip" type="button" aria-expanded={panelOpen} aria-controls="preview" onClick={() => setPanelOpen(!panelOpen)}>
               Preview
@@ -331,16 +361,22 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
           )}
         </header>
         {preview.enabled && preview.scenario === "sample" && <SampleBanner />}
-        {route.onchain && <Ribbon backingOpen={Boolean(board?.listings.some((l) => l.backingOpen))} />}
+        {route.onchain && <Ribbon backingOpen={Boolean(board && !board.stale && anyBackingOpen(board))} openFor={openForNames(board)} />}
         <main id="view" ref={view} className="view" tabIndex={-1}>
-          <LanCompanion market={board} snapshot={shown} now={now} ready={boardLoad === "ready"} station={station} />
           {screen}
+          <LanCompanion market={board} snapshot={shown} now={now} ready={boardLoad === "ready"} station={station} />
         </main>
         <footer className="foot">
+          <span>{ATTRIBUTION}</span>
+          <span>{LAN_ROLE}</span>
           <span>{BRAND.host}</span>
           <span>Free to play</span>
+          {MARKET_BOARD_ENABLED && <a href="#/tape">Market board</a>}
           {preview.enabled && preview.scenario === "sample" ? <a href="./#/">Live hub</a> : <a href="?preview=sample#/play">Sample season</a>}
           <HowLink />
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/legal">Disclosures</a>
           <a href={PUBLIC_SOURCE} target="_blank" rel="noopener noreferrer">MIT source</a>
         </footer>
         <nav className="tabs" aria-label="Hub">

@@ -14,5 +14,5 @@ export function TwitchCallback({ callback }: { callback: TwitchCallbackData }) {
     attempt.current.then(() => { if (active) { setMessage("Twitch linked. Your points are unchanged."); setDone(true); } }).catch((error: unknown) => { if (active) { setMessage(explainIdentityError(error)); setDone(true); } });
     return () => { active = false; };
   }, [callback]);
-  return <main className="view identity-callback"><LanMark className="brand__mark" /><PageHead title="Link Twitch" /><section className="panel"><p role="status">{message}</p>{done && <a className="btn" href="/hub/#/me">Back to Me</a>}</section></main>;
+  return <main className="view identity-callback"><LanMark className="brand__mark" /><PageHead title="Link Twitch" /><section className="panel"><p role="status">{message}</p>{done && <a className="btn" href="/hub/#/me">Back to Profile</a>}</section></main>;
 }

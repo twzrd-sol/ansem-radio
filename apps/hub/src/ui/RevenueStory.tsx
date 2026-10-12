@@ -1,10 +1,25 @@
-import { RLAN_MINT } from "../chain/config";
+import { RLAN_MINT, TOKEN_DECIMALS } from "../chain/config";
+import { type VaultView } from "../data/day-zero";
+import { BACKING_BOOST, ICELAN_BOOK_CAP, RLAN_TOKEN_URL, VAULT_HOLDS, claimsStory, icelanClaimsOpen, icelanCollectCopy, type ClaimsInput } from "../data/public-copy";
+import { units } from "../lib/format";
 import "../styles/presentation.css";
 
-const rlanDetails = `https://clawpump.tech/tokens/${RLAN_MINT}`;
+function IcelanLane({ vault, claims }: { vault?: VaultView | null; claims?: ClaimsInput }) {
+  const open = icelanClaimsOpen(claims);
+  const amount = vault?.status === "funded" ? units(vault.fundedBaseUnits, TOKEN_DECIMALS) : "100,000";
+  return (
+    <article className="revenue-card">
+      <p className="label">ICELAN rewards</p>
+      <p className="revenue-card__figure">{amount}</p>
+      <h3 className="h3">Credited from tasks</h3>
+      <p className="small">ICELAN is recorded for real account tasks: link Twitch (+100 once), link a wallet (+100 once), and eligible #radiolanlive chat (+10 each, up to 10 per UTC day). The message text is not stored. {ICELAN_BOOK_CAP} {VAULT_HOLDS} Recorded rewards are not a wallet balance. {open ? icelanCollectCopy(claims) : claimsStory(claims)}</p>
+      <span className="revenue-card__state">{open ? "Funded · collect available" : "Funded · collect not open"}</span>
+    </article>
+  );
+}
 
-/** Public status of the three money layers. This is context, not a transaction surface. */
-export function RevenueStory() {
+/** Public status of the three money lanes. This is context, not a transaction surface. */
+export function RevenueStory({ vault = null, claims }: { vault?: VaultView | null; claims?: ClaimsInput }) {
   return (
     <section className="revenue-story" aria-labelledby="h-revenue-story">
       <div className="revenue-story__heading">
@@ -22,19 +37,14 @@ export function RevenueStory() {
         </article>
         <article className="revenue-card">
           <p className="label">Radio LAN · RLAN</p>
-          <p className="revenue-card__figure revenue-card__figure--word">Future shows</p>
-          <h3 className="h3">Programming token</h3>
-          <p className="small">RLAN is a separate token for future programming. Holder controls are not live in this hub; it does not change this season's points.</p>
-          <a className="revenue-card__link" href={rlanDetails} target="_blank" rel="noopener noreferrer">View RLAN token record <span aria-hidden="true">↗</span></a>
+          <p className="revenue-card__figure revenue-card__figure--word">Live boost</p>
+          <h3 className="h3">Backing boosts the next credit</h3>
+          <p className="small">{BACKING_BOOST} Twitch rows are not doubled. RLAN can coordinate future shows; holder programming tools remain in development.</p>
+          <a className="revenue-card__link" href={RLAN_TOKEN_URL} target="_blank" rel="noopener noreferrer">View RLAN token record <span aria-hidden="true">↗</span></a>
         </article>
-        <article className="revenue-card revenue-card--closed">
-          <p className="label">ICELAN rewards</p>
-          <p className="revenue-card__figure revenue-card__figure--word">Closed</p>
-          <h3 className="h3">Vault not created</h3>
-          <p className="small">The rewards program exists, but its vault has not been created. Collect stays disabled.</p>
-          <span className="revenue-card__state">No vault · no Collect</span>
-        </article>
+        <IcelanLane vault={vault} claims={claims} />
       </div>
+      <p className="small" style={{ marginTop: 12 }}>Mint <span className="mono">{RLAN_MINT}</span></p>
     </section>
   );
 }

@@ -21,6 +21,30 @@ describe("static legal pages", () => {
     const html = read(page);
     expect(html).toContain("TWZRD, Inc.");
     expect(html).not.toContain("<script");
+    expect(html).toContain('href="#content">Skip to content');
+    expect(html).toContain('<main id="content" tabindex="-1">');
+    expect(html).toContain('viewBox="0 0 40 40"');
+    expect((html.match(/class="lan__eye"/g) ?? []).length).toBe(10);
+    expect(html).toContain(`href="/${page}" aria-current="page"`);
+    expect(html).not.toMatch(/THE WZRD OF ZO|<svg[^>]*onload|<image/);
+  });
+  it("uses only the existing same-origin legal fonts", () => {
+    const css = readFileSync(new URL("../public/legal/legal.css", import.meta.url), "utf8");
+    const fonts = [...css.matchAll(/src: url\("([^"]+)"\)/g)].map((m) => m[1]);
+    expect(fonts).toEqual([
+      "/hub/legal/fonts/big-shoulders-display-latin-800-normal.woff2",
+      "/hub/legal/fonts/barlow-latin-400-normal.woff2",
+      "/hub/legal/fonts/barlow-latin-600-normal.woff2",
+    ]);
+  });
+  it("uses the console geometry for an inert two-eye favicon", () => {
+    const svg = readFileSync(new URL("../public/favicon.svg", import.meta.url), "utf8");
+    expect(svg).toContain('viewBox="0 0 40 40"');
+    expect((svg.match(/class="lan__eye"/g) ?? []).length).toBe(10);
+    expect(svg).toContain('x="10.5"');
+    expect(svg).toContain('x="21.5"');
+    expect(svg).toContain('fill="#0b0a08"');
+    expect(svg).not.toMatch(/<script|on\w+=|href=|<image|foreignObject/i);
   });
   it("legal page carries the durable token facts the thread links to", () => {
     const html = read("legal");

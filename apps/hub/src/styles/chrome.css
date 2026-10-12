@@ -1,0 +1,80 @@
+/* Shell-only overrides: screen and hero styling stays with its own visual lane. */
+:root {
+  --top: calc(53px + max(8px, env(safe-area-inset-top, 0px)));
+  --hub-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --hub-bottom-clearance: 0px;
+}
+
+html {
+  scroll-padding-top: calc(var(--top) + 16px);
+  scroll-padding-bottom: calc(var(--hub-bottom-clearance) + 16px);
+}
+
+.app > .top {
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+}
+
+.top .brand,
+.top__nav a,
+.top .preview-chip,
+.header-wallet .link-btn {
+  min-height: 44px;
+}
+
+.top__nav a { display: inline-flex; align-items: center; }
+.header-wallet { flex: none; }
+.header-wallet .link-btn { padding: 0 4px; }
+.network-note--sample { background: var(--color-ink-2); }
+
+.foot {
+  align-items: center;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+
+.foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  text-underline-offset: 3px;
+}
+
+.view :where(a, button, input, summary, [tabindex]),
+.foot a { scroll-margin-block: 12px; }
+
+@media (max-width: 899px) {
+  :root {
+    --tabbar: max(64px, calc(2.5rem + 24px));
+    --hub-bottom-clearance: calc(var(--tabbar) + var(--hub-safe-bottom));
+  }
+
+  /* Reserve the same responsive height that the fixed navigation occupies. */
+  .app { padding-bottom: var(--hub-bottom-clearance); }
+  .app > .view { padding-bottom: calc(var(--hub-bottom-clearance) + 24px); }
+  .app > .foot { margin-top: 0; padding-bottom: calc(var(--hub-bottom-clearance) + 16px); }
+  .foot > span { flex-basis: calc(50% - 8px); min-height: 24px; }
+
+  .tabs {
+    height: var(--hub-bottom-clearance);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-bottom: var(--hub-safe-bottom);
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+  }
+
+  .tabs .tab { min-height: 44px; padding: 8px 4px; }
+}
+
+@media (max-width: 359px) {
+  .app > .top { gap: var(--space-2); }
+  .top .brand { gap: var(--space-2); }
+  .top .brand__mark { width: 32px; height: 32px; }
+  .top .brand__name { font-size: 21px; }
+  .header-wallet { gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; max-width: 110px; font-size: var(--text-caption); }
+}
+
+/* Keep narrow flex/grid children inside the 16px mobile gutter. */
+.view, .foot, .top { min-width: 0; }
+.toast { max-width: calc(100vw - 2 * var(--gutter)); overflow-wrap: anywhere; }

@@ -2,21 +2,27 @@
 // side by side and never merged. The station's own channel is one listing among them.
 import { useState } from "react";
 
-import { NETWORK_LABEL, RLAN_MINT, TOKEN_DECIMALS } from "../chain/config";
+import { TOKEN_DECIMALS } from "../chain/config";
 import { followingListings, sortListings, type Listing, type Market as MarketData } from "../data/market";
 import { useFollowing } from "../data/following";
 import { categoryLanes, collection } from "../data/slate";
 import type { Station } from "../data/station";
-import { fmt, units, utc } from "../lib/format";
+import { HUB_LEADERBOARD_ENABLED } from "../data/feature-flags";
+import { BACKING_BOOST, FOLLOWING_LOCAL } from "../data/public-copy";
+import { ago, fmt, tokenAmount, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, LanMark, SampleTag, Skeleton, StationPill, Tag } from "../ui/atoms";
+import { BuyRlanBar } from "../ui/BuyRlanBar";
 import { FollowButton } from "../ui/FollowButton";
 import { HowLink } from "../ui/HowItWorks";
-import { RevenueStory } from "../ui/RevenueStory";
+import { HubStory } from "../ui/HubStory";
 import { CreatorAffinity } from "../ui/CreatorAffinity";
 
 type Filter = "all" | "live" | "following";
 
-export const rlan = (baseUnits: string) => `${units(BigInt(baseUnits), TOKEN_DECIMALS)} RLAN`;
+export const rlan = (baseUnits: string) => {
+  const shown = tokenAmount(BigInt(baseUnits), TOKEN_DECIMALS);
+  return { label: `${shown.label} RLAN`, title: `${shown.title} RLAN` };
+};
 
 type LockerRead = Pick<MarketData, "observedAt" | "stale">;
 export type LockerStatus = "open" | "closed" | "stale" | "unavailable";
@@ -37,21 +43,20 @@ export function lockerIsOpen(listing: Listing, read: LockerRead | null): boolean
   return lockerStatus(listing, read) === "open";
 }
 
+/** Names of the listings whose locker is open in a fresh read; empty on a stale or missing read. */
+export function openForNames(market: MarketData | null): string[] {
+  if (!market || market.stale) return [];
+  return market.listings.filter((l) => lockerIsOpen(l, market)).map((l) => l.name);
+}
+
 const flow = (netFlow: string | null) => {
   if (netFlow === null) return null;
   const n = BigInt(netFlow);
-  return { text: `${n > 0n ? "+" : n < 0n ? "−" : ""}${units(n < 0n ? -n : n, TOKEN_DECIMALS)} this season`, dir: n > 0n ? "up" : n < 0n ? "down" : "flat" };
+  const shown = tokenAmount(n < 0n ? -n : n, TOKEN_DECIMALS);
+  return { text: `${n > 0n ? "+" : n < 0n ? "−" : ""}${shown.label} RLAN this season`, title: `${shown.title} RLAN`, dir: n > 0n ? "up" : n < 0n ? "down" : "flat" };
 };
 
-/** "just now", "6 min ago", "3 h ago", "2 days ago": how old a read is, in a fan's words. */
-export function ago(ms: number): string {
-  const m = Math.max(0, Math.floor(ms / 60_000));
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} min ago`;
-  const h = Math.floor(m / 60);
-  if (h < 48) return `${h} h ago`;
-  return `${Math.floor(h / 24)} days ago`;
-}
+export { ago };
 
 /** Where and when the numbers were true, relative first; the exact time and slot are in the tooltip. */
 export function ObservedLine({ data, sample, now, onRefresh }: { data: { network: string; observedAt: string | null; slot: number | null; stale: boolean }; sample?: boolean; now?: number; onRefresh?: () => void }) {
@@ -61,7 +66,7 @@ export function ObservedLine({ data, sample, now, onRefresh }: { data: { network
     <p className={data.stale ? "meta-line meta-line--stale" : "meta-line"} role={data.stale ? "status" : undefined}>
       <Icon name={data.stale ? "clock" : "info"} size="sm" />
       <span title={exact}>{at === null ? `Solana ${data.network}: no read yet.` : `Read from Solana ${data.network} ${ago((now ?? Date.now()) - at)}.`}</span>
-      {data.stale && " The station has not refreshed it since."}
+      {data.stale && " Radio LAN has not refreshed it since."}
       {onRefresh && (data.stale || at === null) && (
         <button className="link-btn" type="button" onClick={onRefresh}>
           Refresh
@@ -76,18 +81,18 @@ function BackingCell({ l, read }: { l: Listing; read: LockerRead }) {
   const status = lockerStatus(l, read);
   if (status === "stale") return <span className="mkt__none">Locker status unavailable · last read is stale</span>;
   if (status === "unavailable") return <span className="mkt__none">Locker status unavailable · no current read</span>;
-  if (status === "closed") return <span className="mkt__none">Closed · no listed market is open</span>;
+  if (status === "closed") return <span className="mkt__none">{l.arena ? "Closed · this locker is not taking backing" : "No locker yet · this channel is not backable here"}</span>;
   if (!l.arena) return <span className="mkt__none">No verified backing read</span>;
   const f = flow(l.arena.netFlow);
   return (
     <>
-      <span className="mkt__num num">{rlan(l.arena.total)}</span>
+      <span className="mkt__num num" title={rlan(l.arena.total).title}>{rlan(l.arena.total).label}</span>
       <span className="mkt__sub">
         {fmt(Number(l.arena.backers))} {Number(l.arena.backers) === 1 ? "backer" : "backers"}
         {l.arena.requested > 0 && ` · ${l.arena.requested} leaving`}
         {l.arena.closed && " · closed"}
       </span>
-      {f && <span className={`mkt__flow mkt__flow--${f.dir}`}>{f.text}</span>}
+      {f && <span className={`mkt__flow mkt__flow--${f.dir}`} title={f.title}>{f.text}</span>}
     </>
   );
 }
@@ -109,21 +114,22 @@ function PerformanceCell({ l }: { l: Listing }) {
 
 function Row({ l, rank, market }: { l: Listing; rank: number | null; market: MarketData }) {
   const sample = market.sample;
+  // A channel with no arena has no locker cell to show; the group heading says so once instead of every row.
+  const hasLocker = Boolean(l.arena) || l.backingOpen || !l.twitch;
   return (
-    <li className={lockerIsOpen(l, market) ? "mkt__row mkt__row--open" : "mkt__row"}>
-      {/* A number only over the backable group: it ranks backing, never Twitch viewers. */}
-      {rank === null ? <span className="mkt__rank" aria-hidden="true" /> : <span className="mkt__rank num" aria-label={`Backing rank ${rank}`}>{rank}</span>}
+    <li className={[lockerIsOpen(l, market) ? "mkt__row mkt__row--open" : "mkt__row", rank !== null && "mkt__row--ranked", !hasLocker && "mkt__row--channel"].filter(Boolean).join(" ")}>
+      {rank !== null && <span className="mkt__rank num" aria-label={`Backing rank ${rank}`}>{rank}</span>}
       <a className="mkt__main" href={`#/s/${l.slug}`}>
         <span className="mkt__name">
           {l.name}
           {l.demo && <Tag kind="sample">Fictional creator</Tag>}
           {sample && <SampleTag />}
         </span>
-        <span className={l.twitch ? "mkt__cells" : "mkt__cells mkt__cells--one"}>
-          <span className="mkt__cell mkt__cell--backing">
+        <span className={l.twitch && hasLocker ? "mkt__cells" : "mkt__cells mkt__cells--one"}>
+          {hasLocker && <span className="mkt__cell mkt__cell--backing">
             <span className="label">Locker</span>
             <BackingCell l={l} read={market} />
-          </span>
+          </span>}
           {l.twitch && (
             <span className="mkt__cell">
               <span className="label">Twitch</span>
@@ -137,19 +143,17 @@ function Row({ l, rank, market }: { l: Listing; rank: number | null; market: Mar
   );
 }
 
-export function Market({ market, load, onRetry, station, now }: { market: MarketData | null; load: "loading" | "error" | "ready"; onRetry: () => void; station: Station; now: number }) {
+export function Market({ market, load, onRetry, station, now, streamerBoard = HUB_LEADERBOARD_ENABLED }: { market: MarketData | null; load: "loading" | "error" | "ready"; onRetry: () => void; station: Station; now: number; streamerBoard?: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [lane, setLane] = useState<string | null>(null);
   const { slugs: followed } = useFollowing();
 
   const head = (
-    <section className="hero hero--tight">
-      <p className="eyebrow">Discover</p>
-      <h1 className="h1" tabIndex={-1}>
-        One room. Your creators. Your record.
-      </h1>
-      <p className="lede">Follow creators, compare public Twitch reads, and find your season crew. Your free play record stays separate from wallet lockers.</p>
+    <section className="hero hero--discover">
+      <HubStory />
+      <BuyRlanBar variant="hero" />
+      <p className="small">Fans, creators, and AI agents share one room. Follow creators, compare public Twitch reads, and find your season crew. Season points are free. Backing is optional; an active position only changes the Play-credit weight described in How this works.</p>
     </section>
   );
   if (load === "loading") return <>{head}<Skeleton kinds={["block", "line", "line", "line"]} /></>;
@@ -178,10 +182,12 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
           <span className="feature__row">
             <span className="feature__name">{featured.name}</span>
             <Tag kind="soon">Featured</Tag>{market.sample && <SampleTag />}
-            <StationPill station={station} />
           </span>
           <span className="small">{featured.blurb ?? ""}</span>
-          <span className="feature__meta"><BackingCell l={featured} read={market} /></span>
+          <span className="mkt__cells feature__cells">
+            <span className="mkt__cell mkt__cell--backing"><span className="label">Locker · on chain</span><span className="feature__meta"><BackingCell l={featured} read={market} /></span></span>
+            <span className="mkt__cell"><span className="label">Twitch</span><span className="feature__meta"><StationPill station={station} /></span></span>
+          </span>
         </span>
         <Icon name="next" />
       </a>
@@ -197,15 +203,11 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
       <section className="room-paths" aria-label="Your Radio LAN universe">
         <a href="#/play"><Icon name="play" /><strong>Play the season</strong><span>Free site activities and real points</span></a>
         <a href="#/board"><Icon name="board" /><strong>Find your standing</strong><span>The room's points board</span></a>
-        <a href="#/circle"><Icon name="me" /><strong>Meet superfans</strong><span>Other fans of the same creators</span></a>
-        <a href="#/communities"><Icon name="me" /><strong>Communities</strong><span>Discord and X membership, when credentials exist</span></a>
-        <a href="#/me"><Icon name="star" /><strong>Collect your marks</strong><span>Badges and season history</span></a>
-        <a href="#/positions"><Icon name="wallet" /><strong>Your locker</strong><span>Own positions; backing adds no points</span></a>
+        {streamerBoard && <a href="#/leaderboard"><Icon name="stream" /><strong>Streamer board</strong><span>Channels ranked by season points. Chat is a labelled Twitch read.</span></a>}
       </section>
-      <p className="small locker-note">A backing locker is your own position and comes back 1:1. It stays closed until a listed market is open. <a href={`https://explorer.solana.com/address/${RLAN_MINT}`} target="_blank" rel="noopener noreferrer">RLAN mainnet mint</a> · <a href="https://clawpump.tech" target="_blank" rel="noopener noreferrer">ClawPump</a></p>
+      <p className="small">Rewards, the locker, and communities are in <HowLink />.</p>
       {market.sample && <p className="small"><SampleTag /> Fictional creators and backing for preview. No live locker is opened here.</p>}
-      <Collect listings={market.listings} followed={followed} />
-      <CreatorAffinity listings={market.listings} followed={followed} sample={Boolean(market.sample)} />
+      <section className="discover-controls" aria-label="Channel controls">
       <div className="mkt__controls">
         <div className="seg" role="group" aria-label="Show">
           {([["all", "All"], ["live", "Live now"], ["following", `Following (${following.length})`]] as const).map(([key, label]) => (
@@ -221,6 +223,7 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
         </label>
       </div>
       <Lanes listings={market.listings} lane={lane} onLane={setLane} />
+      </section>
       {filter === "following" ? (
         visible.length === 0 ? <EmptyBlock icon="star" title="Your watchlist" text="Follow creators to keep them here. Following is saved in this browser and adds no points." /> :
         <ul className="mkt" aria-label="Following">{visible.map((l) => <Row key={l.slug} l={l} rank={null} market={market} />)}</ul>
@@ -240,6 +243,7 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
             Channels · {twitchOnly.length} {twitchOnly.length === 1 ? "channel" : "channels"}
             {liveCount > 0 && `, ${liveCount} live`}
           </h2>
+          {twitchOnly.every((l) => !l.arena && !l.backingOpen) && <p className="small mkt__group-note">Twitch status only. None of these channels has a locker yet, so backing is not open for them here.</p>}
           <ul className="mkt" aria-labelledby="h-channels">
             {twitchOnly.map((l) => (
               <Row key={l.slug} l={l} rank={null} market={market} />
@@ -260,10 +264,11 @@ export function Market({ market, load, onRetry, station, now }: { market: Market
         </details>
       ))}
       {open.length === 0 && twitchOnly.length === 0 && (narrowed ? <EmptyBlock icon="board" title="Nothing matches" text="Try another filter or search." /> : <p className="small mkt__empty">No channels match the current read yet.</p>)}
-
+      
       </>}
-      <RevenueStory />
-      <p className="small fine">Following lives in this browser. Backing adds no points. <HowLink /></p>
+      <Collect listings={market.listings} followed={followed} />
+      <CreatorAffinity listings={market.listings} followed={followed} sample={Boolean(market.sample)} />
+      <p className="small fine">{FOLLOWING_LOCAL} {BACKING_BOOST} <HowLink /></p>
     </>
   );
 }

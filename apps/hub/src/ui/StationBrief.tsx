@@ -5,8 +5,8 @@ import type { Market } from "../data/market";
 export function StationBrief(props: { station: Station; market: Market | null; now: number; sample?: boolean }) {
   const { station, sample = false } = props;
   return <div className="station-brief">
-    {sample ? <p>The station brief uses current reads outside this preview.</p> : <>
-      <p>{station.status === "ready" ? `The station is ${station.live ? "live" : "offline"}.` : "The station status is not available right now."}</p>
+    {sample ? <p>The channel brief uses current reads outside this preview.</p> : <>
+      <p>{station.status === "ready" ? `Twitch lists this channel as ${station.live ? "live" : "offline"}.` : "The channel status is not available right now."}</p>
       <p className="small">Data: Twitch</p>
     </>}
     <div className="lan-guide__links"><a href="#/play">Play this season</a></div>

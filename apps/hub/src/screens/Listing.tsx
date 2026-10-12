@@ -5,13 +5,13 @@ import { sparkline, type Listing as ListingData } from "../data/market";
 import { weekBars } from "../data/slate";
 import type { Station } from "../data/station";
 import type { HubSnapshot } from "../data/types";
-import { duration, fmt, units, utc } from "../lib/format";
+import { duration, fmt, tokenAmount, units, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Fact, Icon, PageHead, SampleTag, Skeleton, Stat, Tag } from "../ui/atoms";
 import { AddToChannel } from "../ui/AddToChannel";
 import { YourPage } from "../ui/YourPage";
 import { Player } from "../ui/Player";
 import { FollowButton } from "../ui/FollowButton";
-import { HowLink } from "../ui/HowItWorks";
+import { HowLink, SUPPORT_BOOST_COPY } from "../ui/HowItWorks";
 import { SeasonCard, SeasonNotOpen } from "../ui/SeasonCard";
 import { TOKEN_DECIMALS } from "../chain/config";
 import { ago, ObservedLine } from "./Market";
@@ -37,7 +37,7 @@ export function ChannelPanel({ l, station, sample, now = Date.now() }: { l: List
             <Stat label="Playing" value={p.live && p.game ? p.game : "—"} word />
           </div>
           {p.week && p.week.some((v) => v !== null) && <WeekChart week={p.week} now={now} />}
-          <p className="small fine">{p.provenance}</p>
+          <p className="small fine">{p.provenance.replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, (iso) => utc(Date.parse(iso)))}</p>
         </>
       )}
     </section>
@@ -91,8 +91,8 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
         </>
       ) : (
         <>
-          <div className="stats">
-            <Stat label="Backed, RLAN" value={<span className="num">{units(BigInt(a.total), TOKEN_DECIMALS)}</span>} note={a.netFlow === null ? undefined : `${BigInt(a.netFlow) >= 0n ? "+" : "−"}${units(BigInt(a.netFlow) < 0n ? -BigInt(a.netFlow) : BigInt(a.netFlow), TOKEN_DECIMALS)} this season`} />
+          <div className="stats stats--lead">
+            <Stat label="Backed, RLAN" value={<span className="num" title={`${tokenAmount(BigInt(a.total), TOKEN_DECIMALS).title} RLAN`}>{tokenAmount(BigInt(a.total), TOKEN_DECIMALS).label}</span>} note={a.netFlow === null ? undefined : `${BigInt(a.netFlow) >= 0n ? "+" : "−"}${units(BigInt(a.netFlow) < 0n ? -BigInt(a.netFlow) : BigInt(a.netFlow), TOKEN_DECIMALS)} this season`} />
             <Stat label="Backers" value={fmt(Number(a.backers))} note="Wallets, not people" />
             <Stat label="Leaving" value={fmt(a.requested)} note="Withdrawal requests" />
           </div>
@@ -119,7 +119,7 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
               On-chain season {a.season} · {duration(Number(a.seasonSeconds))} each
               {!a.closed && ` · next release ${utc(Number(withdrawAvailableAt(BigInt(a.seasonStart), BigInt(a.seasonSeconds), seasonIndex(BigInt(a.seasonStart), BigInt(a.seasonSeconds), nowSeconds))) * 1000)}`}
             </Fact>
-            <Fact label="Rule">Request withdrawal anytime; it is available when the on-chain season you asked in ends. Depositing again cancels a pending request. {a.closed ? "This arena is closed: every position is available now." : "If the arena closes, every position unlocks at once."}</Fact>
+            <Fact label="Rule">Withdraw in two steps: request, then withdraw when the on-chain season you requested in ends. Depositing again cancels a pending request. {a.closed ? "This arena is closed: every position is available now." : "If the arena closes, every position unlocks at once."}</Fact>
           </dl>
           <div className="actions">
             {a.closed ? (
@@ -142,7 +142,7 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
 export function Listing({ listing, observed, load, onRetry, station, now, snapshot, onJoin, slug }: {
   listing: ListingData | null;
   observed: { network: string; observedAt: string | null; slot: number | null; stale: boolean; sample?: boolean } | null;
-  load: "loading" | "error" | "ready";
+  load: "loading" | "error" | "ready" | "missing";
   onRetry: () => void;
   station: Station;
   now: number;
@@ -159,7 +159,7 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
   );
   if (load === "loading") return <><PageHead title={slug} before={crumb} /><Skeleton kinds={["block", "block"]} /></>;
   if (load === "error") return <><PageHead title={slug} before={crumb} /><ErrorBlock text="This listing didn't load. Nothing on chain changed." onRetry={onRetry} /></>;
-  if (!listing || !observed) {
+  if (load === "missing" || !listing || !observed) {
     return (
       <EmptyBlock icon="stream" title="No listing here" text="Only creators on the board have a page.">
         <a className="btn" href="#/">
@@ -203,10 +203,10 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
             <h2 className="h2" id="h-free-season">
               Season · points
             </h2>
-            <span className="label">Free · separate from backing</span>
+            <span className="label">Free · backing is optional</span>
           </div>
-          {season ? <SeasonCard season={season} now={now} onJoin={onJoin} backingOpen={listing.backingOpen} sample={snapshot?.scenario === "sample"} /> : <SeasonNotOpen backingOpen={listing.backingOpen} />}
-          <p className="small fine">Points come from activities on this site. Backing does not add points. {season && <a href="#/board">See the points board</a>}{season && " · "}<a href="#/play">Play</a>{season && <> · <a href="#/circle">Meet superfans</a></>}</p>
+          {season ? <SeasonCard season={season} now={now} onJoin={onJoin} primaryAction={false} backingOpen={listing.backingOpen} sample={snapshot?.scenario === "sample"} /> : <SeasonNotOpen backingOpen={listing.backingOpen} />}
+          <p className="small fine">Points come from activities on this site. {SUPPORT_BOOST_COPY} {season && <a href="#/board">See the points board</a>}{season && " · "}<a href="#/play">Play</a>{season && <> · <a href="#/circle">Meet superfans</a></>}</p>
         </section>
       )}
       {listing.claimed && !listing.demo && <YourPage listing={listing} />}

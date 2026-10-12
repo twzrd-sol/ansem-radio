@@ -1,3 +1,4 @@
+import { fmt } from "../lib/format";
 import type { CurrentSeason } from "./types";
 
 export type SeasonPhase = "upcoming" | "open" | "closed";
@@ -25,10 +26,27 @@ export function nextSeasonAction(season: CurrentSeason, now: number): string {
 export const isPlaceholderSeason = (season: Pick<CurrentSeason, "poll"> | null | undefined): boolean =>
   Boolean(season?.poll?.placeholder);
 
-/** Play and the points Board share this eyebrow. Season 2 is the devnet points season, even on the mainnet creator board. */
-export function pointsSeasonEyebrow(season: Pick<CurrentSeason, "number" | "poll">): string {
-  if (season.number === 2) return `Season 2 · Solana devnet · Radio LAN`;
+/** The label follows the published season network, independently of the creator-board network. */
+export const pointsSeasonNetworkLabel = (season: Pick<CurrentSeason, "network">): string | null =>
+  season.network === "mainnet" ? "Solana mainnet" : season.network === "devnet" ? "Solana devnet" : null;
+
+/** One calm line naming the points season's network, for the fine print of Play and the board; null when the API gave none. */
+export const pointsSeasonNetworkLine = (season: Pick<CurrentSeason, "network">): string | null => {
+  const network = pointsSeasonNetworkLabel(season);
+  return network ? `Points season on ${network} · free to play` : null;
+};
+
+/** The page eyebrow: season and station. The network is stated once on the season card and in the standing's fine print. */
+export function pointsSeasonEyebrow(season: Pick<CurrentSeason, "number" | "network">): string {
   return `Season ${season.number} · Radio LAN`;
+}
+
+/**
+ * Joined accounts vs published board rows. `players` is everyone who joined (including 0 points).
+ * Board rows are the fans with credited site play. Credited-activity totals are never a people count.
+ */
+export function seasonStandingLabel(season: Pick<CurrentSeason, "players" | "board">): string {
+  return `${fmt(season.players)} joined · ${fmt(season.board.length)} on the board`;
 }
 
 /** The published points schedule, not the backing arena's withdrawal schedule. */
@@ -38,6 +56,6 @@ export function seasonCalendar(season: Pick<CurrentSeason, "number" | "opensAt" 
     `UID:season-${season.number}-${season.opensAt}@radiolan`, `DTSTAMP:${stamp(season.opensAt)}`,
     `DTSTART:${stamp(season.opensAt)}`, `DTEND:${stamp(season.freezesAt)}`,
     `SUMMARY:Radio LAN season ${season.number}`, "DESCRIPTION:Free activities on Radio LAN. Join when the season opens.",
-    "URL:https://twzrd.xyz/hub/#/play", "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
+    "URL:https://radiolan.live/hub/#/play", "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
   return `data:text/calendar;charset=utf-8,${encodeURIComponent(event)}`;
 }

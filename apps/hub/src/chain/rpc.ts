@@ -9,11 +9,11 @@ export interface RpcPort {
   genesisHash(): Promise<string>;
   latestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight: bigint }>;
   blockHeight(): Promise<bigint>;
-  simulate(wire: Uint8Array): Promise<{ error: SimulationError | null; logs: string[] }>;
+  simulate(wire: Uint8Array, options?: { sigVerify?: boolean }): Promise<{ error: SimulationError | null; logs: string[] }>;
   send(signedWire: Uint8Array): Promise<string>;
   /** `history` searches the node's ledger history, for signatures older than its recent-status cache. */
   status(signature: string, options?: { history?: boolean }): Promise<"confirmed" | "failed" | "pending">;
-  account(at: Address): Promise<{ data: Uint8Array; lamports: bigint } | null>;
+  account(at: Address): Promise<{ data: Uint8Array; lamports: bigint; owner?: string; executable?: boolean } | null>;
   rentExemption(size: number): Promise<bigint>;
   /** The fan's token account for the mint with the largest balance, or null. */
   tokenAccount(owner: Address, mint: Address): Promise<{ address: Address; amount: bigint } | null>;
@@ -30,7 +30,24 @@ export function simulationError(err: unknown): SimulationError | null {
   return { message: typeof err === "string" ? err : JSON.stringify(err, (_k, v) => (typeof v === "bigint" ? v.toString() : v)) };
 }
 
-const fromBase64 = (b64: string) => new Uint8Array(getBase64Encoder().encode(b64));
+const fromBase64 = (b64: string) => {
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(b64)) throw new TypeError("RPC returned malformed base64 account data");
+  const bytes = new Uint8Array(getBase64Encoder().encode(b64));
+  if (btoa(String.fromCharCode(...bytes)) !== b64) throw new TypeError("RPC returned non-canonical base64 account data");
+  return bytes;
+};
+
+export function decodeAccountData(data: unknown): Uint8Array {
+  if (!Array.isArray(data) || typeof data[0] !== "string" || data[1] !== "base64") throw new TypeError("RPC returned account data with an unexpected encoding");
+  return fromBase64(data[0]);
+}
+
+/**
+ * LiveBack reads an arena (112), a position (104), or a support account (165).
+ * The hub relay rejects getAccountInfo unless dataSlice.length is 1..256.
+ * A slice longer than the account comes back as the account's own bytes.
+ */
+export const HUB_ACCOUNT_SLICE = 165;
 
 export function kitRpc(url: string): RpcPort {
   const absolute = typeof window === "undefined" ? url : new URL(url, window.location.origin).toString();
@@ -45,8 +62,8 @@ export function kitRpc(url: string): RpcPort {
       return { blockhash: value.blockhash, lastValidBlockHeight: value.lastValidBlockHeight };
     },
     blockHeight: () => rpc.getBlockHeight({ commitment: "confirmed" }).send(),
-    async simulate(wire) {
-      const { value } = await rpc.simulateTransaction(wireBase64(wire), { encoding: "base64", sigVerify: false, replaceRecentBlockhash: false, commitment: "confirmed" }).send();
+    async simulate(wire, options) {
+      const { value } = await rpc.simulateTransaction(wireBase64(wire), { encoding: "base64", sigVerify: options?.sigVerify ?? false, replaceRecentBlockhash: false, commitment: "confirmed" }).send();
       return { error: simulationError(value.err), logs: [...(value.logs ?? [])] };
     },
     async send(signedWire) {
@@ -60,17 +77,12 @@ export function kitRpc(url: string): RpcPort {
       return s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized" ? "confirmed" : "pending";
     },
     async account(at) {
-      const { value } = await rpc.getAccountInfo(at, { encoding: "base64", commitment: "confirmed" }).send();
-      return value ? { data: fromBase64(value.data[0]), lamports: value.lamports } : null;
+      const { value } = await rpc.getAccountInfo(at, { encoding: "base64", commitment: "confirmed", dataSlice: { offset: 0, length: HUB_ACCOUNT_SLICE } }).send();
+      if (!value) return null;
+      return { data: decodeAccountData(value.data), lamports: value.lamports, owner: value.owner, executable: value.executable };
     },
     rentExemption: (size) => {
-      const cached = rent.get(size);
-      if (cached) return cached;
-      // A failed read is not cached, so the next deposit prepare retries instead of failing until reload.
-      const known = rpc.getMinimumBalanceForRentExemption(BigInt(size)).send().catch((error: unknown) => {
-        rent.delete(size);
-        throw error;
-      });
+      const known = rent.get(size) ?? rpc.getMinimumBalanceForRentExemption(BigInt(size)).send();
       rent.set(size, known);
       return known;
     },

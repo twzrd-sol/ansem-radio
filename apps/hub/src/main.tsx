@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import "./styles/hub.css";
+import "./styles/tape.css";
+import "./styles/chrome.css";
 import { App } from "./app/App";
 import { ARENA_MINT } from "./chain/config";
 import { captureTwitchCallback } from "./data/twitch-link";

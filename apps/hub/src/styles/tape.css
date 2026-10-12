@@ -1,0 +1,65 @@
+/* Activity tape: same ink/cream/amber tokens as the hub. Amber only. */
+
+.tape { display: grid; gap: var(--space-4); }
+.tape__rule { margin: -8px 0 0; color: var(--color-cream-2); }
+.tape__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.tape__net { color: var(--color-amber); font: 600 var(--text-label)/1 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; }
+.tape__live { font: 600 var(--text-label)/1 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-cream-3); }
+.tape__live--on { color: var(--color-amber); }
+
+.tape__ticker {
+  overflow: hidden;
+  border: 1px solid var(--color-line-2);
+  background: var(--color-ink-1);
+  color: var(--color-amber);
+  font: 600 var(--text-small)/1.2 var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.tape__ticker--empty,
+.tape__ticker--static { padding: 12px 14px; color: var(--color-cream-2); }
+.tape__ticker--static { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.tape__marquee { display: flex; width: max-content; animation: tape-scroll 32s linear infinite; }
+.tape__marquee > div { display: flex; gap: 28px; padding: 12px 20px; }
+.tape__tick { white-space: nowrap; }
+
+@keyframes tape-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tape__marquee { animation: none; }
+}
+
+.tape__table { width: 100%; border-collapse: collapse; }
+.tape__table th,
+.tape__table td { padding: 10px 8px; border-bottom: 1px solid var(--color-line); text-align: left; vertical-align: middle; }
+.tape__table thead th { font: 600 var(--text-label)/1.2 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-cream-3); }
+.tape__spark { display: block; width: 120px; height: 36px; }
+.tape__spark polyline { stroke: var(--color-amber); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.tape__spark--empty { color: var(--color-cream-3); font-size: var(--text-caption); }
+
+.tape__feed { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.tape__feed li {
+  display: grid;
+  grid-template-columns: 7rem 7rem minmax(0, 1fr);
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  background: var(--color-ink-1);
+  font-size: 14px;
+}
+.tape__feed li span:last-child { grid-column: 1 / -1; color: var(--color-cream-2); }
+.tape__kind { font: 600 var(--text-label)/1.2 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-amber); }
+
+@media (max-width: 639px) {
+  .tape__feed li { grid-template-columns: 1fr 1fr; }
+  .tape__spark { width: 88px; }
+}
+
+.tape__ticker, .tape__feed li { border-radius: var(--radius-control); }
+.tape__feed li { background: var(--color-panel); overflow-wrap: anywhere; }
+.tape__table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tape .section { margin-top: var(--space-4); min-width: 0; }
+.tape__tick { max-width: 100%; }
+.tape__ticker--static .tape__tick { white-space: normal; overflow-wrap: anywhere; }

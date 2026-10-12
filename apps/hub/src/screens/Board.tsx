@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { pointsSeasonEyebrow } from "../data/season";
+import { pointsSeasonEyebrow, pointsSeasonNetworkLine } from "../data/season";
 import type { HubSnapshot, PastSeason, PlayBadge } from "../data/types";
 import { showsMoney } from "../data/types";
 import { EarnedBadges } from "../ui/Collector";
@@ -62,7 +62,7 @@ function LastSeason({ last, sample }: { last: PastSeason; sample: boolean }) {
 export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapshot | null; load: "loading" | "error" | "ready"; joined: boolean; onRetry: () => void }) {
   const [tab, setTab] = useState<"this" | "last">("this");
   const season = snapshot?.season ?? null;
-  const head = <PageHead eyebrow={season ? pointsSeasonEyebrow(season) : "Radio LAN"} title="Board" lede="Season standing, not redeemable. Joined fans rank by credited site play. Backing adds no points. Meet superfans of the same season on the circle." />;
+  const head = <PageHead eyebrow={season ? pointsSeasonEyebrow(season) : "Radio LAN"} title="Board" lede="Season standing, not redeemable. Joined fans rank by credited site play. Active linked RLAN support can boost eligible site credit, within caps. Meet superfans of the same season on the circle." />;
   if (load === "loading") return <>{head}<Skeleton kinds={["line", "line", "line", "line", "line"]} /></>;
   if (load === "error" || !snapshot) return <>{head}<ErrorBlock text="The board didn't load. Scores are unchanged." onRetry={onRetry} /></>;
   if (!season) return <>{head}<EmptyBlock icon="board" title="No board yet" text="The first board appears when the first season opens. A closed season keeps a provisional record of site play." /></>;
@@ -83,6 +83,7 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
               <span className="label">{fmt(season.players)} joined players · provisional points so far</span>
               {snapshot.scenario === "sample" && <SampleTag />}
             </div>
+            {pointsSeasonNetworkLine(season) && <p className="small board-net">{pointsSeasonNetworkLine(season)}</p>}
             {snapshot.scenario === "sample" && <p className="small"><SampleTag /> Fictional handles, points and ranks. Return to today for the live board.</p>}
             {season.board.length === 0 ? (
               <EmptyBlock icon="board" title="No points yet" text={joined && season.me ? `Your points so far: ${fmt(season.me.points)}. The provisional board updates as activities are credited.` : "Nobody has played this season yet. Be the first, or look at a sample season with made-up data."}>
@@ -97,6 +98,7 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
                 {joined && season.me && season.me.rank !== null && season.me.rank > season.board.length && snapshot.fan && <Row rank={season.me.rank} name={`${snapshot.fan.handle} (you)`} points={season.me.points} me badges={snapshot.fan.badges} streakDays={snapshot.fan.streakDays} />}
               </ol>
             )}
+            {season.board.length > 0 && season.players > season.board.length && <p className="small">{season.board.length >= 10 ? `The top ${season.board.length} are listed.` : "Players with no credited points yet are not listed."}</p>}
             {joined && season.me?.rank === null && snapshot.fan && <p className="note">{snapshot.fan.handle} · You are here · {fmt(season.me.points)} points · Unranked until your first credit. <a href="#/play">Play free</a></p>}
           </>
         ) : snapshot.lastSeason ? (
@@ -105,7 +107,7 @@ export function Board({ snapshot, load, joined, onRetry }: { snapshot: HubSnapsh
           <EmptyBlock icon="board" title="No closed season yet" text="Results show here once a season closes." />
         )}
       </div>
-      <p className="small fine"><a href="#/circle">Meet superfans</a> of the same season.</p>
+      <p className="small fine"><span><a href="#/circle">Meet superfans</a> of the same season.</span></p>
     </>
   );
 }
