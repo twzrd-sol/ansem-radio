@@ -2,6 +2,10 @@
 // check, wallet chain, explorer link and featured mint.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { MAINNET_VAULT_ADDRESSES, vaultAddressesFromEnv } from "../data/day-zero";
+import { claimBuildFromEnv, GENESIS } from "./config";
+import { MAINNET_CLAIM_RECORDED, refuseMainnetHubOverrides } from "./mainnet-claim-lock";
+
 const load = async (network?: string) => {
   vi.resetModules();
   vi.unstubAllEnvs();
@@ -37,6 +41,95 @@ describe("network as a build input", () => {
     const { arenaPda } = await import("./arena");
     const { address } = await import("@solana/kit");
     expect((await arenaPda(address(c.ARENA_STREAMER), address(c.ARENA_MINT!)))[0]).toBe(c.OFFICIAL_ARENA_MAINNET);
+  });
+
+  it("local Collect rehearsal skips the public genesis pin unless one is set", async () => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubEnv("VITE_HUB_LOCAL_CLAIM", "1");
+    const local = await import("./config");
+    expect(local.LOCAL_CLAIM).toBe(true);
+    expect(local.CLAIM_GENESIS_HASH).toBeNull();
+    expect(local.IS_MAINNET).toBe(false);
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubEnv("VITE_HUB_LOCAL_CLAIM", "1");
+    vi.stubEnv("VITE_HUB_CLAIM_GENESIS", "LocalGenesisHash111111111111111111111111111");
+    const pinned = await import("./config");
+    expect(pinned.CLAIM_GENESIS_HASH).toBe("LocalGenesisHash111111111111111111111111111");
+  });
+
+  it("a mainnet build refuses Collect target overrides", () => {
+    expect(MAINNET_CLAIM_RECORDED.genesis).toBe(GENESIS.mainnet);
+    expect(MAINNET_CLAIM_RECORDED.vault).toBe(MAINNET_VAULT_ADDRESSES.vault);
+    expect(() => refuseMainnetHubOverrides({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_ICELAN_VAULT: "11111111111111111111111111111111",
+    })).toThrow(/refuses Collect target overrides/);
+    refuseMainnetHubOverrides({ VITE_HUB_NETWORK: "mainnet" });
+    refuseMainnetHubOverrides({ VITE_HUB_NETWORK: "devnet", VITE_HUB_ICELAN_VAULT: "11111111111111111111111111111111" });
+    const unset = claimBuildFromEnv({ VITE_HUB_NETWORK: "mainnet" });
+    expect(unset.localClaim).toBe(false);
+    expect(unset.claimGenesisHash).toBe(GENESIS.mainnet);
+    expect(vaultAddressesFromEnv({ VITE_HUB_NETWORK: "mainnet" })).toEqual(MAINNET_VAULT_ADDRESSES);
+
+    const leftovers = claimBuildFromEnv({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_LOCAL_CLAIM: "0",
+      VITE_HUB_CLAIM_GENESIS: "   ",
+    });
+    expect(leftovers.localClaim).toBe(false);
+    expect(leftovers.claimGenesisHash).toBe(GENESIS.mainnet);
+    expect(vaultAddressesFromEnv({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_LOCAL_CLAIM: "1",
+      VITE_HUB_CLAIM_GENESIS: "0",
+      VITE_HUB_REWARDS_PROGRAM: "",
+      VITE_HUB_ICELAN_MINT: "  ",
+      VITE_HUB_ICELAN_VAULT: "0",
+      VITE_HUB_ICELAN_VAULT_TOKENS: undefined,
+    })).toEqual(MAINNET_VAULT_ADDRESSES);
+
+    const leftoverLocal = claimBuildFromEnv({ VITE_HUB_NETWORK: "mainnet", VITE_HUB_LOCAL_CLAIM: "1" });
+    expect(leftoverLocal.localClaim).toBe(true);
+    expect(leftoverLocal.claimGenesisHash).toBe(GENESIS.mainnet);
+
+    expect(claimBuildFromEnv({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_CLAIM_GENESIS: GENESIS.mainnet,
+    }).claimGenesisHash).toBe(GENESIS.mainnet);
+    expect(() => claimBuildFromEnv({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_LOCAL_CLAIM: "1",
+      VITE_HUB_CLAIM_GENESIS: "LocalGenesisHash111111111111111111111111111",
+    })).toThrow(/refuses Collect target overrides/);
+    expect(() => vaultAddressesFromEnv({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_ICELAN_VAULT: "11111111111111111111111111111111",
+    })).toThrow(/refuses Collect target overrides/);
+    expect(vaultAddressesFromEnv({
+      VITE_HUB_NETWORK: "mainnet",
+      VITE_HUB_ICELAN_VAULT: MAINNET_VAULT_ADDRESSES.vault,
+    })).toEqual(MAINNET_VAULT_ADDRESSES);
+  });
+
+  it("a mainnet module load refuses a differing claim genesis", async () => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubEnv("VITE_HUB_NETWORK", "mainnet");
+    vi.stubEnv("VITE_HUB_CLAIM_GENESIS", "LocalGenesisHash111111111111111111111111111");
+    await expect(import("./config")).rejects.toThrow(/refuses Collect target overrides/);
+  });
+
+  it("a mainnet module load keeps the mainnet genesis pin when LOCAL_CLAIM is leftover", async () => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubEnv("VITE_HUB_NETWORK", "mainnet");
+    vi.stubEnv("VITE_HUB_LOCAL_CLAIM", "1");
+    const c = await import("./config");
+    expect(c.IS_MAINNET).toBe(true);
+    expect(c.LOCAL_CLAIM).toBe(true);
+    expect(c.CLAIM_GENESIS_HASH).toBe(c.GENESIS.mainnet);
   });
 
   it("anything but 'mainnet' stays devnet", async () => {

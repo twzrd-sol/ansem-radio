@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { buildSample } from "./data/sample";
-import { nextSeasonAction } from "./data/season";
+import { nextSeasonAction, pointsSeasonEyebrow, seasonStandingLabel } from "./data/season";
 import { Play } from "./screens/Play";
 import { SeasonCard } from "./ui/SeasonCard";
 
@@ -29,10 +29,11 @@ describe("a published season opens at its actual start", () => {
     expect(html).not.toContain(">Join free<");
   });
 
-  it("turns into live activity cards at the exact start", () => {
+  it("keeps ICELAN task rewards on Profile when the season opens", () => {
     const html = play(opensAt);
-    expect(html).toContain("<textarea");
-    expect(html).toContain("Lock in answer");
+    expect(html).toContain("separate ICELAN task rewards on Profile");
+    expect(html).not.toContain("Link Twitch");
+    expect(html).toContain("Answer the prompt");
     expect(html).not.toContain("Add to calendar");
   });
 
@@ -64,5 +65,18 @@ describe("a published season opens at its actual start", () => {
     expect(html).not.toContain("tag--sample");
     expect(html).not.toContain("$RLAN");
     expect(html).not.toContain("mainnet");
+  });
+
+  it("names joined accounts and board rows separately, without treating credited activities as people", () => {
+    expect(seasonStandingLabel({ players: 6, board: [["a", 20], ["b", 20], ["c", 10], ["d", 10]] })).toBe("6 joined · 4 on the board");
+    expect(seasonStandingLabel({ players: 6, board: [["a", 20], ["b", 20], ["c", 10], ["d", 10]] })).not.toMatch(/credited/);
+    expect(seasonStandingLabel({ players: 2, board: [["a", 10], ["b", 5]] })).toBe("2 joined · 2 on the board");
+  });
+
+  it("takes the points-season cluster from the API network field", () => {
+    expect(pointsSeasonEyebrow({ number: 2, network: "devnet" })).toBe("Season 2 · Radio LAN");
+    expect(pointsSeasonEyebrow({ number: 2, network: "mainnet" })).toBe("Season 2 · Radio LAN");
+    expect(pointsSeasonEyebrow({ number: 2 })).toBe("Season 2 · Radio LAN");
+    expect(pointsSeasonEyebrow({ number: 4, network: "devnet" })).toBe("Season 4 · Radio LAN");
   });
 });

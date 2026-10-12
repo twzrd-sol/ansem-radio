@@ -3,8 +3,13 @@
 // to something a fan owns; a Twitch row is display only and travels as its own object with its provenance line.
 import { useCallback, useEffect, useState } from "react";
 
-import { withdrawAvailableAt } from "../chain/season";
+import { HUB_SEASON_SECONDS, matchesHubSchedule, withdrawAvailableAt } from "../chain/season";
 import { API_BASE, HubApiError } from "./api";
+
+/** 404 / no_such_listing means the slug has no page yet. Network and 5xx stay errors. */
+export function isMissingListing(error: unknown): boolean {
+  return error instanceof HubApiError && (error.status === 404 || error.code === "no_such_listing");
+}
 import { watchVisible } from "./refresh";
 
 export type ListingKind = "featured" | "tracked" | "demo";
@@ -103,15 +108,48 @@ export const isAddress = (text: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const read = async <T>(fetchImpl: Fetch, path: string): Promise<T> => {
   const response = await fetchImpl(`${API_BASE}${path}`, { credentials: "same-origin", cache: "no-store" });
-  const parsed = await response.json().then((value: unknown) => ({ ok: true as const, value }), () => ({ ok: false as const, value: { error: "bad_response" } }));
-  const json = parsed.value as Record<string, unknown>;
+  const json = (await response.json().catch(() => ({ error: "bad_response" }))) as Record<string, unknown>;
   if (!response.ok) throw new HubApiError(response.status, String(json.error ?? "request_failed"), typeof json.detail === "string" ? json.detail : undefined);
-  if (!parsed.ok) throw new HubApiError(response.status, "bad_response");
   return json as T;
 };
 
-export const fetchMarket = (fetchImpl: Fetch = fetch) => read<Market>(fetchImpl, "/market");
-export const fetchListing = (slug: string, fetchImpl: Fetch = fetch) => read<ListingDetail>(fetchImpl, `/market/${encodeURIComponent(slug)}`);
+/** "Radio LAN", "A and B", or "3 listed creators": who backing is open for; "listed creators" when nothing is named. */
+export function openForLabel(names: readonly string[]): string {
+  if (names.length === 0) return "listed creators";
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.length} listed creators`;
+}
+
+export function anyBackingOpen(market: { listings?: Array<{ backingOpen?: boolean }> | null } | null | undefined): boolean {
+  return Boolean(market?.listings?.some((listing) => listing.backingOpen));
+}
+
+/**
+ * A listing surfaces its arena only when the stored pair is the hub Monday / 7-day
+ * schedule. First-opener squats stay on chain (permanent, rent only) and stay invisible.
+ * The featured station listing is the exception: a real 7-day arena that is open and
+ * whose keys match stays visible even when its start is not Monday 00:00 UTC.
+ */
+export function surfaceListing(listing: Listing): Listing {
+  if (!listing.arena) return listing;
+  const seconds = BigInt(listing.arena.seasonSeconds);
+  const start = BigInt(listing.arena.seasonStart);
+  if (matchesHubSchedule(start, seconds)) return listing;
+  const keysMatch = listing.keys?.streamer === listing.arena.streamer && listing.keys?.mint === listing.arena.mint;
+  if (listing.kind === "featured" && !listing.arena.closed && seconds === HUB_SEASON_SECONDS && keysMatch) return listing;
+  return { ...listing, arena: null, backingOpen: false };
+}
+
+export const fetchMarket = async (fetchImpl: Fetch = fetch): Promise<Market> => {
+  const market = await read<Market>(fetchImpl, "/market");
+  if (!Array.isArray(market?.listings)) throw new HubApiError(502, "bad_response");
+  return { ...market, listings: market.listings.map(surfaceListing) };
+};
+export const fetchListing = async (slug: string, fetchImpl: Fetch = fetch): Promise<ListingDetail> => {
+  const detail = await read<ListingDetail>(fetchImpl, `/market/${encodeURIComponent(slug)}`);
+  return { ...detail, listing: surfaceListing(detail.listing) };
+};
 export const fetchPositions = (fan: string, fetchImpl: Fetch = fetch) => {
   if (!isAddress(fan)) return Promise.reject(new HubApiError(400, "fan_address_required"));
   return read<FanPositions>(fetchImpl, `/market/positions?fan=${fan}`);
@@ -161,6 +199,7 @@ export function sparkline(points: Array<{ total: string }>, width = 200, height 
 }
 
 type Load = "loading" | "error" | "ready";
+type ListingLoad = Load | "missing";
 
 /** The live market, refreshed every minute while the tab is visible. Off in a design preview. */
 export function useMarket(enabled: boolean, fetchImpl: Fetch = fetch): { load: Load; market: Market | null; refresh: () => Promise<void> } {
@@ -182,16 +221,17 @@ export function useMarket(enabled: boolean, fetchImpl: Fetch = fetch): { load: L
 }
 
 /** One listing with its history. */
-export function useListing(slug: string | null, enabled: boolean, fetchImpl: Fetch = fetch): { load: Load; detail: ListingDetail | null; refresh: () => Promise<void> } {
-  const [load, setLoad] = useState<Load>("loading");
+export function useListing(slug: string | null, enabled: boolean, fetchImpl: Fetch = fetch): { load: ListingLoad; detail: ListingDetail | null; refresh: () => Promise<void> } {
+  const [load, setLoad] = useState<ListingLoad>("loading");
   const [detail, setDetail] = useState<ListingDetail | null>(null);
   const refresh = useCallback(async () => {
     if (!slug) return;
     try {
       setDetail(await fetchListing(slug, fetchImpl));
       setLoad("ready");
-    } catch {
-      setLoad("error");
+    } catch (error) {
+      setDetail(null);
+      setLoad(isMissingListing(error) ? "missing" : "error");
     }
   }, [slug, fetchImpl]);
   useEffect(() => {

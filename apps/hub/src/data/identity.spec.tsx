@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { createHubApi } from "./api";
 import { captureTwitchCallback, completeTwitchCallback, startTwitchLink, TWITCH_PENDING } from "./twitch-link";
-import { IdentityFacts } from "../ui/IdentityLinks";
+import { IdentityFacts, loadLinkedIdentities } from "../ui/IdentityLinks";
 
 const accountId = "a".repeat(64);
 const NOW = 1_791_025_000;
@@ -70,18 +70,33 @@ describe("optional account links", () => {
     expect(JSON.stringify(callback)).not.toContain("private-text");
     expect(h.calls.some((c) => c.path.endsWith("/finish"))).toBe(false);
   });
+  it("does not navigate to a non-Twitch authorize URL or honor an open-redirect query", async () => {
+    const fetchImpl = async (path: string) => {
+      if (path.endsWith("/me")) return new Response(JSON.stringify({ accountId, csrf: "csrf" }));
+      if (path.endsWith("/twitch/start")) return new Response(JSON.stringify({ url: "https://evil.example/oauth2/authorize?state=pending", state: "pending", expiresAt: NOW + 300 }));
+      return new Response("{}");
+    };
+    const navigate = vi.fn();
+    await expect(startTwitchLink(createHubApi({ fetchImpl }), { storage: storage(), navigate, now: () => NOW })).rejects.toThrow();
+    expect(navigate).not.toHaveBeenCalled();
+    const history = { replaceState: vi.fn() };
+    captureTwitchCallback({ pathname: "/hub/twitch", hash: "", search: "?next=https://evil.example&state=pending" }, history);
+    expect(history.replaceState).toHaveBeenCalledWith(null, "", "/hub/twitch");
+  });
   it("does not navigate when storage is unavailable, and ignores ordinary hub hashes", async () => {
     const h = server(); const navigate = vi.fn();
     await expect(startTwitchLink(h.api, { storage: { ...storage(), setItem: () => { throw new Error("denied"); } }, navigate, now: () => NOW })).rejects.toThrow("browser storage");
     expect(navigate).not.toHaveBeenCalled();
     expect(captureTwitchCallback({ pathname: "/hub/", hash: "#/me", search: "" }, { replaceState: vi.fn() })).toBeNull();
   });
-  it("labels connection and verified links separately, and makes optional linking add no points", () => {
+  it("labels message links, season points, and recorded ICELAN separately", () => {
     const text = renderToStaticMarkup(<IdentityFacts identity={{ twitchEnabled: true, twitch: { subject: "123", displayName: "LAN fan", verifiedAt: NOW }, wallet: { address: "public-address", verifiedAt: NOW } }} />);
     expect(text).toContain("LAN fan");
     expect(text).toContain("public-address");
-    expect(text).toContain("adds no points");
+    expect(text).toContain("Season points come from Play");
+    expect(text).toContain("no tokens are sent");
     expect(text).not.toContain("Not available yet");
+    expect(text).toContain("does not sign you into Twitch chat");
     const disabled = renderToStaticMarkup(<IdentityFacts identity={{ twitchEnabled: false, twitch: null, wallet: null }} />);
     expect(disabled).toContain("Not available yet");
     expect(disabled).toContain("Not linked");
@@ -99,5 +114,18 @@ describe("optional account links", () => {
     await h.api.unlinkWallet();
     await h.api.unlinkTwitch();
     expect(h.calls.slice(-2).map((call) => JSON.parse(String(call.init!.body)))).toEqual([{}, {}]);
+  });
+
+  it("treats an expired session as a 401 and does not read the previous account's links", async () => {
+    const calls: string[] = [];
+    const api = createHubApi({
+      fetchImpl: async (path: string) => {
+        calls.push(path);
+        if (path.endsWith("/me")) return new Response(JSON.stringify({ error: "sign_in_required" }), { status: 401 });
+        return new Response(JSON.stringify({ twitchEnabled: true, twitch: { subject: "123", displayName: "stale", verifiedAt: NOW }, wallet: null }));
+      },
+    });
+    await expect(loadLinkedIdentities(api, accountId)).rejects.toMatchObject({ status: 401, code: "sign_in_required" });
+    expect(calls.some((path) => path.endsWith("/identity"))).toBe(false);
   });
 });

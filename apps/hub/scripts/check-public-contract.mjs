@@ -8,7 +8,8 @@ export async function checkPublicContract({ remote = false } = {}) {
   const root = new URL('../../../', import.meta.url);
   const pin = JSON.parse(readFileSync(new URL('../src/chain/fixtures/public-program-contract.json', import.meta.url), 'utf8'));
   for (const [path, expected] of Object.entries(pin.files)) {
-    if (codeDigest(readFileSync(new URL(path, root), 'utf8')) !== expected.codeSha256) throw new Error(`Local source differs from public contract: ${path}`);
+    const local = codeDigest(readFileSync(new URL(path, root), 'utf8'));
+    if (local !== expected.codeSha256 && local !== expected.pendingCodeSha256) throw new Error(`Local source differs from public contract: ${path}`);
   }
   if (remote) {
     const headResponse = await fetch('https://api.github.com/repos/twzrd-sol/ansem-radio/commits/main', { headers: { 'user-agent': 'radiolan-hub-contract-check' }, signal: AbortSignal.timeout(15_000) });

@@ -1,5 +1,5 @@
 import type { CollectorRecord, HubSnapshot, PlayBadge } from "../data/types";
-import { nextSeasonAction, seasonPhase } from "../data/season";
+import { nextSeasonAction, pointsSeasonNetworkLine, seasonPhase } from "../data/season";
 import { fmt } from "../lib/format";
 import { Icon, type IconName, SampleTag } from "./atoms";
 
@@ -29,16 +29,18 @@ export function nextBadge(record: CollectorRecord): string | null {
 
 export function SeasonStanding({ snapshot, now }: { snapshot: HubSnapshot; now: number }) {
   const season = snapshot.season;
-  if (!season) return <aside className="room-standing"><p className="label">LAN · AI DJ and broadcast console</p><p>The next season appears when its schedule is published.</p><a href="#/positions">Your locker</a></aside>;
+  if (!season) return <aside className="room-standing"><p className="label">Your season</p><p>The next season appears when its schedule is published.</p><a href="#/positions">My positions</a></aside>;
   const me = season.me;
   const record = snapshot.fan?.badges ? snapshot.fan : me ?? {};
   const phase = seasonPhase(season, now);
-  return <aside className="room-standing" aria-label="Your season standing">
-    <div className="room-standing__head"><p className="label">LAN · AI DJ and broadcast console</p>{snapshot.scenario === "sample" && <SampleTag />}</div>
-    <h2 className="h3">Season {season.number}{season.number === 2 ? " · Devnet" : ""} · {phase}</h2>
-    {me ? <><div className="room-standing__stats"><span><strong>{fmt(me.points)}</strong> points</span><span><strong>{me.rank === null ? "Unranked" : `#${me.rank}`}</strong> on the board</span></div><p className="small">Today: {fmt(me.today)} of {fmt(season.policy.dailyCap)} points · season: {fmt(me.points)} of {fmt(season.policy.weeklyCap)}</p><EarnedBadges record={record} /></> : <p className="small">{snapshot.fan ? "Your collector record stays with your account." : "Sign in with a passkey to start your collector record."}</p>}
-    <p className="room-next"><span className="label">Next action</span>{nextSeasonAction(season, now)}</p>
-    <div className="room-standing__links"><a href="#/play">Play free</a><a href="#/board">Points board</a><a href="#/circle">Meet superfans</a><a href="#/me">Collector profile</a><a href="#/positions">Your locker</a></div>
-    <p className="small fine">Backing adds no points. Badges are collected marks, not tokens.</p>
+  const phaseLabel = phase === "open" ? "Open" : phase === "upcoming" ? "Upcoming" : "Closed";
+  const networkLine = pointsSeasonNetworkLine(season);
+  return <aside className="case room-standing" aria-label="Your season standing">
+    <div className="room-standing__head"><p className="label">Your season</p>{snapshot.scenario === "sample" && <SampleTag />}</div>
+    <h2 className="h3">Season {season.number} · {phaseLabel}</h2>
+    {me ? <><div className="crt room-standing__readout"><div className="room-standing__stats"><span><strong>{fmt(me.points)}</strong> points</span><span><strong>{me.rank === null ? "Unranked" : `#${me.rank}`}</strong> on the board</span></div><p className="small">Today: {fmt(me.today)} of {fmt(season.policy.dailyCap)} points · season: {fmt(me.points)} of {fmt(season.policy.weeklyCap)}</p></div><EarnedBadges record={record} /></> : <p className="small">{snapshot.fan ? "Your points and badges stay with your account." : <><a href="#/me">Sign in with a passkey</a> to keep your points and badges. Watching and chat need no sign-in.</>}</p>}
+    <p className="room-next"><span className="label">Next step</span>{nextSeasonAction(season, now)}</p>
+    <div className="room-standing__links"><a href="#/play">Play free</a><a href="#/board">Points board</a><a href="#/circle">Superfans</a><a href="#/me">Profile</a><a href="#/positions">My positions</a></div>
+    <p className="small fine"><span>An active RLAN position on your linked wallet gives eligible Play credits 2× weight, within caps. Badges are marks on your profile, not tokens.</span>{networkLine && <span className="room-standing__net">{networkLine}</span>}</p>
   </aside>;
 }

@@ -8,6 +8,12 @@ identity API, arena index/relay and native season math with their tests.
 Generated bundles, runtime stores, credentials and serving configuration are
 excluded. Public station integration preserves its loopback-only data boundary.
 
+On 2026-10-12 the frontend was synced to the source the hosted hub is built from, together with
+the station modules it reads (`src/hub/day-zero.js`, `src/hub/economy-budgets.js`,
+`src/hub/icelan-tasks.js`) and the rewards client (`src/sinks/rewards.js`). The station HTTP API,
+chat connect and room chat, the analytics collector and the program sources stay outside this tree,
+so routes the frontend calls may be absent here; it is written to degrade rather than fail.
+
 The [hub README](../apps/hub/README.md) gives reproducible install, build and local
 run commands. The core Node service retains zero runtime dependencies; frontend
 dependencies are pinned in the hub lockfile. MIT and bundled font OFL notices

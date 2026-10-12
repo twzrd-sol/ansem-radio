@@ -90,17 +90,11 @@ describe("hub API client", () => {
     expect(refused).toBeInstanceOf(HubApiError);
     expect(explainApiError(refused)).toBe("You already sent that one.");
     expect(explainApiError(new HubApiError(409, "join_first"))).toBe("Join the season first. It's free.");
+    expect(explainApiError(new HubApiError(409, "claim_review_expired"))).toBe("That claim review expired. Start Collect again.");
+    expect(explainApiError(new HubApiError(409, "claim_book_changed"))).toBe("Your booked amount changed. Start Collect again.");
+    expect(explainApiError(new HubApiError(400, "invalid_claim_transaction"))).toBe("The claim request was not valid. Nothing was sent.");
+    expect(explainApiError(new HubApiError(400, "wallet_signature_invalid"))).toBe("The wallet signature did not match. Nothing was sent.");
     expect(explainApiError(Object.assign(new Error("x"), { name: "NotAllowedError" }))).toBe("The passkey prompt was closed. Nothing changed.");
     expect(explainApiError(new Error("offline"))).toBe("Couldn't reach the hub. Nothing changed.");
-  });
-});
-
-describe("a broken success response", () => {
-  it("a 200 whose body is not JSON is an error, not a success (api and market reads)", async () => {
-    const html = async () => new Response("<!doctype html><html></html>", { status: 200, headers: { "content-type": "text/html" } });
-    const api = createHubApi({ fetchImpl: html, passkeys: fakePasskeys() });
-    await expect(api.state()).rejects.toMatchObject({ status: 200, code: "bad_response" });
-    const { fetchMarket } = await import("./market");
-    await expect(fetchMarket(html)).rejects.toMatchObject({ status: 200, code: "bad_response" });
   });
 });

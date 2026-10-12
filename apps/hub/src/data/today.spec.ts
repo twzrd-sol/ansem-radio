@@ -31,12 +31,19 @@ describe("today's snapshot from the API", () => {
     const snap = buildToday(state);
     expect(snap.scenario).toBe("today");
     expect(snap.fan).toMatchObject({ handle: "fan-ab12cd34", since: 0, badges: [] });
-    expect(snap.season).toMatchObject({ number: 2, opensAt: 1_791_158_400_000, freezesAt: 1_791_763_200_000, players: 3, backers: 0, reward: { kind: "provisional" }, poll: null, prompt: null, board: [] });
+    expect(snap.season).toMatchObject({ number: 2, network: "devnet", opensAt: 1_791_158_400_000, freezesAt: 1_791_763_200_000, players: 3, backers: 0, reward: { kind: "provisional" }, poll: null, prompt: null, board: [] });
     expect(snap.season?.policy).toEqual(state.season?.policy);
     expect(snap.season?.me).toMatchObject({ points: 15, rank: null, streakDays: 0, today: 10, submissions: [{ action: "question", status: "credited", occurredAt: 1000 }, { action: "accepted_work", status: "pending", occurredAt: 2000 }], badges: [] });
     expect(snap.lastSeason).toBeNull();
     expect(snap.history).toEqual([]);
     expect(snap.arena).toBeNull();
+  });
+
+  it("takes the season network from the API and does not guess unknown networks", () => {
+    for (const network of ["mainnet", "devnet", "unknown"]) {
+      const snapshot = buildToday({ ...state, season: { ...state.season!, network } });
+      expect(snapshot.season?.network).toBe(network === "unknown" ? null : network);
+    }
   });
 
   it("shows an account that has not joined with no standing, and never the account id itself", () => {

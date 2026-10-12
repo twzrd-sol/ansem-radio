@@ -1,3 +1,4 @@
+import { SUPPORT_BOOST_COPY } from "../ui/HowItWorks";
 import { useState, type ReactNode } from "react";
 
 import type { FailKind, FlowStep, Position, PreviewState } from "../app/preview";
@@ -35,7 +36,7 @@ export function BackHeader({ schedule, slug = "radiolanlive", name = "Radio LAN"
       <h1 className="h1" tabIndex={-1}>
         Back {name}
       </h1>
-      <p className="rule-sub">Request withdrawal anytime. {releaseLine(schedule)}</p>
+      <p className="rule-sub">Withdraw in two steps: request, then withdraw after release. {releaseLine(schedule)}</p>
     </header>
   );
 }
@@ -146,6 +147,15 @@ export const FAILURES: Record<FailureKind, { title: string; text: string; retry:
   "not-streamer": { title: "Not the streamer wallet", text: "Only this listing's streamer wallet can create the arena. Nothing was sent.", retry: true },
 };
 
+/** One static status carrier for preview and live signing/progress. */
+export function SigningState({ title, children }: { title: ReactNode; children?: ReactNode }) {
+  return <div className="signing" role="status">
+    <div className="signing__bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+    <p className="h3">{title}</p>
+    {children}
+  </div>;
+}
+
 export function FailedStep({ kind, detail, onRetry }: { kind: FailureKind; detail?: string; onRetry?: () => void }) {
   const copy = FAILURES[kind];
   return (
@@ -178,9 +188,9 @@ export function BackingFacts() {
       </h2>
       <ul className="list">
         <Item kind="check">A Backer badge on your profile.</Item>
-        <Item kind="check">A voice in future programming as those tools open: a later MC, producer or theme.</Item>
-        <Item kind="x">No points, and no change to your share of any season's perks.</Item>
-        <Item kind="lock">Your RLAN sits in your own support account. Nobody else can move it, including the streamer.</Item>
+        <Item kind="info">Programming tools for backers are in development and not open yet.</Item>
+        <Item kind="check">{SUPPORT_BOOST_COPY}</Item>
+        <Item kind="lock">Your RLAN sits in a support account tied to your wallet. The streamer cannot move it. The arena program stays upgradeable by a single operator key; read the terms.</Item>
       </ul>
     </section>
   );
@@ -200,8 +210,8 @@ export function ChainFacts({ schedule, mint = ARENA_MINT }: { schedule: ArenaSch
         <Fact label="Token address">{mint ? <Address id={mint} /> : "The address appears when the arena is configured."}{!IS_MAINNET && <span className="small block">This rehearsal is on Solana devnet. Mainnet uses RLAN.</span>}</Fact>
         <Fact label="Unlock">
           {schedule
-            ? `Request withdrawal anytime. A request is available once the on-chain season it was made in ends: ${utc(releaseIfRequestedAt(schedule))} for season ${currentSeason(schedule)}.`
-            : "Request withdrawal anytime. A request is available once the on-chain season it was made in ends; the date comes from the arena's own schedule."}
+            ? `Withdraw in two steps: request, then withdraw after release. A request is available once the on-chain season it was made in ends: ${utc(releaseIfRequestedAt(schedule))} for season ${currentSeason(schedule)}.`
+            : "Withdraw in two steps: request, then withdraw after release. A request is available once the on-chain season it was made in ends; the date comes from the arena's own schedule."}
         </Fact>
         <Fact label="If the arena closes">If the arena closes, every position unlocks at once.</Fact>
         {!IS_MAINNET && <Fact label="Mainnet">The radiolan-arena program has been live on mainnet since 2 Oct 2026. This build rehearses on devnet with test tokens.</Fact>}
@@ -343,8 +353,8 @@ function PreviewFlow({ snapshot, preview, now }: { snapshot: HubSnapshot; previe
     if (flowAction === "deposit") {
       rows.push({ label: "You send", value: <><span className="num sim__big">{rlan(amount ?? 0n)}</span> <Tag kind="net">Devnet test mint</Tag></> });
       rows.push({ label: "From", value: <>Your wallet <Address id={SAMPLE_WALLET.address} sample /></> });
-      rows.push({ label: "To", value: <>Your support account <Address id={SAMPLE_WALLET.support} sample /><span className="small block">Only you can withdraw from it, once it's released. Nobody else can move it, including the streamer.</span></> });
-      rows.push({ label: "Unlock", value: `Request withdrawal anytime. A request made during on-chain season ${schedule ? currentSeason(schedule) : 0} is available after ${release ? utc(release) : "its season ends"}.` });
+      rows.push({ label: "To", value: <>Your support account <Address id={SAMPLE_WALLET.support} sample /><span className="small block">Only you can withdraw from it, once it's released. The streamer cannot move it; the program stays upgradeable by one operator key.</span></> });
+      rows.push({ label: "Unlock", value: `Withdraw in two steps: request, then withdraw after release. A request made during on-chain season ${schedule ? currentSeason(schedule) : 0} is available after ${release ? utc(release) : "its season ends"}.` });
     } else if (flowAction === "request") {
       rows.push({ label: "Action", value: <>Request withdrawal of <span className="num">{rlan(SAMPLE_POSITION)}</span></> });
       rows.push({ label: "Available after", value: release ? utc(release) : "the end of this on-chain season" });
@@ -375,11 +385,7 @@ function PreviewFlow({ snapshot, preview, now }: { snapshot: HubSnapshot; previe
     );
   } else if (step === "signing") {
     body = (
-      <div className="signing" role="status">
-        <div className="signing__bars" aria-hidden="true">
-          <i /><i /><i /><i /><i />
-        </div>
-        <p className="h3">Approve in your wallet</p>
+      <SigningState title="Approve in your wallet">
         <p className="small">Nothing is sent until you approve. One signature, for this step only.</p>
         <div className="actions">
           <button className="btn btn--primary" type="button" onClick={() => go("done")}>
@@ -389,7 +395,7 @@ function PreviewFlow({ snapshot, preview, now }: { snapshot: HubSnapshot; previe
             Cancel
           </button>
         </div>
-      </div>
+      </SigningState>
     );
   } else if (step === "done") {
     const read = flowAction === "deposit" ? `Read back from chain: your position is ${rlan(afterDeposit)}.` : flowAction === "request" ? "Read back from chain: your request is recorded for this season." : "Read back from chain: your position and support account are closed.";

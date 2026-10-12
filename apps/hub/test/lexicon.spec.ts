@@ -33,10 +33,17 @@ describe("public lexicon", () => {
     }
   });
 
-  it("keeps the ICELAN rewards vault visibly closed", () => {
+  it("keeps ICELAN collect closed until the vault exists, while tasks credit now", () => {
+    const copy = readFileSync(fileURLToPath(new URL("../src/data/public-copy.ts", import.meta.url)), "utf8");
     const story = readFileSync(fileURLToPath(new URL("../src/ui/RevenueStory.tsx", import.meta.url)), "utf8");
-    assert.match(story, /vault has not been created/i);
-    assert.match(story, /Collect stays disabled/i);
+    assert.match(copy, /VITE_HUB_ICELAN_CLAIM/);
+    assert.match(copy, /Recorded now\. Check Collect for claim availability/);
+    assert.match(copy, /recorded ICELAN can be claimed to your linked wallet on the hub/i);
+    assert.match(copy, /icelanClaimsOpen/);
+    assert.doesNotMatch(copy, /isn't created|isn't funded/);
+    assert.match(story, /recorded for real account tasks/i);
+    assert.match(story, /icelanCollectCopy/);
     assert.doesNotMatch(story, /vault (?:is )?(?:open|ready|claimable)/i);
+    assert.doesNotMatch(story, /Holder controls are not live/i);
   });
 });

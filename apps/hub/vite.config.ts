@@ -3,19 +3,22 @@ import react from "@vitejs/plugin-react";
 import { loadEnv, type Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
+import { refuseMainnetHubOverrides } from "./src/chain/mainnet-claim-lock";
+
 /**
  * Strict CSP for the built page only (the dev server injects inline scripts). Same-origin bundle, the official
  * Twitch player, the RPC relay, and Mobile Wallet Adapter's local socket on Android (ws://localhost).
  */
 export function contentSecurityPolicy(relayUrl: string | undefined): Plugin {
   const relayOrigin = relayUrl && /^https?:\/\//.test(relayUrl) ? new URL(relayUrl).origin : "";
+  const relayWs = relayOrigin ? relayOrigin.replace(/^http/, "ws") : "";
   const policy = [
     "default-src 'none'",
     "script-src 'self'",
     "style-src 'self'",
     "img-src 'self' data:",
     "font-src 'self'",
-    `connect-src 'self'${relayOrigin ? ` ${relayOrigin}` : ""} ws://localhost:*`,
+    `connect-src 'self'${relayOrigin ? ` ${relayOrigin}` : ""}${relayWs && relayWs !== relayOrigin ? ` ${relayWs}` : ""} ws://localhost:*`,
     "frame-src https://player.twitch.tv https://www.twitch.tv",
     "base-uri 'none'",
     "form-action 'none'",
@@ -30,9 +33,10 @@ export function contentSecurityPolicy(relayUrl: string | undefined): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "VITE_");
+  refuseMainnetHubOverrides(env);
   // A local run keeps the hub API and relay same-origin by proxying them to the station (dev only; the edge does
   // this in production). Same-origin is what the session cookie (SameSite=Strict) and the passkey origin need.
-  const proxy = env.VITE_HUB_STATION ? Object.fromEntries(["/hub/api", "/hub/rpc", "/macro/state", "/stream"].map((path) => [path, { target: env.VITE_HUB_STATION, changeOrigin: false }])) : undefined;
+  const proxy = env.VITE_HUB_STATION ? Object.fromEntries(["/hub/api", "/hub/rpc", "/macro/state", "/stream"].map((path) => [path, { target: env.VITE_HUB_STATION, changeOrigin: false, ws: path === "/hub/rpc" }])) : undefined;
   return {
     base: "/hub/",
     plugins: [react(), tailwindcss(), contentSecurityPolicy(env.VITE_HUB_RPC_URL)],

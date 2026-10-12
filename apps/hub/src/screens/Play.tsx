@@ -6,6 +6,7 @@ import { pointsSeasonEyebrow, seasonPhase } from "../data/season";
 import type { Action, CurrentSeason, HubSnapshot } from "../data/types";
 import { fmt, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, type IconName, PageHead, SampleTag, Skeleton } from "../ui/atoms";
+import { SUPPORT_BOOST_COPY } from "../ui/HowItWorks";
 import { SuperfansPeek } from "../ui/Competition";
 import { nextBadge, SeasonStanding } from "../ui/Collector";
 import { OpeningTime, SeasonOpening } from "../ui/SeasonOpening";
@@ -21,10 +22,10 @@ export interface ActivityDef {
 
 /** Native arena activities only (#47: question, poll_response, accepted_work). Nothing from Twitch counts. */
 export const ACTIVITIES: readonly ActivityDef[] = [
-  { id: "poll", action: "poll_response", title: "Live poll", icon: "poll", blurb: "The streamer posts a poll during the show. Pick an answer." },
-  { id: "question", action: "question", title: "Ask a question", icon: "question", blurb: "Ask the guest or the room. The streamer picks which ones to answer on stream." },
+  { id: "poll", action: "poll_response", title: "Live poll", icon: "poll", blurb: "When a poll is posted on this site, pick an answer." },
+  { id: "question", action: "question", title: "Ask a question", icon: "question", blurb: "Ask the guest or the room. The streamer picks which ones to answer on this site." },
   { id: "prompt", action: "accepted_work", title: "Answer the prompt", icon: "mic", blurb: "Reply to the streamer's published prompt. It counts once the streamer accepts it." },
-  { id: "clip", action: "accepted_work", title: "Clip or note", icon: "film", blurb: "Send a moment from the show or a short note, your own work only. It counts once the streamer accepts and co-signs it." },
+  { id: "clip", action: "accepted_work", title: "Clip or note", icon: "film", blurb: "Send a short clip or note, your own work only. It counts once the streamer accepts and co-signs it." },
 ];
 
 /** Sends one activity to the hub; resolves when it is recorded, rejects with the hub's reason. */
@@ -51,7 +52,7 @@ function TextActivity({ id, label, placeholder, button, onSend }: { id: string; 
       <textarea id={id} maxLength={280} placeholder={placeholder} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="field__row">
         <span className="small">{text.length}/280</span>
-        <button className="btn btn--primary" type="button" disabled={!text.trim() || busy} onClick={() => void send()}>
+        <button className="btn" type="button" disabled={!text.trim() || busy} onClick={() => void send()}>
           {busy ? "Sending…" : button}
         </button>
       </div>
@@ -72,7 +73,8 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
 }) {
   const [choice, setChoice] = useState<{ pollId: string; index: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  const points = season ? a.id === "poll" && season.poll?.placeholder ? 0 : season.policy.weights[a.action] : null;
+  const weight = season ? season.policy.weights[a.action] * (season.me?.supportBoost === 2 ? 2 : 1) : null;
+  const points = season && weight !== null ? a.id === "poll" && season.poll?.placeholder ? 0 : Math.max(0, Math.min(weight, season.policy.dailyCap - (season.me?.today ?? 0), season.policy.weeklyCap - (season.me?.points ?? 0))) : null;
   const badge = season?.me ? nextBadge(season.me) : "First play";
   const capped = season?.me ? season.me.today >= season.policy.dailyCap || season.me.points >= season.policy.weeklyCap : false;
   const locked = !season || !joined || !open;
@@ -111,7 +113,7 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
     body = done.poll ? (
       finished(`Answer counted. The next poll opens when the streamer posts one.`)
     ) : !poll ? (
-      waiting("No poll is open right now. The streamer posts one during the show.")
+      waiting("No poll is open right now. The streamer posts one on this site.")
     ) : (
       <div>
         {poll.placeholder && <p className="small">Placeholder poll for preview. Answers here do not earn points.</p>}
@@ -126,7 +128,7 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
             </button>
           ))}
         </div>
-        <button className="btn btn--primary btn--block" type="button" disabled={poll.placeholder || choice?.pollId !== poll.id || busy} onClick={() => choice?.pollId === poll.id && void send({ action: "poll_response", pollId: poll.id, choice: choice.index }, capped ? "Answer counted; today's cap is reached" : "Recorded. Your standing shows the credited points.")}>
+        <button className="btn btn--block" type="button" disabled={poll.placeholder || choice?.pollId !== poll.id || busy} onClick={() => choice?.pollId === poll.id && void send({ action: "poll_response", pollId: poll.id, choice: choice.index }, capped ? "Answer counted; today's cap is reached" : "Recorded. Your standing shows the credited points.")}>
           {busy ? "Sending…" : poll.placeholder ? "Preview only" : "Lock in answer"}
         </button>
       </div>
@@ -161,12 +163,12 @@ function ActivityCard({ a, season, open, now, joined, done, markDone, submit, to
           <p className="small">{a.blurb}</p>
         </div>
         {points !== null && (
-          <span className="act__pts" aria-label={`${points} points`}>
-            +{points}
+          <span className="act__pts" aria-label={`Up to ${points} points`}>
+            Up to +{points}
           </span>
         )}
       </div>
-      {badge && !(a.id === "poll" && season?.poll?.placeholder) && <p className="small act__badge"><Icon name="star" size="sm" /> Can light: {badge}{a.action === "accepted_work" ? " · after acceptance" : " · after credit"}</p>}
+      {badge && !(a.id === "poll" && season?.poll?.placeholder) && <p className="small act__badge"><Icon name="star" size="sm" /> Badge: {badge}{a.action === "accepted_work" ? " · after acceptance" : " · after credit"}</p>}
       {body}
     </article>
   );
@@ -212,7 +214,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
     <PageHead
       eyebrow={season ? pointsSeasonEyebrow(season) : "Radio LAN"}
       title="Play"
-      lede="This season is the game you are inside. Today's points sit against the published cap. The next action can light a collected mark."
+      lede="Free activities with published point values, capped per day and per season. Join once; points reset every season."
     />
   );
   if (load === "loading") return <>{head}<div className="acts"><Skeleton kinds={["card"]} /><Skeleton kinds={["card"]} /><Skeleton kinds={["card"]} /><Skeleton kinds={["card"]} /></div></>;
@@ -228,7 +230,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
           ))}
         </div>
         <p className="small fine">
-          <a href="#/circle">Meet superfans</a> of the same season. Real Discord or X membership can unlock season-points eligibility. Fake joins are refused. <a href="#/communities">Communities</a>
+          <span><a href="#/circle">Meet superfans</a> of the same season. Discord and X membership checks are not live on this hub yet. Joining the season is free and does not depend on them.</span>
         </p>
       </>
     );
@@ -239,10 +241,11 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
     <>
       {head}
       <ChallengeBrief season={season} sample={snapshot.scenario === "sample"} />
-      <p className="small" style={{ marginTop: -12, marginBottom: 16 }}>
-        Each activity has a published point value. Points are capped per day and per season, across all activities; the daily cap resets at 00:00 UTC. Everything happens on this site; nothing from Twitch chat counts.
-      </p>
       <SeasonStanding snapshot={snapshot} now={now} />
+      <p className="small" style={{ marginTop: -12, marginBottom: 16 }}>
+        Each activity has a published point value. Points are capped per day and per season, across all activities; the daily cap resets at 00:00 UTC. Season points come from these site activities. Linking Twitch or a wallet records separate ICELAN task rewards on Profile; they do not enter this board.
+      </p>
+      <p className="small" style={{ marginBottom: 16 }}>{SUPPORT_BOOST_COPY}{season.me?.supportBoost === 2 && <strong> Your 2× Play boost is active.</strong>}</p>
       {phase === "upcoming" && <SeasonOpening season={season} now={now} />}
       {!joined && open && (
         <div className="join">
@@ -268,7 +271,7 @@ export function Play({ snapshot, load, now, joined, onJoin, onRetry, toast, subm
       </div>
       <SuperfansPeek circle={creatorCircles(snapshot, [], [])[0] ?? null} sample={snapshot.scenario === "sample"} />
       <p className="small fine">
-        <a href="#/circle">Meet superfans</a> of the same season. Real Discord or X membership can unlock season-points eligibility. Fake joins are refused. <a href="#/communities">Communities</a>
+        <span><a href="#/circle">Meet superfans</a> of the same season. Discord and X membership checks are not live on this hub yet. Joining the season is free and does not depend on them.</span>
       </p>
       {snapshot.scenario === "sample" && (
         <p className="small fine">

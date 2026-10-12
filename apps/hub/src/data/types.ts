@@ -53,6 +53,8 @@ export interface CollectorRecord {
 }
 
 export interface Standing extends CollectorRecord {
+  /** Server-verified active linked support position; caps still apply. */
+  supportBoost?: 1 | 2;
   points: number;
   /** null until this fan has credited points. */
   rank: number | null;
@@ -66,9 +68,12 @@ export interface Standing extends CollectorRecord {
 
 export interface CurrentSeason {
   number: number;
+  /** Source network from the published points-season API; missing means unknown. */
+  network?: "mainnet" | "devnet" | null;
   /** The points season from the season config (#47), in ms. */
   opensAt: number;
   freezesAt: number;
+  /** Joined accounts this season, including those still at 0 points. */
   players: number;
   backers: number;
   reward: RewardState;

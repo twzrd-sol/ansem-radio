@@ -2,7 +2,6 @@
 // Chrome, Mobile Wallet Adapter registers itself through @solana-mobile/wallet-standard-mobile. The page builds the
 // transaction, the wallet only signs, and the page sends it through the relay. Nothing here holds a key.
 import { address } from "@solana/kit";
-import { createDefaultAuthorizationCache, createDefaultChainSelector, registerMwa } from "@solana-mobile/wallet-standard-mobile";
 import { SolanaSignMessage, SolanaSignTransaction, type SolanaSignMessageFeature, type SolanaSignTransactionFeature } from "@solana/wallet-standard-features";
 import { getWallets } from "@wallet-standard/app";
 import type { Wallet } from "@wallet-standard/base";
@@ -22,8 +21,11 @@ export const NO_WALLET_APP_EVENT = "hub:no-wallet-app";
  * Register Mobile Wallet Adapter. The package registers only where it works (Android, a secure context, not a
  * webview); elsewhere it logs and does nothing. Its own "wallet not found" modal is replaced by the page's message.
  */
-export function registerMobileWallet() {
-  registerMwa({
+let mobileRegistration: Promise<void> | null = null;
+export async function registerMobileWallet() {
+  if (typeof window === "undefined" || !/android/i.test(navigator.userAgent)) return;
+  mobileRegistration ??= import("@solana-mobile/wallet-standard-mobile").then(({ registerMwa, createDefaultAuthorizationCache, createDefaultChainSelector }) => {
+    registerMwa({
     appIdentity: { name: "Radio LAN", uri: window.location.origin },
     authorizationCache: createDefaultAuthorizationCache(),
     chains: [CHAIN],
@@ -31,15 +33,29 @@ export function registerMobileWallet() {
     onWalletNotFound: async () => {
       window.dispatchEvent(new Event(NO_WALLET_APP_EVENT));
     },
-  });
+    });
+  }).catch((error: unknown) => { mobileRegistration = null; throw error; });
+  return mobileRegistration;
 }
 
 /** The usable wallets right now, for code that is not a component (the positions screen's one-tap read). */
-export const listWallets = (): Wallet[] => getWallets().get().filter(isUsable);
+export const listWallets = (): Wallet[] => orderWallets(getWallets().get().filter(isUsable));
+
+/** Phantom, Solflare, and Backpack come first. Any other installed wallet, including Brave, follows. */
+export const POPULAR_WALLETS = ["Phantom", "Solflare", "Backpack"] as const;
+
+export function orderWallets<T extends { name: string }>(wallets: readonly T[]): T[] {
+  const rank = (name: string) => {
+    const index = POPULAR_WALLETS.findIndex((popular) => name.toLowerCase().includes(popular.toLowerCase()));
+    return index === -1 ? POPULAR_WALLETS.length : index;
+  };
+  return [...wallets].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
+}
 
 export function useWallets(): Wallet[] {
   const [wallets, setWallets] = useState<Wallet[]>(() => getWallets().get().filter(isUsable));
   useEffect(() => {
+    void registerMobileWallet().catch(() => { /* Wallet extensions still work when MWA cannot load. */ });
     const api = getWallets();
     const update = () => setWallets(api.get().filter(isUsable));
     const offRegister = api.on("register", update);
@@ -50,7 +66,7 @@ export function useWallets(): Wallet[] {
       offUnregister();
     };
   }, []);
-  return wallets;
+  return orderWallets(wallets);
 }
 
 /** Connect (only when the fan taps an on-chain action) and return the port the flow signs through. */
@@ -100,8 +116,16 @@ export function walletHelp(userAgent: string): { kind: "android" | "ios" | "desk
       links: [
         ["Open in Phantom", `https://phantom.app/ul/browse/${encodeURIComponent(here)}?ref=${encodeURIComponent(ref)}`],
         ["Open in Solflare", `https://solflare.com/ul/v1/browse/${encodeURIComponent(here)}?ref=${encodeURIComponent(ref)}`],
+        ["Open in Backpack", `https://backpack.app/ul/browse/${encodeURIComponent(here)}?ref=${encodeURIComponent(ref)}`],
       ],
     };
   }
-  return { kind: "desktop", links: [] };
+  return {
+    kind: "desktop",
+    links: [
+      ["Get Phantom", "https://phantom.com/download"],
+      ["Get Solflare", "https://solflare.com/download"],
+      ["Get Backpack", "https://backpack.app/download"],
+    ],
+  };
 }

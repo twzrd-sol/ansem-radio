@@ -30,6 +30,14 @@ describe("per-browser following", () => {
     expect(store.snapshot()).toEqual([]);
   });
 
+  it("writes only the local follow key and never a hub path", () => {
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+    const store = createFollowStore(storage);
+    store.toggle("radiolanlive");
+    expect([...values.keys()]).toEqual([FOLLOW_KEY]);
+    expect(JSON.stringify([...values.entries()])).not.toContain("/hub/api");
+  });
   it("imports only valid unique slugs into this browser's watchlist", () => {
     const values = new Map<string, string>();
     const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };

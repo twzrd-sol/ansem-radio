@@ -3,6 +3,21 @@
 Dated snapshots of what this public tree said at the time. For what is true
 today, use the [root README](README.md).
 
+## 2026-10-12 — Hub frontend brought up to the live build
+
+- Synced `apps/hub` (the frontend) to the source the hosted hub is built from today, including the
+  claim screen, the ICELAN task book views, the Discover and Board screens, the season standing and
+  the Buy bar. The hosted hub serves this tree's frontend as of 2026-10-12.
+- Added the three station modules the frontend reads from (`src/hub/day-zero.js`,
+  `src/hub/economy-budgets.js`, `src/hub/icelan-tasks.js`) and the rewards client
+  (`src/sinks/rewards.js`), so the hub's tests and types resolve in this repository.
+- The station HTTP API (`src/hub/api.js` and its routes), the room chat and Twitch chat connect
+  code, the analytics collector, and the arena/escrow/rewards program sources are **not** in this
+  commit. The hub frontend degrades when a route is absent: the analytics panel is off unless the
+  build sets `VITE_HUB_ANALYTICS=1`, and a missing preview route reads as "off on this station".
+- Nothing was removed from this tree. The Board category lanes and the no-JavaScript legal page
+  test remain public-only and were preserved.
+
 ## 2026-10-07 — Checkable public status
 
 - Rewrote the root README so current claims match the hosted hub and on-chain

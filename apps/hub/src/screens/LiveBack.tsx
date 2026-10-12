@@ -12,7 +12,7 @@ import { duration, feltCost, parseAmount, units, utc } from "../lib/format";
 import { Address as AddressLink, EmptyBlock, ErrorBlock, Icon, Skeleton } from "../ui/atoms";
 import type { Position } from "../app/preview";
 import { useWalletSession } from "../data/wallet-session";
-import { BackHeader, BackingFacts, ChainFacts, FailedStep, PositionCard, ReviewPanel, SeedNote, Stepper, type ReviewRow } from "./Back";
+import { BackHeader, BackingFacts, ChainFacts, FailedStep, PositionCard, ReviewPanel, SeedNote, SigningState, Stepper, type ReviewRow } from "./Back";
 
 
 // Mobile Wallet Adapter registers itself only on Android; this module loads only on the backing screen.
@@ -173,10 +173,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
   let body: ReactNode;
   if (state.step === "working") {
     body = (
-      <div className="signing" role="status">
-        <div className="signing__bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-        <p className="small">{state.label}…</p>
-      </div>
+      <SigningState title={`${state.label}…`} />
     );
   } else if (state.step === "review") {
     const p = state.plan;
@@ -184,8 +181,8 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     if (p.action === "deposit") {
       rows.push({ label: "You send", value: <span className="num sim__big">{rlan(p.amount)}</span> });
       rows.push({ label: "From", value: <>Your token account <AddressLink id={p.source ?? ""} /></> });
-      rows.push({ label: "To", value: <>Your support account <AddressLink id={p.support} /><span className="small block">Only you can withdraw from it, once it's released. Nobody else can move it, including the streamer.</span></> });
-      rows.push({ label: "Unlock", value: `Request withdrawal anytime. A request made during on-chain season ${p.onchainSeason} is available after ${utc(Number(p.releaseAt) * 1000)}.` });
+      rows.push({ label: "To", value: <>Your support account <AddressLink id={p.support} /><span className="small block">Only you can withdraw from it, once it's released. The streamer cannot move it; the program stays upgradeable by one operator key.</span></> });
+      rows.push({ label: "Unlock", value: `Withdraw in two steps: request, then withdraw after release. A request made during on-chain season ${p.onchainSeason} is available after ${utc(Number(p.releaseAt) * 1000)}.` });
     } else if (p.action === "request") {
       rows.push({ label: "Action", value: <>Request withdrawal of <span className="num">{rlan(p.amount)}</span></> });
       rows.push({ label: "Available after", value: utc(Number(p.releaseAt) * 1000) });
@@ -238,21 +235,15 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
     );
   } else if (state.step === "signing") {
     body = (
-      <div className="signing" role="status">
-        <div className="signing__bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-        <p className="h3">Approve in your wallet</p>
+      <SigningState title="Approve in your wallet">
         <p className="small">Nothing is sent until you approve. One signature, for this step only.</p>
-      </div>
+      </SigningState>
     );
   } else if (state.step === "confirming") {
     body = (
-      <div className="signing" role="status">
-        <div className="signing__bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-        <p className="h3">Confirming on {NETWORK_LABEL}</p>
-        <p className="small">
-          Transaction <AddressLink id={state.signature} kind="tx" />
-        </p>
-      </div>
+      <SigningState title={`Confirming on ${NETWORK_LABEL}`}>
+        <p className="small">Transaction <AddressLink id={state.signature} kind="tx" /></p>
+      </SigningState>
     );
   } else if (state.step === "done") {
     const read = state.action === "deposit" ? (state.position ? `Read back from chain: your position is ${rlan(state.position.amount)}.` : "Confirmed; the position read-back is pending.") : state.action === "request" ? "Read back from chain: your request is recorded." : state.action === "init" ? "Read back from chain: the arena exists. Fans can back it from this screen now." : "Read back from chain: your position and support account are closed.";
@@ -460,6 +451,7 @@ function LiveFlow({ target, slug, name, allowSetup }: { target: { streamer: Addr
           </div>
           <aside className="back__side">
             <BackingFacts />
+            <p className="small">Deposits use an upgradeable program controlled by a single operator key. <a href="/terms#arena">Read arena terms and withdrawal risks</a>.</p>
             {state.step !== "review" && <ChainFacts schedule={schedule} mint={target.mint} />}
             <SeedNote />
           </aside>

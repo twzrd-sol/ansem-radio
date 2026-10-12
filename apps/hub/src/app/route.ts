@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 export type Tab = "market" | "lan" | "play" | "positions" | "me";
-export type RouteKey = "" | "s" | "lan" | "play" | "board" | "circle" | "communities" | "back" | "positions" | "me" | "claim" | "how";
+export type RouteKey = "" | "s" | "lan" | "play" | "board" | "leaderboard" | "circle" | "communities" | "back" | "positions" | "me" | "claim" | "how" | "stats" | "tape";
 
 export interface Route {
   key: RouteKey;
@@ -25,6 +25,9 @@ const ROUTES: Record<RouteKey, Omit<Route, "key" | "arg">> = {
   me: { title: "Profile", tab: "me", onchain: false },
   claim: { title: "Collect", tab: "me", onchain: false },
   how: { title: "How Radio LAN works", tab: "lan", onchain: false },
+  stats: { title: "Stats", tab: "market", onchain: false },
+  leaderboard: { title: "Streamer board", tab: "market", onchain: false },
+  tape: { title: "Market board", tab: "market", onchain: true },
 };
 
 export function parseHash(hash: string): Route {
