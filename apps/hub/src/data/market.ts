@@ -80,6 +80,11 @@ export interface Listing {
   history?: HistoryPoint[];
 }
 
+/** A live featured locker is a community market, not a verified creator-owned arena, until both identity signals are true. */
+export function isUnverifiedCommunityMarket(listing: Listing | null | undefined): listing is Listing {
+  return Boolean(listing?.kind === "featured" && listing.backingOpen && listing.arena && listing.claimed === false && listing.claimDerived === false);
+}
+
 export interface Market extends Observed {
   listings: Listing[];
   /** Fixtures for design review; every screen that shows them carries a SAMPLE mark. */

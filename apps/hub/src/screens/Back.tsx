@@ -5,6 +5,7 @@ import type { FailKind, FlowStep, Position, PreviewState } from "../app/preview"
 import { writePreview } from "../app/preview";
 import { ARENA_MINT, ARENA_PROGRAM, IS_MAINNET, NETWORK_LABEL, TOKEN_DECIMALS } from "../chain/config";
 import { currentSeason, releaseIfRequestedAt, type ArenaSchedule } from "../chain/season";
+import { networkName } from "../data/network-gate";
 import { SAMPLE_MINT, SAMPLE_POSITION, SAMPLE_WALLET } from "../data/sample";
 import type { HubSnapshot } from "../data/types";
 import { feltCost, left, parseAmount, units, utc } from "../lib/format";
@@ -39,6 +40,25 @@ export function BackHeader({ schedule, slug = "radiolanlive", name = "Radio LAN"
       <p className="rule-sub">Withdraw in two steps: request, then withdraw after release. {releaseLine(schedule)}</p>
     </header>
   );
+}
+
+/** Stops a live wallet flow when the listed market and this build target different clusters. */
+export function BackNetworkNotice({ marketNetwork, slug = "radiolanlive", name = "Radio LAN" }: { marketNetwork: string | null | undefined; slug?: string; name?: string }) {
+  const verifiedNetwork = marketNetwork === "mainnet" || marketNetwork === "devnet";
+  return <>
+    <BackHeader schedule={undefined} slug={slug} name={name} />
+    <section className="panel" role="alert" data-testid="back-network-notice" aria-labelledby="h-back-network">
+      <p className="eyebrow">Network check</p>
+      <h2 className="h3" id="h-back-network">Backing is paused for this build</h2>
+      <p className="small">
+        {verifiedNetwork
+          ? `This listing was read from ${networkName(marketNetwork)}, while wallet actions in this release target ${NETWORK_LABEL}.`
+          : `The listing's network could not be verified. Wallet actions in this release target ${NETWORK_LABEL}.`}
+        {" "}Nothing will be built or sent.
+      </p>
+      <a className="btn" href={`#/s/${slug}`}>Return to {name}</a>
+    </section>
+  </>;
 }
 
 export function PositionCard({ position, held, release, now, sample }: { position: Position; held: bigint; release: number | null; now: number; sample: boolean }) {

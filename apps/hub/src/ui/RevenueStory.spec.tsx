@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ICELAN_DAY_ZERO_BASE_UNITS } from "../../../../src/hub/day-zero.js";
-import { TASK_AMOUNTS } from "../../../../src/hub/icelan-tasks.js";
+import { ICELAN_DAY_ZERO_BASE_UNITS } from "../../../../src/hub/icelan/day-zero.js";
+import { TASK_AMOUNTS } from "../../../../src/hub/icelan/icelan-tasks.js";
 import { Claim } from "../screens/Claim";
 import { buildSample } from "../data/sample";
 import { RevenueStory } from "./RevenueStory";
@@ -42,21 +42,47 @@ describe("ICELAN vault display", () => {
     expect(shown).toMatch(/Season points are not converted again/);
     expect(shown).not.toMatch(/vault (?:is )?(?:open|ready|claimable)/i);
     expect(html(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim book={{ accountId, earned: 0n, pool: 0n, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null }} />)).not.toMatch(/Claim ICELAN/);
-    const needsWallet = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null }} vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />);
+    const needsWallet = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, claim: "task_book" }} vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />);
     expect(needsWallet).toMatch(/Connect linked wallet/);
     expect(needsWallet).toMatch(/href="#\/me"/);
     expect(needsWallet).not.toMatch(/href="#\/profile"/);
     expect(needsWallet).not.toMatch(/Claim ICELAN/);
-    const open = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim walletReady wallet={claimWallet} alreadyClaimed={0n} book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null }} vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />);
+    const open = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim walletReady wallet={claimWallet} alreadyClaimed={0n} book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, claim: "task_book" }} vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />);
     expect(open).toMatch(/<button class="btn" type="button">Claim ICELAN/);
     expect(open).not.toMatch(/<button[^>]*disabled[^>]*>Claim ICELAN/);
-    expect(text(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null }} vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />)).not.toMatch(/Claims open at season end/);
+    expect(text(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, claim: "task_book" }} vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />)).not.toMatch(/Claims open at season end/);
+  });
+
+  it("keeps Collect controls closed unless the station explicitly enables task_book claims", () => {
+    const funded = { status: "funded" as const, fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS };
+    for (const claim of [undefined, "unavailable", "season_end"] as const) {
+      const page = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} accountId={accountId} showIcelan showIcelanClaim
+        book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, ...(claim ? { claim } : {}) }}
+        vault={funded} />);
+      expect(page).not.toMatch(/Claim ICELAN|Connect linked wallet|Review the claim/);
+    }
+    const open = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} accountId={accountId} showIcelan showIcelanClaim walletReady wallet={claimWallet}
+      book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, claim: "task_book" }}
+      vault={funded} />);
+    expect(open).toContain("Claim ICELAN");
+  });
+
+  it("opens Collect only for the complete day-zero, hub-claim, station-mode, and vault conjunction", () => {
+    const modes = [undefined, "unavailable", "season_end", "task_book"] as const;
+    const vaults = [null, { status: "created" as const, fundedBaseUnits: 0n }, { status: "funded" as const, fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }];
+    for (const dayZero of [false, true]) for (const claimFlag of [false, true]) for (const mode of modes) for (const vault of vaults) {
+      const expectedOpen = dayZero && claimFlag && mode === "task_book" && vault?.status === "funded";
+      const page = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} accountId={accountId} showIcelan={dayZero} showIcelanClaim={claimFlag} walletReady wallet={claimWallet}
+        book={{ accountId, earned: TASK_AMOUNTS.twitch_link, pool: TASK_AMOUNTS.twitch_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, ...(mode ? { claim: mode } : {}) }}
+        vault={vault} alreadyClaimed={0n} />);
+      expect(page.includes(">Claim ICELAN</")).toBe(expectedOpen);
+    }
   });
 
   it("shows newly collectable after subtracting on-chain claimed, and says when nothing is new", () => {
     const booked = TASK_AMOUNTS.twitch_link + TASK_AMOUNTS.wallet_link + TASK_AMOUNTS.chat;
     const funded = { status: "funded" as const, fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS };
-    const book = { accountId, earned: booked, pool: booked, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet, issuedCumulative: 200_000_000n };
+    const book = { accountId, earned: booked, pool: booked, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet, issuedCumulative: 200_000_000n, claim: "task_book" as const };
     const leftover = text(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim walletReady wallet={claimWallet} book={book} vault={funded} alreadyClaimed={200_000_000n} />);
     expect(leftover).toMatch(/Newly collectable: 10 ICELAN/);
     expect(leftover).toMatch(/Recorded from account tasks: 210 ICELAN/);
@@ -72,7 +98,7 @@ describe("ICELAN vault display", () => {
   it("does not treat a failed claimed read as zero remaining", () => {
     const booked = TASK_AMOUNTS.twitch_link + TASK_AMOUNTS.wallet_link + TASK_AMOUNTS.chat;
     const funded = { status: "funded" as const, fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS };
-    const book = { accountId, earned: booked, pool: booked, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet, issuedCumulative: 100_000_000n };
+    const book = { accountId, earned: booked, pool: booked, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet, issuedCumulative: 100_000_000n, claim: "task_book" as const };
     const unread = html(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim walletReady wallet={claimWallet} book={book} vault={funded} claimedRead="error" />);
     expect(text(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim walletReady wallet={claimWallet} book={book} vault={funded} claimedRead="error" />)).toMatch(/Confirmed paid amount: unknown/);
     expect(unread).toMatch(/<button[^>]*disabled=""[^>]*>Unable to read claimed amount/);
@@ -82,7 +108,7 @@ describe("ICELAN vault display", () => {
 
   it("keeps a co-sign distinct from paid chain state and hides that state for a different wallet", () => {
     const booked = TASK_AMOUNTS.twitch_link + TASK_AMOUNTS.wallet_link;
-    const book = { accountId, earned: booked, pool: booked, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet, issuedCumulative: booked };
+    const book = { accountId, earned: booked, pool: booked, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet, issuedCumulative: booked, claim: "task_book" as const };
     const funded = { status: "funded" as const, fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS };
     const pending = text(<Claim snapshot={sample} load="ready" onRetry={() => {}} showIcelan showIcelanClaim walletReady wallet={claimWallet} book={book} vault={funded} alreadyClaimed={0n} />);
     expect(pending).toMatch(/Station co-signed 200 ICELAN/);
@@ -107,7 +133,7 @@ describe("ICELAN vault display", () => {
 
   it("keeps the first funded claim available before the station creates its wallet binding", () => {
     const html = renderToStaticMarkup(<Claim snapshot={sample} load="ready" onRetry={() => {}} accountId={accountId} showIcelan showIcelanClaim walletReady wallet={claimWallet}
-      book={{ accountId, earned: TASK_AMOUNTS.wallet_link, pool: TASK_AMOUNTS.wallet_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null }}
+      book={{ accountId, earned: TASK_AMOUNTS.wallet_link, pool: TASK_AMOUNTS.wallet_link, poolCap: ICELAN_DAY_ZERO_BASE_UNITS, claimWallet: null, issuedCumulative: null, claim: "task_book" }}
       vault={{ status: "funded", fundedBaseUnits: ICELAN_DAY_ZERO_BASE_UNITS }} />);
     expect(html).toMatch(/<button class="btn" type="button">Claim ICELAN/);
     expect(html).not.toMatch(/<button[^>]*disabled[^>]*>Claim ICELAN/);

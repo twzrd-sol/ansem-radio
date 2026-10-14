@@ -109,6 +109,7 @@ describe("wallet and station task-book claim flow", () => {
     expect(explainClaimFailure({ code: 6204 })).toMatch(/cap is already paid/);
     expect(explainClaimFailure({ code: 6206 })).toMatch(/token account could not be used/);
     expect(explainClaimFailure({ code: 6208 })).toMatch(/not set up to co-sign/);
+    expect(explainClaimFailure({ code: 6210 })).toMatch(/collection limit for today/);
     expect(explainClaimFailure({ message: "Blockhash not found" })).toMatch(/timed out/);
     expect(explainClaimFailure({ message: "Attempt to debit an account but found no record of a prior credit" })).toMatch(/station could not pay/);
     expect(explainClaimFailure({ message: "other" }, ["Program failed"])).toMatch(/simulation failed/);

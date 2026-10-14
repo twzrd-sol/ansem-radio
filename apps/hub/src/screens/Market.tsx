@@ -3,19 +3,21 @@
 import { useState } from "react";
 
 import { TOKEN_DECIMALS } from "../chain/config";
-import { followingListings, sortListings, type Listing, type Market as MarketData } from "../data/market";
+import { followingListings, isUnverifiedCommunityMarket, sortListings, type Listing, type Market as MarketData } from "../data/market";
 import { useFollowing } from "../data/following";
 import { categoryLanes, collection } from "../data/slate";
 import type { Station } from "../data/station";
-import { HUB_LEADERBOARD_ENABLED } from "../data/feature-flags";
-import { BACKING_BOOST, FOLLOWING_LOCAL } from "../data/public-copy";
+import { HUB_FAN_BOARD_ENABLED, HUB_LEADERBOARD_ENABLED } from "../data/feature-flags";
+import { FOLLOWING_LOCAL } from "../data/public-copy";
+import type { CurrentSeason } from "../data/types";
 import { ago, fmt, tokenAmount, utc } from "../lib/format";
 import { EmptyBlock, ErrorBlock, Icon, LanMark, SampleTag, Skeleton, StationPill, Tag } from "../ui/atoms";
-import { BuyRlanBar } from "../ui/BuyRlanBar";
+import { BetaAccounting } from "../ui/BetaAccounting";
 import { FollowButton } from "../ui/FollowButton";
 import { HowLink } from "../ui/HowItWorks";
 import { HubStory } from "../ui/HubStory";
 import { CreatorAffinity } from "../ui/CreatorAffinity";
+import { CommunityMarketNotice } from "../ui/CommunityMarketNotice";
 
 type Filter = "all" | "live" | "following";
 
@@ -143,7 +145,7 @@ function Row({ l, rank, market }: { l: Listing; rank: number | null; market: Mar
   );
 }
 
-export function Market({ market, load, onRetry, station, now, streamerBoard = HUB_LEADERBOARD_ENABLED }: { market: MarketData | null; load: "loading" | "error" | "ready"; onRetry: () => void; station: Station; now: number; streamerBoard?: boolean }) {
+export function Market({ market, load, onRetry, station, now, season = null, streamerBoard = HUB_LEADERBOARD_ENABLED }: { market: MarketData | null; load: "loading" | "error" | "ready"; onRetry: () => void; station: Station; now: number; season?: Pick<CurrentSeason, "network"> | null; streamerBoard?: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [lane, setLane] = useState<string | null>(null);
@@ -152,8 +154,8 @@ export function Market({ market, load, onRetry, station, now, streamerBoard = HU
   const head = (
     <section className="hero hero--discover">
       <HubStory />
-      <BuyRlanBar variant="hero" />
-      <p className="small">Fans, creators, and AI agents share one room. Follow creators, compare public Twitch reads, and find your season crew. Season points are free. Backing is optional; an active position only changes the Play-credit weight described in How this works.</p>
+      <BetaAccounting season={season} market={load === "ready" ? market : null} />
+      {HUB_FAN_BOARD_ENABLED && <p className="small hero__fans"><a href="#/fans">Fan board</a>: discover community-listed creators.</p>}
     </section>
   );
   if (load === "loading") return <>{head}<Skeleton kinds={["block", "line", "line", "line"]} /></>;
@@ -184,6 +186,7 @@ export function Market({ market, load, onRetry, station, now, streamerBoard = HU
             <Tag kind="soon">Featured</Tag>{market.sample && <SampleTag />}
           </span>
           <span className="small">{featured.blurb ?? ""}</span>
+          {isUnverifiedCommunityMarket(featured) && <CommunityMarketNotice listing={featured} compact />}
           <span className="mkt__cells feature__cells">
             <span className="mkt__cell mkt__cell--backing"><span className="label">Locker · on chain</span><span className="feature__meta"><BackingCell l={featured} read={market} /></span></span>
             <span className="mkt__cell"><span className="label">Twitch</span><span className="feature__meta"><StationPill station={station} /></span></span>
@@ -199,14 +202,6 @@ export function Market({ market, load, onRetry, station, now, streamerBoard = HU
     <>
       {head}
       <ObservedLine data={market} sample={market.sample} now={now} onRefresh={onRetry} />
-      {featuredCard}
-      <section className="room-paths" aria-label="Your Radio LAN universe">
-        <a href="#/play"><Icon name="play" /><strong>Play the season</strong><span>Free site activities and real points</span></a>
-        <a href="#/board"><Icon name="board" /><strong>Find your standing</strong><span>The room's points board</span></a>
-        {streamerBoard && <a href="#/leaderboard"><Icon name="stream" /><strong>Streamer board</strong><span>Channels ranked by season points. Chat is a labelled Twitch read.</span></a>}
-      </section>
-      <p className="small">Rewards, the locker, and communities are in <HowLink />.</p>
-      {market.sample && <p className="small"><SampleTag /> Fictional creators and backing for preview. No live locker is opened here.</p>}
       <section className="discover-controls" aria-label="Channel controls">
       <div className="mkt__controls">
         <div className="seg" role="group" aria-label="Show">
@@ -224,6 +219,8 @@ export function Market({ market, load, onRetry, station, now, streamerBoard = HU
       </div>
       <Lanes listings={market.listings} lane={lane} onLane={setLane} />
       </section>
+      {featuredCard}
+      {market.sample && <p className="small"><SampleTag /> Fictional creators and backing for preview. No live locker is opened here.</p>}
       {filter === "following" ? (
         visible.length === 0 ? <EmptyBlock icon="star" title="Your watchlist" text="Follow creators to keep them here. Following is saved in this browser and adds no points." /> :
         <ul className="mkt" aria-label="Following">{visible.map((l) => <Row key={l.slug} l={l} rank={null} market={market} />)}</ul>
@@ -266,9 +263,16 @@ export function Market({ market, load, onRetry, station, now, streamerBoard = HU
       {open.length === 0 && twitchOnly.length === 0 && (narrowed ? <EmptyBlock icon="board" title="Nothing matches" text="Try another filter or search." /> : <p className="small mkt__empty">No channels match the current read yet.</p>)}
       
       </>}
+      <section className="room-paths" aria-label="Your Radio LAN universe">
+        {HUB_FAN_BOARD_ENABLED && <a href="#/fans"><Icon name="board" /><strong>Fan board</strong><span>Discover community-listed creators</span></a>}
+        <a href="#/play"><Icon name="play" /><strong>Play the season</strong><span>Free site activities and real points</span></a>
+        <a href="#/board"><Icon name="board" /><strong>Find your standing</strong><span>The room's points board</span></a>
+        {streamerBoard && <a href="#/leaderboard"><Icon name="stream" /><strong>Streamer board</strong><span>Channels ranked by season points. Chat is a labelled Twitch read.</span></a>}
+      </section>
+      <p className="small">Site activities and accounting rules are in <HowLink />.</p>
       <Collect listings={market.listings} followed={followed} />
       <CreatorAffinity listings={market.listings} followed={followed} sample={Boolean(market.sample)} />
-      <p className="small fine">{FOLLOWING_LOCAL} {BACKING_BOOST} <HowLink /></p>
+      <p className="small fine">{FOLLOWING_LOCAL} <HowLink /></p>
     </>
   );
 }

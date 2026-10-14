@@ -1,7 +1,7 @@
 // One creator: the channel panel (Twitch, display only) and the backing panel (on chain, owned), as two panels that
 // never merge. The featured listing also carries the stream and the free season card, kept visibly separate.
 import { seasonIndex, withdrawAvailableAt } from "../chain/season";
-import { sparkline, type Listing as ListingData } from "../data/market";
+import { isUnverifiedCommunityMarket, sparkline, type Listing as ListingData } from "../data/market";
 import { weekBars } from "../data/slate";
 import type { Station } from "../data/station";
 import type { HubSnapshot } from "../data/types";
@@ -13,6 +13,7 @@ import { Player } from "../ui/Player";
 import { FollowButton } from "../ui/FollowButton";
 import { HowLink, SUPPORT_BOOST_COPY } from "../ui/HowItWorks";
 import { SeasonCard, SeasonNotOpen } from "../ui/SeasonCard";
+import { CommunityMarketNotice } from "../ui/CommunityMarketNotice";
 import { TOKEN_DECIMALS } from "../chain/config";
 import { ago, ObservedLine } from "./Market";
 
@@ -129,7 +130,7 @@ export function BackingPanel({ l, now, sample }: { l: ListingData; now: number; 
             ) : (
               <a className="btn btn--primary" href={`#/back/${l.slug}`}>
                 <Icon name="heart" />
-                Back {l.name}
+                {isUnverifiedCommunityMarket(l as ListingData) ? "Open community market" : `Back ${l.name}`}
               </a>
             )}
           </div>
@@ -184,6 +185,7 @@ export function Listing({ listing, observed, load, onRetry, station, now, snapsh
         }
       />
       {listing.twitch && <Player channel={listing.twitch} station={station} />}
+      {isUnverifiedCommunityMarket(listing) && <CommunityMarketNotice listing={listing} />}
       <div className="actions"><FollowButton slug={listing.slug} name={listing.name} /><HowLink /></div>
       {listing.twitch && !listing.demo && !featured && (
         <p className="small fine" data-testid="listing-joined">

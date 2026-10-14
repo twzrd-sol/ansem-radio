@@ -34,7 +34,9 @@ export function IcelanCollect({ vault, book, refreshBook = async () => {}, showC
   const booked = previewFromBooked(book?.earned ?? 0n);
   const unread = status === "error" || status === "loading";
   const remaining = unread || claimed == null || !book || !walletMatchesClaim || (!claimWallet && alreadyClaimed === undefined) ? null : newlyCollectable(book.earned, claimed);
-  const open = claimsAreOpen(showClaim, vault);
+  // The funded vault and hub claim flag are necessary, but the station must
+  // also advertise task_book mode before this page offers its claim action.
+  const open = claimsAreOpen(showClaim && book?.claim === "task_book", vault);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const coSignedLine = !claimWallet

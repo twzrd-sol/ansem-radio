@@ -41,7 +41,7 @@ describe("public lexicon", () => {
     assert.match(copy, /recorded ICELAN can be claimed to your linked wallet on the hub/i);
     assert.match(copy, /icelanClaimsOpen/);
     assert.doesNotMatch(copy, /isn't created|isn't funded/);
-    assert.match(story, /recorded for real account tasks/i);
+    assert.match(story, /records real account tasks when each feature is enabled/i);
     assert.match(story, /icelanCollectCopy/);
     assert.doesNotMatch(story, /vault (?:is )?(?:open|ready|claimable)/i);
     assert.doesNotMatch(story, /Holder controls are not live/i);

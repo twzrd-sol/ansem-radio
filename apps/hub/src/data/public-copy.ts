@@ -1,14 +1,16 @@
 import { RLAN_MINT } from "../chain/config";
 
 export const RLAN_TOKEN_URL = `https://clawpump.tech/tokens/${RLAN_MINT}`;
-export const BUY_RLAN_LINE = "Back a channel with $RLAN. Eligible Play credits count 2× while your linked position is active, within caps.";
+export const BETA_LINE = "Radio LAN is a controlled beta for discovery, sign-in, free seasons, and points.";
+export const TOKEN_RISK_LINE = "Tokens can go to zero. Mint and freeze authorities are revoked. One operator key can upgrade the programs.";
+export const BUY_RLAN_LINE = `Back a channel with $RLAN. ${BETA_LINE} ${TOKEN_RISK_LINE} It awards no points by itself; an active linked position can give eligible Play credits 2× weight, within caps.`;
 export const HOW_TO_BUY = "How to buy: open ClawPump → swap SOL for RLAN → back the channel here";
 export const HOW_TO_BUY_STEPS = [
   { n: "1", title: "Open ClawPump" },
   { n: "2", title: "Swap SOL for RLAN" },
   { n: "3", title: "Back the channel here" },
 ] as const;
-export const BACKING_BOOST = "An active $RLAN position on your linked wallet gives eligible Play credits 2× weight, within published caps. ICELAN task rewards are separate.";
+export const BACKING_BOOST = "An active $RLAN position on your linked wallet can give eligible Play credits 2× weight, within published caps. Holding RLAN alone awards no points. ICELAN task rewards are separate.";
 export const FOLLOWING_LOCAL = "Following lives in this browser and never credits ICELAN.";
 export const ICELAN_BOOK_CAP = "The book caps at 100,000 ICELAN.";
 export const VAULT_HOLDS = "The mainnet vault was funded with 100,000 ICELAN on October 7, 2026.";
@@ -57,8 +59,9 @@ export const CLAIMS_OPEN = CLAIMS_OPEN_OFF;
 export const ICELAN_COLLECT = ICELAN_COLLECT_OFF;
 export const HERO_HONEST = HERO_HONEST_OFF;
 
-export const HERO_TITLE = "Play free every season. Back a channel with $RLAN.";
-export const HERO_STORY = "Radio LAN is the station: free seasons for the streamers you watch, with AI agents in the room. $RLAN is its token, optional and separate from season points. Link Twitch and a wallet to record ICELAN task rewards. An active $RLAN position gives eligible Play credits 2× weight, within caps. ICELAN task rewards are separate.";
+export const HERO_TITLE = "Follow the streamers you watch. Play free each season.";
+export const HERO_STORY = "Radio LAN brings creators, fans, and AI agents into a free season. Compare public Twitch reads and find your crew. Join with a passkey and take part in site activities.";
+export const BETA_POINTS_LINE = "Season points are site records. They are not RLAN or ICELAN and do not convert to tokens.";
 export const HERO_MISSION = "Mission: a creator economy where attention is rewarded transparently and on-chain.";
 export const LISTING_POINTS_LINE = "Season points come from activities on this site and stay separate. An active $RLAN position on your linked wallet gives eligible Play credits 2× weight, within caps. ICELAN task rewards are separate.";
 

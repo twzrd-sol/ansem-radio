@@ -22,7 +22,7 @@ export function IdentityFacts({ identity, onTwitch, onUnlinkTwitch, onWallet, on
       </Fact>
       {identity.claimWallet && <Fact label="Claim wallet"><code>{identity.claimWallet}</code> <span className="small">Claims stay with this wallet. A different wallet can't be linked for claims.</span></Fact>}
       <Fact label="Twitch">
-        {identity.twitch ? <>{identity.twitch.displayName} <span className="small">Identity verified</span>{onUnlinkTwitch && <button className="btn btn--ghost" type="button" disabled={busy} onClick={onUnlinkTwitch}>Unlink Twitch</button>}</> : <>Not linked. {identity.twitchEnabled ? onTwitch && <button className="btn btn--ghost" type="button" disabled={busy} onClick={onTwitch}>Link Twitch</button> : <Tag kind="soon">Not available yet</Tag>}</>}
+        {identity.twitch ? <>{identity.twitch.displayName} <span className="small">Identity verified</span>{onUnlinkTwitch && <button className="btn btn--ghost" type="button" disabled={busy} onClick={onUnlinkTwitch}>Unlink Twitch</button>}</> : <>Not linked. {identity.twitchEnabled ? onTwitch && <button className="btn btn--ghost" type="button" disabled={busy} onClick={onTwitch}>Link Twitch</button> : <><Tag kind="soon">Not configured</Tag><span className="small block">Twitch linking is disabled on this release, so Twitch tasks can't be recorded yet.</span></>}</>}
       </Fact>
     </dl>
     <p className="small">Linking Twitch here is for your Radio LAN profile and task records only; it does not sign you into Twitch chat, which signs in on Twitch.</p>
@@ -33,7 +33,7 @@ export function IdentityFacts({ identity, onTwitch, onUnlinkTwitch, onWallet, on
 
 interface Props { api: HubApi; accountId: string | null; wallet: ConnectedWallet | null; onConnectWallet?: (walletName: string) => Promise<string | null>; onChange?: () => void }
 export function IdentityLinks(props: Props) {
-  if (!props.accountId) return <p className="small">Sign in with a passkey, then link Twitch or a wallet to record task rewards. Season points come from Play.</p>;
+  if (!props.accountId) return <p className="small">Sign in with a passkey to see which identity links are enabled on this release. Season points come from Play.</p>;
   return <SignedIdentityLinks key={props.accountId} {...props} accountId={props.accountId} />;
 }
 

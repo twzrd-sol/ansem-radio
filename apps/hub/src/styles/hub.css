@@ -9,6 +9,8 @@
 .buy-rlan__cta { justify-self: start; min-height: 44px; }
 .buy-rlan__line, .buy-rlan__how { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
 .buy-rlan__how { font-size: 15px; color: var(--color-cream); }
+.buy-rlan__details { display: grid; gap: var(--space-2); }
+.buy-rlan__details summary { width: fit-content; color: var(--color-lime); font-size: var(--text-small); font-weight: 650; cursor: pointer; }
 .buy-rlan__error { margin: 0; color: var(--color-amber); font-size: 14px; line-height: 1.4; }
 .buy-rlan__steps { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .buy-rlan__steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--space-2); align-items: start; font-size: 15px; line-height: 1.4; }
@@ -20,6 +22,7 @@
 .hub-story .lede { margin: 0; line-height: 1.5; }
 .hub-story__mission { margin: 0; font-size: 16px; line-height: 1.5; color: var(--color-cream-2); }
 .hub-story--compact { margin: 0 0 14px; gap: var(--space-2); }
+.feature__community-note { display: block; color: var(--color-amber); font-size: var(--text-caption); font-weight: 600; letter-spacing: 0.04em; }
 @media (max-width: 420px) {
   .buy-rlan { padding: 12px; gap: var(--space-2); }
   /* Three steps on one or two lines instead of three rows, so the free paths sit closer to the first screen. */
@@ -143,7 +146,7 @@
   .network-note--sample { background: rgba(255, 178, 63, 0.1); border-bottom-color: rgba(255, 178, 63, 0.45); }
   .network-note a { color: var(--color-amber); }
   .network-note__chip { color: var(--color-amber); font-weight: 600; }
-  .view { position: relative; width: min(1200px, 100%); margin: 0 auto; padding: var(--space-5) var(--gutter) var(--space-6); }
+  .view { position: relative; width: min(1200px, 100%); margin: 0 auto; padding: var(--space-5) var(--gutter) calc(var(--space-6) + var(--tabbar) + 16px + env(safe-area-inset-bottom)); }
   .view:focus { outline: none; }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr); height: calc(var(--tabbar) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: rgba(14, 13, 11, 0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--color-line); }
   .tab { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); text-decoration: none; color: var(--color-cream-3); font: 600 10.5px/1 var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; }
@@ -472,6 +475,17 @@
   .stats-table thead th { font: 600 var(--text-label)/1 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-cream-3); }
   .stats-table tbody th { font-weight: 600; color: var(--color-cream); }
   .stats-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .fan-summary { margin: -8px 0 12px; }
+  .hero__fans { margin: 10px 0 0; }
+  .hero__fans a { font-weight: 600; }
+  .fan-lane-head { margin: 4px 0 6px; color: var(--color-cream-3); }
+  .fan-list { list-style: none; margin: 0 0 16px; padding: 0; border-top: 1px solid var(--color-line); }
+  .fan-row { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 6px 0; border-bottom: 1px solid var(--color-line); }
+  .fan-rank { flex: none; width: 24px; text-align: right; color: var(--color-cream-3); font-variant-numeric: tabular-nums; }
+  .fan-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .fan-who > a { font-weight: 600; color: var(--color-cream); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fan-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fan-act { flex: none; }
   .stats-table tbody tr:last-child th, .stats-table tbody tr:last-child td { border-bottom: 0; }
   .yourpage__steps { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
   .yourpage__steps .step { display: grid; gap: var(--space-1); padding: 12px; border-radius: var(--radius-control); border: 1px dashed var(--color-line-2); }
@@ -726,6 +740,10 @@
     .mkt__row--channel { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-3); }
     .mkt__row--channel > .btn--follow { justify-self: end; }
     .mkt__row--channel .mkt__src { flex-basis: 100%; }
+  }
+  @media (max-width: 360px) {
+    .hero--discover .hub-story .h1 { font-size: 36px; line-height: 0.86; }
+    .hero--discover .buy-rlan { margin-block: var(--space-2); }
   }
 }
 

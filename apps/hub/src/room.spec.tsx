@@ -114,16 +114,17 @@ describe("one Radio LAN room", () => {
     const sample = renderToStaticMarkup(<SeasonCard season={season} now={now} onJoin={noop} sample />);
     expect(sample).toContain("tag--sample");
   });
-  it("leads with the station even when no locker is open, and labels fictional previews", () => {
+  it("puts channel controls ahead of the featured listing when no locker is open, and labels fictional previews", () => {
     const marketSample = sampleMarket(now);
     const market = { ...marketSample, sample: false, listings: marketSample.listings.map((l) => ({ ...l, backingOpen: false, arena: l.arena ? { ...l.arena, closed: true } : null })) };
     const html = renderToStaticMarkup(<Market market={market} load="ready" station={{ status: "unknown" }} now={now} onRetry={noop} />);
-    expect(html.indexOf('class="feature"')).toBeLessThan(html.indexOf('class="mkt__controls"'));
+    expect(html.indexOf('class="mkt__controls"')).toBeLessThan(html.indexOf('class="feature"'));
+    expect(html.indexOf('class="feature"')).toBeLessThan(html.indexOf('id="h-channels"'));
     expect(html).toContain("Closed · this locker is not taking backing");
     expect(html).not.toContain("Open lockers");
-    expect(html).toContain(RLAN_MINT);
-    // The Buy button goes through the counted /go/ path (Cloudflare redirects it to the ClawPump page).
-    expect(html).toContain('href="/go/buy"');
+    expect(html).not.toContain(RLAN_MINT);
+    expect(html).not.toContain('href="/go/buy"');
+    expect(html).toContain("Points do not convert to tokens");
     expect(lockerIsOpen(market.listings[0]!, market)).toBe(false);
     expect(lockerIsOpen(marketSample.listings[0]!, marketSample)).toBe(true);
     const sample = renderToStaticMarkup(<Profile snapshot={buildSample(now)} load="ready" backer={false} wallet={null} onRetry={noop} />);

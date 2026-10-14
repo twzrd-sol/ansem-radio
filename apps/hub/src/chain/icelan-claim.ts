@@ -28,6 +28,7 @@ export function explainClaimFailure(error: { code?: number; message?: string } |
       case 6201: return "This claim does not match the vault. Nothing was sent.";
       case 6202: return "The claim amount does not match the book. Refresh Collect and try again.";
       case 6209: return "The claim request was not valid. Nothing was sent.";
+      case 6210: return "The station's collection limit for today is reached. Nothing was sent. Try again after 00:00 UTC.";
       default: break;
     }
   }
