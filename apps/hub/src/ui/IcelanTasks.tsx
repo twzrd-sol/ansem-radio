@@ -7,7 +7,7 @@ import { watchVisible } from "../data/refresh";
 import { units } from "../lib/format";
 import { Icon } from "./atoms";
 
-const LABEL: Record<TaskId, string> = { twitch_link: "Link Twitch", wallet_link: "Link a wallet", chat: "Chat in #radiolanlive" };
+const LABEL: Record<TaskId, string> = { twitch_link: "Twitch account link", wallet_link: "Link a wallet", chat: "Chat in #radiolanlive" };
 
 export function TaskRecord({ view, claims }: { view: IcelanTasksView; claims?: ClaimsInput }) {
   const open = icelanClaimsOpen({ stationClaim: view.claim, ...claims });
@@ -18,7 +18,7 @@ export function TaskRecord({ view, claims }: { view: IcelanTasksView; claims?: C
       {view.tasks.map((task) => <li key={task.id}>
         <div><span>{LABEL[task.id]}</span><span className="small block">{task.id === "chat"
           ? view.chatEnabled ? `${view.today} of ${view.dailyCap} today · resets at 00:00 UTC` : "Chat recording is paused"
-          : task.done ? "Recorded once" : "One-time task"}</span></div>
+          : task.done ? "Recorded once" : task.id === "twitch_link" ? "One-time task · check Profile for availability" : "One-time task"}</span></div>
         <span className="icelan-tasks__amount">{units(BigInt(task.amount), 6)} ICELAN{task.id === "chat" ? " each" : ""}{task.done && task.id !== "chat" && <Icon name="check" size="sm" />}</span>
       </li>)}
     </ul>

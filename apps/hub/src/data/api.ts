@@ -178,9 +178,14 @@ export function createHubApi({ fetchImpl = (input: string, init?: RequestInit) =
   };
   const join = () => call<ApiMe>("POST", "/join", {});
   const submit = (input: ActivityInput) => call<ApiMe & { submission: ApiSubmission }>("POST", "/activities", input);
+  /** Asks for a market for a creator on the fan board. Loads the CSRF token first when this client has none. */
+  const askForMarket = async (login: string) => {
+    if (!csrf) await me();
+    return call<{ login: string; asks: number; already: boolean; at: number }>("POST", "/board/ask", { login });
+  };
   const icelanClaim = (body: { blockhash: string } | { signedTransaction: string }) => call<{ wallet: string; cumulativeAmount: string; destination: string; transaction: string; source: string }>("POST", "/icelan-claim", body);
 
-  return { state, me, register, login, logout, join, submit, icelanClaim, ...identityApi(call), ...communityApi(call), get hasSession() { return csrf !== ""; } };
+  return { state, me, register, login, logout, join, submit, icelanClaim, askForMarket, ...identityApi(call), ...communityApi(call), get hasSession() { return csrf !== ""; } };
 }
 
 export type HubApi = ReturnType<typeof createHubApi>;

@@ -16,13 +16,17 @@ describe("mainnet build copy and staged rewards", () => {
 
   it("the ribbon says the board is mainnet data and that backing is not available", async () => {
     const { app } = await mainnet();
-    const closed = text(<app.Ribbon />);
+    const unknown = text(<app.Ribbon />);
+    expect(unknown).toMatch(/Market network unknown/);
+    expect(unknown).toMatch(/wallet actions target Solana mainnet; backing is paused/i);
+    const closed = text(<app.Ribbon marketNetwork="mainnet" />);
     expect(closed).toMatch(/Mainnet board/);
     expect(closed).toMatch(/No mainnet arena is open, so backing is not available here/);
+    expect(text(<app.Ribbon marketNetwork="mainnet" stale />)).toMatch(/Backing availability cannot be verified/);
     expect(closed).not.toMatch(/Real \$RLAN|support account|optional/);
-    expect(text(<app.Ribbon backingOpen />)).toMatch(/Backing is open for listed creators/);
-    expect(text(<app.Ribbon backingOpen openFor={["Radio LAN"]} />)).toMatch(/Backing is open for Radio LAN\./);
-    expect(text(<app.Ribbon backingOpen openFor={["Radio LAN", "Crate Breed"]} />)).toMatch(/open for Radio LAN and Crate Breed\./);
+    expect(text(<app.Ribbon marketNetwork="mainnet" backingOpen />)).toMatch(/Backing is open for listed creators/);
+    expect(text(<app.Ribbon marketNetwork="mainnet" backingOpen openFor={["Radio LAN"]} />)).toMatch(/Backing is open for Radio LAN\./);
+    expect(text(<app.Ribbon marketNetwork="mainnet" backingOpen openFor={["Radio LAN", "Crate Breed"]} />)).toMatch(/open for Radio LAN and Crate Breed\./);
     expect(app.openForLabel(["a", "b", "c"])).toBe("3 listed creators");
     expect(app.openForLabel([])).toBe("listed creators");
   });
@@ -34,7 +38,7 @@ describe("mainnet build copy and staged rewards", () => {
     expect(guide).toMatch(/No mainnet points season is open/);
     expect(guide).toMatch(/The mainnet vault was funded with 100,000 ICELAN on October 7, 2026/);
     expect(guide).toMatch(/Recorded now\. Check Collect for claim availability/);
-    expect(guide).toContain("Profile shows whether chat recording is on today and your count, labelled Data: Twitch.");
+    expect(guide).toContain("Profile shows which links and chat recording are enabled on this release, plus your chat count, labelled Data: Twitch.");
     expect(guide).not.toContain("Chat recording is off today.");
     expect(guide).toMatch(/Current board status: no open locker confirmed/);
     expect(guide).toMatch(/RLAN backing is live when a fresh board read shows an open locker/);
@@ -58,9 +62,11 @@ describe("mainnet build copy and staged rewards", () => {
     const listing = { slug: "ninja", name: "ninja", kind: "tracked", demo: false, blurb: "", twitch: "ninja", claimed: true, claimDerived: true, keys: { streamer: "S", mint: "M" }, backingOpen: false, arena: null, performance: null } as never;
     for (const claim of [{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }, { slug: "ninja", wallet: "W", ready: true }] as never[]) {
       const page = text(<YourPageView claim={claim} listing={listing} />);
-      expect(page).toContain("Arena creation is not available on this mainnet hub. Check this listing's locker for backing status.");
+      expect(page).toContain("Link Twitch");
+      expect(page).toContain("Chat to earn credit");
+      expect(page).toContain("Back a channel with $RLAN");
       expect(page).toContain("Backing does not add season points by itself.");
-      expect(page).not.toMatch(/Create the arena|Create your arena|Two steps open it for backing/);
+      expect(page).not.toMatch(/Create the arena|Create your arena|Two steps open it for backing|Arena creation is not part of this beta|Deposits are not part of this beta/);
     }
   });
 });

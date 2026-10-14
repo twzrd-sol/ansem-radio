@@ -5,6 +5,7 @@ import { claimTaskBook } from "../chain/icelan-claim";
 import { kitRpc } from "../chain/rpc";
 import { ATTRIBUTION, BRAND, LAN_ROLE } from "../brand";
 import { Leaderboard } from "../screens/Leaderboard";
+import { FanBoard } from "../screens/FanBoard";
 import { Stats } from "../screens/Stats";
 import { seasonIndex, withdrawAvailableAt } from "../chain/season";
 import { explainApiError, type ActivityInput } from "../data/api";
@@ -12,7 +13,8 @@ import { useFollowing } from "../data/following";
 import { HubProvider, type HubLoad } from "../data/hub";
 import { useDayZeroVault } from "../data/day-zero";
 import { useLiveHub } from "../data/live";
-import { anyBackingOpen, openForLabel, useListing, useMarket, type Listing as ListingData, type Market as MarketData } from "../data/market";
+import { anyBackingOpen, isUnverifiedCommunityMarket, openForLabel, useListing, useMarket, type Listing as ListingData, type Market as MarketData } from "../data/market";
+import { backingNetworkGate, networkRibbonCopy } from "../data/network-gate";
 import { buildSample, sampleListingDetail, sampleMarket, samplePositions } from "../data/sample";
 import { stationAt, useStation } from "../data/station";
 import { buildToday } from "../data/today";
@@ -20,7 +22,7 @@ import type { HubSnapshot } from "../data/types";
 import { useWalletSession, WalletSessionProvider } from "../data/wallet-session";
 import { seasonPhase } from "../data/season";
 import { short } from "../lib/format";
-import { Back } from "../screens/Back";
+import { Back, BackNetworkNotice } from "../screens/Back";
 import { Board } from "../screens/Board";
 import { Circle } from "../screens/Circle";
 import { Claim } from "../screens/Claim";
@@ -28,6 +30,7 @@ import { CommunitiesPage } from "../screens/Communities";
 import { Lan } from "../screens/Lan";
 import { Listing } from "../screens/Listing";
 import { Market, openForNames } from "../screens/Market";
+import { CommunityMarketNotice } from "../ui/CommunityMarketNotice";
 export { openForLabel, openForNames };
 import { Play } from "../screens/Play";
 import { Positions } from "../screens/Positions";
@@ -36,6 +39,7 @@ import { Tape } from "../screens/Tape";
 
 const NO_LISTINGS: Array<{ slug: string; name: string; arena: { address: string } | null }> = [];
 import { MARKET_BOARD_ENABLED } from "../tape/flag";
+import { HUB_FAN_BOARD_ENABLED } from "../data/feature-flags";
 import { Icon, type IconName, LanMark, Skeleton } from "../ui/atoms";
 import { HowItWorks, HowLink, PUBLIC_SOURCE } from "../ui/HowItWorks";
 import { LanCompanion } from "../ui/LanCompanion";
@@ -76,18 +80,15 @@ export const SampleBanner = () => (
 );
 
 /** Plan section 8: the network stays visible on every on-chain screen, as a calm note rather than a warning banner. */
-export const Ribbon = ({ backingOpen = false, openFor = [] }: { backingOpen?: boolean; openFor?: readonly string[] } = {}) =>
-  IS_MAINNET ? (
+export const Ribbon = ({ marketNetwork, backingOpen = false, openFor = [], stale = false }: { marketNetwork?: string | null; backingOpen?: boolean; openFor?: readonly string[]; stale?: boolean } = {}) => {
+  const copy = networkRibbonCopy(marketNetwork, NETWORK, backingOpen, openFor, stale);
+  return (
     <div className="network-note" role="note">
-      <span className="network-note__chip">Mainnet board</span>
-      <span>{backingOpen ? `Solana mainnet data. Backing is open for ${openForLabel(openFor)}.` : "Solana mainnet data. No mainnet arena is open, so backing is not available here."}</span>
-    </div>
-  ) : (
-    <div className="network-note" role="note">
-      <span className="network-note__chip">Solana devnet</span>
-      <span>Test tokens only. No real value. Check the network and mint before signing.</span>
+      <span className="network-note__chip">{copy.chip}</span>
+      <span>{copy.message}</span>
     </div>
   );
+};
 
 /** The snapshot the screens render: fixtures only in ?preview=sample, the real state everywhere else. */
 export function snapshotFor(preview: PreviewState, now: number): HubSnapshot {
@@ -141,7 +142,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
   const session = useWalletSession();
   const wallet = session.wallet?.address ?? givenWallet;
   const rawRoute = useRoute();
-  const route = rawRoute.key === "tape" && !MARKET_BOARD_ENABLED ? parseHash("#/") : rawRoute;
+  const route = (rawRoute.key === "tape" && !MARKET_BOARD_ENABLED) || (rawRoute.key === "fans" && !HUB_FAN_BOARD_ENABLED) ? parseHash("#/") : rawRoute;
   const preview = usePreview();
   const { slugs: followed } = useFollowing();
   const hub = useLiveHub(!preview.enabled);
@@ -301,10 +302,22 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
     case "back": {
       const listing = listingOf(slug);
       const target = backingTarget(listing, fallbackMint);
-      const live = preview.enabled ? undefined : (
-        <Suspense fallback={<Skeleton kinds={["title", "block", "block"]} />}>
-          <LiveBack target={target} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} allowSetup={canSetUp(listing, slug)} ready={market.load !== "loading"} boardError={market.load === "error"} onRetry={retry} />
-        </Suspense>
+      const marketNetwork = market.market?.network;
+      const networkStatus = backingNetworkGate(market.load, marketNetwork, NETWORK);
+      const live = preview.enabled ? undefined : networkStatus === "loading" ? (
+        <Skeleton kinds={["title", "block", "block"]} />
+      ) : networkStatus !== "ready" ? (
+        <>
+          {isUnverifiedCommunityMarket(listing) && <CommunityMarketNotice listing={listing} />}
+          <BackNetworkNotice marketNetwork={marketNetwork} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} />
+        </>
+      ) : (
+        <>
+          {isUnverifiedCommunityMarket(listing) && <CommunityMarketNotice listing={listing} />}
+          <Suspense fallback={<Skeleton kinds={["title", "block", "block"]} />}>
+            <LiveBack target={target} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} allowSetup={canSetUp(listing, slug)} ready boardError={market.load === "error"} onRetry={retry} />
+          </Suspense>
+        </>
       );
       screen = <Back snapshot={shown} load={state} preview={preview} now={now} onRetry={retry} live={live} slug={slug ?? "radiolanlive"} name={listing?.name ?? "Radio LAN"} />;
       break;
@@ -324,11 +337,14 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
     case "leaderboard":
       screen = <Leaderboard />;
       break;
+    case "fans":
+      screen = <FanBoard />;
+      break;
     case "tape":
       screen = <Tape listings={board?.listings ?? NO_LISTINGS} />;
       break;
     default:
-      screen = <Market market={board} load={boardLoad} onRetry={retry} station={station} now={now} />;
+      screen = <Market market={board} load={boardLoad} onRetry={retry} station={station} now={now} season={shown?.season ?? null} />;
   }
 
   return (
@@ -361,10 +377,10 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
           )}
         </header>
         {preview.enabled && preview.scenario === "sample" && <SampleBanner />}
-        {route.onchain && <Ribbon backingOpen={Boolean(board && !board.stale && anyBackingOpen(board))} openFor={openForNames(board)} />}
+        {route.onchain && <Ribbon marketNetwork={board?.network} backingOpen={Boolean(board && !board.stale && anyBackingOpen(board))} openFor={openForNames(board)} stale={Boolean(board?.stale)} />}
         <main id="view" ref={view} className="view" tabIndex={-1}>
           {screen}
-          <LanCompanion market={board} snapshot={shown} now={now} ready={boardLoad === "ready"} station={station} />
+          {route.key !== "" && <LanCompanion market={board} snapshot={shown} now={now} ready={boardLoad === "ready"} station={station} />}
         </main>
         <footer className="foot">
           <span>{ATTRIBUTION}</span>
@@ -372,6 +388,7 @@ function AppShell({ wallet: givenWallet = null, fallbackMint = null }: AppViewPr
           <span>{BRAND.host}</span>
           <span>Free to play</span>
           {MARKET_BOARD_ENABLED && <a href="#/tape">Market board</a>}
+          {HUB_FAN_BOARD_ENABLED && <a href="#/fans">Fan board</a>}
           {preview.enabled && preview.scenario === "sample" ? <a href="./#/">Live hub</a> : <a href="?preview=sample#/play">Sample season</a>}
           <HowLink />
           <a href="/privacy">Privacy</a>

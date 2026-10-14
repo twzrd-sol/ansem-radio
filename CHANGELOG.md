@@ -3,6 +3,18 @@
 Dated snapshots of what this public tree said at the time. For what is true
 today, use the [root README](README.md).
 
+## 2026-10-14 — Hub frontend brought up to the live build
+
+- Synced `apps/hub` to private `dadf895`, the source of the hosted bundle
+  `index-avPXNnO2.js` published 14 October 2026. That build includes the fan
+  board, the beta accounting note, and the token-risk line beside `$RLAN` backing.
+- The task book, budget and day-zero modules the hub tests import now live at
+  `src/hub/icelan/`. The 12 October paths re-export them.
+- Still not in this tree: the station HTTP API, chat connect, the analytics
+  collector, and the arena, escrow and rewards program sources. The claim
+  end-to-end spec that imports the station API is not included.
+- Nothing already public was removed. The Board category lanes stay public-only.
+
 ## 2026-10-12 — Status corrections
 
 - Chat credit is **on**, not off: the hosted station has recorded chat credit since 10 October 2026.

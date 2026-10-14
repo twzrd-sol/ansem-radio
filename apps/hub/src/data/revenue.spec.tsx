@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ICELAN_MINT as CORE_ICELAN, RLAN_MINT as CORE_RLAN } from "../../../../src/hub/economy-budgets.js";
+import { ICELAN_MINT as CORE_ICELAN, RLAN_MINT as CORE_RLAN } from "../../../../src/hub/icelan/economy-budgets.js";
 import { ICELAN_MINT, RLAN_MINT } from "../chain/config";
 import { HowItWorks } from "../ui/HowItWorks";
 import { LanCompanion } from "../ui/LanCompanion";
@@ -68,10 +68,24 @@ describe("honest Solana revenue facts", () => {
   });
 
   it("keeps the Discover page honest while the board is loading, failed, or empty", () => {
+    const loadingHtml = html(<Market market={null} load="loading" onRetry={() => {}} station={station} now={station.observedAt!} />);
     const loading = text(<Market market={null} load="loading" onRetry={() => {}} station={station} now={station.observedAt!} />);
     const failed = text(<Market market={null} load="error" onRetry={() => {}} station={station} now={station.observedAt!} />);
     const empty = text(<Market market={{ network: "devnet", observedAt: null, slot: null, stale: false, generatedAt: 1, listings: [] }} load="ready" onRetry={() => {}} station={station} now={station.observedAt!} />);
+    const h1 = loadingHtml.indexOf("Follow the streamers you watch. Play free each season.");
+    const room = loadingHtml.indexOf("Radio LAN brings creators, fans, and AI agents");
+    const accounting = loadingHtml.indexOf('aria-label="Points and token records"');
+    expect(h1).toBeGreaterThan(-1);
+    expect(room).toBeGreaterThan(h1);
+    expect(accounting).toBeGreaterThan(room);
+    expect(loadingHtml).toContain('<h1 class="h1" tabindex="-1">Follow the streamers you watch. Play free each season.</h1>');
+    expect(loadingHtml).not.toMatch(/<h1[^>]*>[^<]*\$RLAN/);
+    expect(loadingHtml).toContain("eligible Play credits 2× weight");
+    expect(loadingHtml.indexOf("Radio LAN brings creators, fans, and AI agents")).toBeLessThan(loadingHtml.indexOf("eligible Play credits"));
     for (const page of [loading, failed, empty]) {
+      expect(page).not.toMatch(/Buy \$RLAN|Check Collect|100,000/);
+      expect(page).toContain("Controlled beta");
+      expect(page).toContain("Recorded ICELAN is an account-task ledger amount");
       expect(page).not.toMatch(/vault is open|open for deposit/i);
       expect(page).not.toMatch(/backing (adds|give|gives) points/i);
       expect(page).not.toMatch(/\$ICELAN[^.]{0,80}\b(price|chart|worth|apy)\b/i);

@@ -30,18 +30,21 @@ describe("legal notices at account and token decisions", () => {
     expect(app).toContain("{LAN_ROLE}");
     expect(app).toContain("by {BRAND.artist}");
   });
-  it("keeps Discover loading, empty, and error while the buy sentence is on screen", () => {
+  it("keeps accounting and disclosures available while Discover is loading, empty, or failed", () => {
     const station: Station = { status: "ready", live: false, observedAt: 0 };
     const loading = renderToStaticMarkup(<Market market={null} load="loading" onRetry={() => {}} station={station} now={0} />);
-    expect(loading).toContain(HOW_TO_BUY);
+    expect(loading).toContain('href="/legal#icelan"');
+    expect(loading).not.toContain(HOW_TO_BUY);
     expect(loading).toContain("skel");
     const failed = renderToStaticMarkup(<Market market={null} load="error" onRetry={() => {}} station={station} now={0} />);
     expect(failed).toContain("No scores changed. Nothing was sent.");
     expect(failed).toContain("Try again");
-    expect(failed).toContain(HOW_TO_BUY);
+    expect(failed).toContain("do not convert to tokens");
+    expect(failed).not.toContain(HOW_TO_BUY);
     const empty = renderToStaticMarkup(<Market market={{ network: "devnet", observedAt: null, slot: null, stale: false, generatedAt: 1, listings: [] }} load="ready" onRetry={() => {}} station={station} now={0} />);
     expect(empty).toContain("No channels match the current read yet.");
-    expect(empty).toContain(HOW_TO_BUY);
+    expect(empty).toContain("Controlled beta");
+    expect(empty).not.toContain(HOW_TO_BUY);
   });
   it("shows age, terms and privacy before account creation", () => {
     const snapshot = buildToday({ season: null, me: null, history: [], generatedAt: 0 });

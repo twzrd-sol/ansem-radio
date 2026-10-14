@@ -12,7 +12,7 @@ function IcelanLane({ vault, claims }: { vault?: VaultView | null; claims?: Clai
       <p className="label">ICELAN rewards</p>
       <p className="revenue-card__figure">{amount}</p>
       <h3 className="h3">Credited from tasks</h3>
-      <p className="small">ICELAN is recorded for real account tasks: link Twitch (+100 once), link a wallet (+100 once), and eligible #radiolanlive chat (+10 each, up to 10 per UTC day). The message text is not stored. {ICELAN_BOOK_CAP} {VAULT_HOLDS} Recorded rewards are not a wallet balance. {open ? icelanCollectCopy(claims) : claimsStory(claims)}</p>
+      <p className="small">ICELAN records real account tasks when each feature is enabled: Twitch link (+100 once), wallet link (+100 once), and eligible #radiolanlive chat (+10 each, up to 10 per UTC day). Profile shows which links and chat recording are enabled. The message text is not stored. {ICELAN_BOOK_CAP} {VAULT_HOLDS} Recorded rewards are not a wallet balance. {open ? icelanCollectCopy(claims) : claimsStory(claims)}</p>
       <span className="revenue-card__state">{open ? "Funded · collect available" : "Funded · collect not open"}</span>
     </article>
   );

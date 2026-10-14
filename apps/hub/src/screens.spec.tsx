@@ -9,17 +9,18 @@ import { describe, expect, it } from "vitest";
 // The repo's arena client, the reference the hub must match (plan section 2 and 6).
 import { seasonIndex as refSeasonIndex, withdrawAvailableAt as refWithdrawAvailableAt } from "../../../src/sinks/arena.js";
 import { backingTarget, canSetUp, marketFor, PRIMARY_NAV, Ribbon, SampleBanner, snapshotFor } from "./app/App";
+import { rewardLabel } from "./ui/SeasonCard";
 import type { FlowStep, Position, PreviewState } from "./app/preview";
 import { parseHash } from "./app/route";
 import { ARENA_MINT, ARENA_PROGRAM } from "./chain/config";
 import { seasonIndex, withdrawAvailableAt } from "./chain/season";
-import { sortListings, type Listing as ListingData, type Market as MarketData } from "./data/market";
+import { isUnverifiedCommunityMarket, sortListings, type Listing as ListingData, type Market as MarketData } from "./data/market";
 import { buildSample, sampleListingDetail, sampleMarket, samplePositions } from "./data/sample";
 import type { Station } from "./data/station";
 import { buildToday } from "./data/today";
 import type { HubSnapshot } from "./data/types";
 import { fmt } from "./lib/format";
-import { Back } from "./screens/Back";
+import { Back, BackNetworkNotice } from "./screens/Back";
 import { LiveBack } from "./screens/LiveBack";
 import { Board } from "./screens/Board";
 import { Circle } from "./screens/Circle";
@@ -78,6 +79,15 @@ const sourceFiles = (dir: string): string[] =>
   });
 
 describe("copy rules (plan section 11)", () => {
+  it("blocks a Back flow when listing reads and wallet actions target different networks", () => {
+    const mismatch = text(<BackNetworkNotice marketNetwork="mainnet" name="Radio LAN" />);
+    expect(mismatch).toContain("This listing was read from Solana mainnet, while wallet actions in this release target Solana devnet.");
+    expect(mismatch).toContain("Nothing will be built or sent.");
+    expect(mismatch).toContain("Return to Radio LAN");
+    const unknown = text(<BackNetworkNotice marketNetwork={null} />);
+    expect(unknown).toContain("The listing's network could not be verified.");
+  });
+
   it("keeps AI agents visible and identifies their labelled chat without promising a live station", () => {
     const discover = text(<Market market={emptyMarket} load="ready" onRetry={noop} station={station} now={NOW} />);
     const room = text(<Lan snapshot={today} load="ready" onRetry={noop} station={station} />);
@@ -298,7 +308,7 @@ describe("on-chain screens", () => {
     expect(parseHash("#/back").onchain).toBe(true);
     expect(parseHash("#/back/crate-breed")).toMatchObject({ key: "back", arg: "crate-breed", onchain: true });
     for (const key of ["#/", "#/s/radiolanlive", "#/lan", "#/play", "#/board", "#/circle", "#/communities", "#/positions", "#/me", "#/claim"]) expect(parseHash(key).onchain, key).toBe(false);
-    expect(text(<Ribbon />)).toMatch(/^Solana devnet Test tokens only\. No real value\./);
+    expect(text(<Ribbon marketNetwork="devnet" />)).toMatch(/^Solana devnet Test tokens only\. No real value\./);
     const back = html(<Back snapshot={sample} load="ready" preview={preview({ flow: "review" })} now={NOW} onRetry={noop} />);
     expect(back).toContain(`https://explorer.solana.com/address/${ARENA_PROGRAM}?cluster=devnet`);
     if (ARENA_MINT) expect(back).toContain(`https://explorer.solana.com/address/${ARENA_MINT}?cluster=devnet`);
@@ -398,12 +408,18 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(boardHtml).not.toContain('class="mkt__rank num" aria-label="Backing rank 3"');
     expect(board).toMatch(/Read from Solana devnet 1 min ago\./);
     expect(boardHtml).toMatch(/title="[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · slot 500,400 · Solana devnet"/);
-    expect(board).toContain("Rewards, the locker, and communities are in");
+    expect(board).toContain("Site activities and accounting rules are in");
     expect(board).not.toMatch(/It stays closed until a listed market is open/);
     expect(board).not.toMatch(/next site credit|next credit/);
-    expect(board).toContain("eligible Play credits 2× weight, within published caps");
+    expect(board).toContain("eligible Play credits 2× weight, within caps");
+    const communityListing = { ...market.listings[0]!, claimed: false, claimDerived: false };
+    const communityBoard = { ...market, listings: [communityListing, ...market.listings.slice(1)] };
+    expect(text(<Market market={communityBoard} load="ready" onRetry={noop} station={station} now={NOW} />)).toContain("Community-open · arena ownership unverified by Radio LAN");
     expect(boardHtml.indexOf('id="h-open"')).toBeGreaterThan(0);
+    expect(boardHtml.indexOf('aria-label="Channel controls"')).toBeLessThan(boardHtml.indexOf('class="featured-wrap"'));
+    expect(boardHtml.indexOf('class="featured-wrap"')).toBeLessThan(boardHtml.indexOf('id="h-open"'));
     expect(boardHtml.indexOf('id="h-open"')).toBeLessThan(boardHtml.indexOf('id="creator-affinity-title"'));
+    expect(boardHtml.indexOf('id="h-open"')).toBeLessThan(boardHtml.indexOf('aria-label="Your Radio LAN universe"'));
     expect(boardHtml).toContain('href="#/how"');
     expect(boardHtml).toContain('title="Data: Twitch. Recorded by radiolanlive at ');
     expect(boardHtml.match(/>Fictional creator</g)?.length).toBe(2);
@@ -482,8 +498,10 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(board).not.toContain("Creator fee terms are managed by ClawPump");
     expect(board).not.toContain("Vault not read");
     expect(board).not.toContain("$ICELAN vault not created");
-    expect(board).toContain("Recorded now. Check Collect for claim availability.");
-    expect(board).toContain("The mainnet vault was funded with 100,000 ICELAN on October 7, 2026.");
+    expect(board).not.toContain("Check Collect for claim availability");
+    expect(board).not.toContain("100,000 ICELAN");
+    expect(board).not.toContain("Buy $RLAN");
+    expect(board).toContain("Points do not convert to tokens");
     expect(board).not.toMatch(/can be claimed/);
     expect(board).toContain("Play the season");
     expect(board).toContain("Find your standing");
@@ -555,33 +573,26 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(text(<StatsView preview={null} load="error" onRetry={noop} />)).toContain("didn't load");
   });
 
-  it("walks a streamer from linking a wallet to creating their arena, and never offers it before it can work", () => {
+  it("tells a fan to link Twitch, chat to earn credit, and back a channel with $RLAN", () => {
     const tracked = sampleListingDetail(NOW, "ninja")!.listing;
     const joined = { ...tracked, claimed: true, keys: null, backingOpen: false, arena: null };
-    const noWallet = text(<YourPageView claim={{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }} listing={joined} />);
-    expect(noWallet).toContain("Your page");
-    expect(noWallet).toContain("Link your wallet");
-    expect(noWallet).toContain("Link a wallet first");
-    expect(noWallet).not.toContain("Create your arena Create your arena");
-    expect(html(<YourPageView claim={{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }} listing={joined} />)).not.toContain("#/back/ninja");
-    const ready = { ...joined, claimDerived: true, keys: { streamer: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" } };
-    const withWallet = html(<YourPageView claim={{ slug: "ninja", wallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", ready: true, reason: null }} listing={ready} />);
-    expect(decode(withWallet)).toContain("Create your arena");
-    expect(withWallet).toContain('href="#/back/ninja"');
-    expect(decode(withWallet)).toContain("One signature from the linked wallet");
-    const noMint = text(<YourPageView claim={{ slug: "ninja", wallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", ready: false, reason: "no_default_mint" }} listing={{ ...joined, claimDerived: false }} />);
-    expect(noMint).toContain("no token set");
-    const opened = text(<YourPageView claim={{ slug: "ninja", wallet: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", ready: true, reason: null }} listing={{ ...ready, backingOpen: true }} />);
-    expect(opened).toContain("Your arena is open");
-    const swapped = text(<YourPageView claim={{ slug: "ninja", wallet: "Other111111111111111111111111111111111111111", pinned: { streamer: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" }, ready: true, reason: "wallet_differs_from_pinned" }} listing={ready} onRelease={() => {}} />);
+    const page = text(<YourPageView claim={{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }} listing={joined} />);
+    expect(page).toContain("Your page");
+    expect(page).toContain("Link Twitch");
+    expect(page).toContain("Chat to earn credit");
+    expect(page).toContain("Back a channel with $RLAN");
+    expect(page).not.toMatch(/Create your arena|Create the arena|Arena creation is not part of this beta|Deposits are not part of this beta/);
+    expect(html(<YourPageView claim={{ slug: "ninja", wallet: null, ready: false, reason: "wallet_link_required" }} listing={joined} />)).toContain('href="#/back/ninja"');
+    const swapped = text(<YourPageView claim={{ slug: "ninja", wallet: "Other111111111111111111111111111111111111111", pinned: { streamer: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", mint: "CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy" }, ready: true, reason: "wallet_differs_from_pinned" }} listing={joined} onRelease={() => {}} />);
     expect(swapped).toContain("tied to wallet 9xQe…VFin");
-    expect(decode(swapped)).toContain("Connect 9xQe…VFin to create the arena");
-    expect(decode(swapped)).not.toContain("One signature from the linked wallet");
     expect(swapped).toContain("anyone who backed it can always withdraw");
     expect(swapped).toContain("Release this page");
-    expect(noWallet).not.toContain("Release this page");
-    const money = /\b(pay|pays|paid|payout|payment|earn|earns|earned|money|claim|claims|claiming|pool|price|prices|trade|trading|sell|stock)\b/i;
-    for (const t of [noWallet, withWallet, noMint, opened, swapped]) expect(money.exec(decode(t))).toBeNull();
+    expect(swapped).toContain("Link Twitch");
+    expect(page).not.toContain("Release this page");
+    expect(text(<Ribbon marketNetwork="devnet" />)).toMatch(/^Solana devnet Test tokens only\. No real value\./);
+    expect(rewardLabel.provisional).toBe("Your points so far");
+    const money = /\b(pay|pays|paid|payout|payment|money|claim|claims|claiming|pool|price|prices|trade|trading|sell|stock)\b/i;
+    for (const t of [page.replace(/Chat to earn credit/g, ""), swapped.replace(/Chat to earn credit/g, "")]) expect(money.exec(decode(t))).toBeNull();
   });
 
   it("offers the arena setup for the featured listing and for a listing whose pair came from its streamer's wallet, and for nothing else", () => {
@@ -663,6 +674,14 @@ describe("the Board (multi-streamer path, Stage 1)", () => {
     expect(featured).toMatch(/Season · points Free · backing is optional/);
     expect(featured).toMatch(/Points come from activities on this site\. An active RLAN position/);
     expect(featured).not.toMatch(/never from backing or Twitch/);
+
+    const community = { ...lan.listing, kind: "featured" as const, backingOpen: true, arena: { ...lan.listing.arena!, address: "arena", streamer: "streamer", mint: "mint", decimals: 6, closed: false, seasonStart: "1", seasonSeconds: "604800", season: "1", total: "0", backers: "0", requested: 0, netFlow: null }, claimed: false, claimDerived: false };
+    expect(isUnverifiedCommunityMarket(community)).toBe(true);
+    const open = text(<Listing listing={community} observed={lan} load="ready" onRetry={noop} station={station} now={NOW} snapshot={sample} onJoin={noop} slug="radiolanlive" />);
+    expect(open).toContain("Community-opened market for twitch.tv/radiolanlive");
+    expect(open).toContain("Radio LAN has not verified that the arena belongs to them");
+    expect(open).toContain("Deposited RLAN stays in your own support account; it is not paid to the channel.");
+    expect(open).toContain("Open community market");
   });
 
   it("lists a wallet's positions with the arena's release rule, totals them, and points to the free season elsewhere", () => {

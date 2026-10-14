@@ -23,7 +23,7 @@ export function HowItWorks({ backingOpen = false, openFor = [] }: { backingOpen?
       <section aria-labelledby="h-how-account">
         <p className="eyebrow">Identity</p>
         <h2 className="h3" id="h-how-account">Your account</h2>
-        <p>Play is free. A passkey keeps your hub account. Link Twitch and a Solana wallet when you choose.</p>
+        <p>Play is free. A passkey keeps your hub account. Profile shows which Twitch and wallet links are enabled on this release.</p>
         <p>Connecting reads the wallet address; linking asks it to sign a message. That signature does not send a transaction.</p>
       </section>
       <section aria-labelledby="h-how-points">
@@ -41,8 +41,8 @@ export function HowItWorks({ backingOpen = false, openFor = [] }: { backingOpen?
       <section aria-labelledby="h-how-icelan">
         <p className="eyebrow">Recorded tasks</p>
         <h2 className="h3" id="h-how-icelan">ICELAN task records and claims</h2>
-        <p>Profile records 100 ICELAN for linking Twitch once and 100 for linking a wallet once. When chat recording is enabled, a linked Twitch user’s eligible #radiolanlive chat records 10 ICELAN, up to 10 times per source UTC day. The message text is not stored.</p>
-        <p>Profile shows whether chat recording is on today and your count, labelled Data: Twitch.</p>
+        <p>When Twitch linking is enabled, Profile records 100 ICELAN once for linking a Twitch account and 100 once for linking a wallet. When chat recording is enabled, a linked Twitch user’s eligible #radiolanlive chat records 10 ICELAN, up to 10 times per source UTC day. The message text is not stored.</p>
+        <p>Profile shows which links and chat recording are enabled on this release, plus your chat count, labelled Data: Twitch.</p>
         <p>These amounts are records, not tokens in a wallet. {VAULT_HOLDS} {claims} A season ending alone does not open claims.</p>
       </section>
       <section aria-labelledby="h-how-community">

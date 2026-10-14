@@ -98,7 +98,8 @@ describe("optional account links", () => {
     expect(text).not.toContain("Not available yet");
     expect(text).toContain("does not sign you into Twitch chat");
     const disabled = renderToStaticMarkup(<IdentityFacts identity={{ twitchEnabled: false, twitch: null, wallet: null }} />);
-    expect(disabled).toContain("Not available yet");
+    expect(disabled).toContain("Not configured");
+    expect(disabled).toContain("Twitch linking is disabled on this release");
     expect(disabled).toContain("Not linked");
   });
 

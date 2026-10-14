@@ -29,9 +29,12 @@ describe("recorded account rewards", () => {
     expect(html).toContain("Recorded now. Check Collect for claim availability.");
     expect(html).toContain("The mainnet vault was funded with 100,000 ICELAN on October 7, 2026.");
     expect(html).toContain("Data: Twitch");
+    expect(html).toContain("Twitch account link");
     expect(html).toContain("observed on the channel");
     expect(html).not.toMatch(/wallet balance/i);
     expect(html).not.toMatch(/can be claimed/);
+    const unavailableLink = text(<TaskRecord view={{ ...view, tasks: view.tasks.map((task) => task.id === "twitch_link" ? { ...task, done: false } : task) }} />);
+    expect(unavailableLink).toContain("One-time task · check Profile for availability");
     expect(text(<TaskRecord view={{ ...view, claim: "task_book" }} />)).toContain("Recorded now. Check Collect for claim availability");
     expect(text(<TaskRecord view={{ ...view, claim: "task_book" }} />)).not.toContain("Claims are open at Collect");
     expect(text(<TaskRecord view={{ ...view, claim: "task_book" }} claims={{ claimFlag: true }} />)).not.toContain("Claims are open at Collect");

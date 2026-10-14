@@ -24,4 +24,16 @@ describe("the Buy $RLAN button", () => {
     const html = renderToStaticMarkup(<BuyRlanBar variant="hero" />);
     expect(html).not.toContain("clawpump.tech/tokens");
   });
+
+  it("keeps hero risk and boost terms visible while putting steps and mint in a clear disclosure", () => {
+    const html = renderToStaticMarkup(<BuyRlanBar variant="hero" />);
+    expect(html).toContain("Tokens can lose all value");
+    expect(html).toContain("It awards no points by itself");
+    expect(html).toContain('<details class="buy-rlan__details">');
+    expect(html).toContain("How to buy and verify the mint");
+    expect(html).toContain("Open ClawPump");
+    expect(html).toContain("Swap SOL for RLAN");
+    expect(html).toContain("Back the channel here");
+    expect(html).toContain("CTyEzEC2WwUgNivmkSp6ZdqnPmBb59EyY4QmCXmFAJiy");
+  });
 });

@@ -1,46 +1,36 @@
-// "Your page": shown to the streamer who joined this listing with Twitch. Two steps make it backable on its own:
-// link a wallet (the existing identity flow, on the Profile page), then create the arena as that wallet. The station
-// derives the listing's backing pair from the linked wallet; nothing here reads Twitch data or touches points.
+// "Your page": the same signed-in listing page as before. The words are the fan's three actions.
+// Who sees it is unchanged. Nothing here reads Twitch data into points.
 import { useEffect, useState } from "react";
 
 import { createHubApi, explainApiError, HubApiError } from "../data/api";
 import type { MyClaim } from "../data/identity-api";
 import type { Listing } from "../data/market";
-import { Address, Icon } from "./atoms";
-import { IS_MAINNET } from "../chain/config";
-
-const REASONS: Record<string, string> = {
-  wallet_link_required: "Link a wallet first. The arena is created under it.",
-  wallet_not_allowed: "This wallet can't be used for a listing. Link a different one.",
-  no_default_mint: "This station has no token set for backing yet.",
-  operator_set: "This listing's backing is set by the station operator.",
-  wallet_differs_from_pinned: "This page is tied to an earlier wallet. Connect that wallet to create the arena.",
-};
+import { Address } from "./atoms";
 
 export function YourPageView({ claim, listing, onRelease, busy = false, notice = "" }: { claim: MyClaim; listing: Listing; onRelease?: () => void; busy?: boolean; notice?: string }) {
-  const linked = Boolean(claim.wallet);
-  const open = listing.backingOpen;
-  const mismatch = Boolean(claim.pinned) && claim.wallet !== null && claim.wallet !== claim.pinned!.streamer;
-  const canCreate = !IS_MAINNET && claim.ready && listing.claimDerived === true && !listing.arena;
   return (
     <section className="panel" aria-labelledby="h-yourpage">
       <div className="panel__head">
         <h2 className="h3" id="h-yourpage">Your page</h2>
-        <span className="label">Streamer</span>
+        <span className="label">Fan</span>
       </div>
-      <p className="small">You joined this page with Twitch. Backing does not add season points by itself.</p>
-      {IS_MAINNET ? <p className="small">Arena creation is not available on this mainnet hub. Check this listing's locker for backing status.</p> : <ol className="yourpage__steps">
-        <li className={linked ? "step step--done" : "step"}>
-          <strong>1. Link your wallet</strong>
-          <span className="small">{linked ? "Linked. The arena is created under this wallet." : "Use the wallet you will keep for this page."}</span>
-          {!linked && <a className="btn" href="#/me">Link your wallet</a>}
+      <p className="small">Backing does not add season points by itself.</p>
+      <ol className="yourpage__steps">
+        <li className="step">
+          <strong>Link Twitch</strong>
+          <span className="small">Sign in on this account, then link Twitch.</span>
+          <a className="btn" href="#/me">Link Twitch</a>
         </li>
-        <li className={open ? "step step--done" : "step"}>
-          <strong>2. Create your arena</strong>
-          <span className="small">{open ? "Your arena is open. Fans can back this page." : mismatch ? <>This page is tied to wallet <Address id={claim.pinned!.streamer} />, not the wallet you have linked now. Connect <Address id={claim.pinned!.streamer} /> to create the arena.</> : canCreate ? <>One signature from {claim.pinned ? <Address id={claim.pinned.streamer} /> : "the linked wallet"}. Nothing else is sent. One signature, for this step only.</> : claim.reason ? REASONS[claim.reason] ?? "Not ready yet." : "Not ready yet."}</span>
-          {canCreate && <a className="btn btn--primary" href={`#/back/${listing.slug}`}><Icon name="heart" size="sm" />Create your arena</a>}
+        <li className="step">
+          <strong>Chat to earn credit</strong>
+          <span className="small">Chat in the linked channel. Credit from that chat shows on this page.</span>
         </li>
-      </ol>}
+        <li className="step">
+          <strong>Back a channel with $RLAN</strong>
+          <span className="small">Backing is optional and separate from season points.</span>
+          <a className="btn btn--primary" href={`#/back/${listing.slug}`}>Back with $RLAN</a>
+        </li>
+      </ol>
       {claim.pinned && (
         <p className="small fine">
           This page is tied to wallet <Address id={claim.pinned.streamer} />. Releasing the page does not move it: the listing stays tied to this wallet's arena, so anyone who backed it can always withdraw.

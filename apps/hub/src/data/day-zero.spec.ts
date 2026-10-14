@@ -1,8 +1,8 @@
 import { address } from "@solana/kit";
 import { describe, expect, it } from "vitest";
 
-import { DAY_ZERO_VAULT_ADDRESSES, ICELAN_DAY_ZERO_BASE_UNITS, ICELAN_POOL } from "../../../../src/hub/day-zero.js";
-import { TASK_AMOUNTS } from "../../../../src/hub/icelan-tasks.js";
+import { DAY_ZERO_VAULT_ADDRESSES, ICELAN_DAY_ZERO_BASE_UNITS, ICELAN_POOL } from "../../../../src/hub/icelan/day-zero.js";
+import { TASK_AMOUNTS } from "../../../../src/hub/icelan/icelan-tasks.js";
 import type { RpcPort } from "../chain/rpc";
 import { encodeBase58 } from "../../../../src/core/base58.js";
 import { taskClaimedAddress } from "../../../../src/sinks/rewards.js";

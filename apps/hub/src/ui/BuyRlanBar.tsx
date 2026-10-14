@@ -28,6 +28,24 @@ export function BuyRlanBar({ variant = "block" }: { variant?: "hero" | "block" }
       setCopyState("failed");
     }
   };
+  const steps = (
+    <ol className="buy-rlan__steps">
+      {HOW_TO_BUY_STEPS.map((step) => (
+        <li key={step.n}>
+          <span className="buy-rlan__n" aria-hidden="true">{step.n}</span>
+          <span>{step.title}</span>
+        </li>
+      ))}
+    </ol>
+  );
+  const mint = (
+    <p className="buy-rlan__mint small">
+      Mint <code className="mono">{RLAN_MINT}</code>
+      <button className="link-btn" type="button" onClick={() => void copy()}>
+        {copyMintLabel(copyState)}
+      </button>
+    </p>
+  );
   return (
     <section className={variant === "hero" ? "buy-rlan buy-rlan--hero" : "buy-rlan"} aria-label="Buy $RLAN">
       <a className="btn btn--primary buy-rlan__cta" href={variant === "hero" ? BUY_PATH_HERO : BUY_PATH_BLOCK} target="_blank" rel="noopener noreferrer">
@@ -35,21 +53,20 @@ export function BuyRlanBar({ variant = "block" }: { variant?: "hero" | "block" }
       </a>
       <p className="small">Buying is optional; playing is free. Tokens can lose all value. Radio LAN receives creator fees through ClawPump, a third-party launchpad. <a href="/terms#tokens">Read token risks and terms</a> and the <a href="/legal#rlan">launch disclosure</a>.</p>
       <p className="small buy-rlan__line">{BUY_RLAN_LINE}</p>
-      <p className="buy-rlan__how">{HOW_TO_BUY}</p>
-      <ol className="buy-rlan__steps">
-        {HOW_TO_BUY_STEPS.map((step) => (
-          <li key={step.n}>
-            <span className="buy-rlan__n" aria-hidden="true">{step.n}</span>
-            <span>{step.title}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="buy-rlan__mint small">
-        Mint <code className="mono">{RLAN_MINT}</code>
-        <button className="link-btn" type="button" onClick={() => void copy()}>
-          {copyMintLabel(copyState)}
-        </button>
-      </p>
+      {variant === "hero" ? (
+        <details className="buy-rlan__details">
+          <summary>How to buy and verify the mint</summary>
+          <p className="buy-rlan__how">{HOW_TO_BUY}</p>
+          {steps}
+          {mint}
+        </details>
+      ) : (
+        <>
+          <p className="buy-rlan__how">{HOW_TO_BUY}</p>
+          {steps}
+          {mint}
+        </>
+      )}
       {copyState === "failed" && (
         <p className="buy-rlan__error" role="alert">Could not copy the mint. Select it and copy it yourself.</p>
       )}

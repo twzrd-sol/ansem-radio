@@ -1,0 +1,12 @@
+@layer components {
+  .beta-accounts { margin: 20px 0; padding: 18px; border: 1px solid var(--color-line-2); border-radius: var(--radius-panel); }
+  .beta-accounts__scope { margin-bottom: 14px; }
+  .beta-accounts__grid { display: grid; gap: 18px; margin-bottom: 14px; }
+  .beta-accounts article { display: grid; align-content: start; gap: 8px; min-width: 0; }
+  .beta-accounts a, .beta-accounts summary { color: var(--color-amber); text-underline-offset: 3px; }
+  .beta-accounts summary { cursor: pointer; }
+  .beta-accounts details p { margin-top: 8px; }
+  @media (min-width: 760px) {
+    .beta-accounts__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+}
